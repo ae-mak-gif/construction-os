@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { Menu, Search, Bell, ChevronDown } from 'lucide-react';
+import { Menu, Search, Bell, ChevronDown, LogOut } from 'lucide-react';
 import { notifications } from '@/data/mockData';
+import { useAuth, getInitials } from '@/context/AuthContext';
 
 export function TopBar({
   title,
@@ -10,7 +11,14 @@ export function TopBar({
   onMenuClick: () => void;
 }) {
   const [showNotifs, setShowNotifs] = useState(false);
+  const [showUserMenu, setShowUserMenu] = useState(false);
+  const { profile, membership, signOut } = useAuth();
   const unread = notifications.filter((n) => !n.read).length;
+
+  const displayName = profile?.full_name || profile?.display_name || profile?.email || 'User';
+  const displayRole = membership?.role_name || 'Member';
+  const displayOrg = membership?.organization?.name || '';
+  const initials = getInitials(profile?.full_name || profile?.display_name, profile?.email);
 
   return (
     <header className="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-4 lg:px-6 sticky top-0 z-20">
@@ -83,15 +91,44 @@ export function TopBar({
         </div>
 
         {/* User */}
-        <div className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 rounded-lg px-2 py-1.5 transition-colors">
-          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-navy-600 to-navy-800 flex items-center justify-center text-white text-xs font-bold">
-            TM
-          </div>
-          <div className="hidden sm:block">
-            <p className="text-xs font-semibold text-gray-700">T. Moyo</p>
-            <p className="text-[10px] text-gray-400">CEO</p>
-          </div>
-          <ChevronDown size={14} className="text-gray-400 hidden sm:block" />
+        <div className="relative">
+          <button
+            onClick={() => setShowUserMenu(!showUserMenu)}
+            className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 rounded-lg px-2 py-1.5 transition-colors"
+          >
+            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-navy-600 to-navy-800 flex items-center justify-center text-white text-xs font-bold">
+              {initials}
+            </div>
+            <div className="hidden sm:block text-left">
+              <p className="text-xs font-semibold text-gray-700">{displayName}</p>
+              <p className="text-[10px] text-gray-400">{displayRole}{displayOrg ? ` · ${displayOrg}` : ''}</p>
+            </div>
+            <ChevronDown size={14} className="text-gray-400 hidden sm:block" />
+          </button>
+          {showUserMenu && (
+            <>
+              <div className="fixed inset-0 z-30" onClick={() => setShowUserMenu(false)} />
+              <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-2xl border border-gray-200 z-40">
+                <div className="px-4 py-3 border-b border-gray-100">
+                  <p className="text-sm font-semibold text-gray-800">{displayName}</p>
+                  <p className="text-xs text-gray-500 mt-0.5">{profile?.email}</p>
+                  {displayOrg && (
+                    <p className="text-[10px] text-gray-400 mt-1">{displayOrg} · {displayRole}</p>
+                  )}
+                </div>
+                <button
+                  onClick={() => {
+                    setShowUserMenu(false);
+                    signOut();
+                  }}
+                  className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors rounded-b-xl"
+                >
+                  <LogOut size={16} className="text-gray-400" />
+                  Sign out
+                </button>
+              </div>
+            </>
+          )}
         </div>
       </div>
     </header>
