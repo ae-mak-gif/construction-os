@@ -8,6 +8,7 @@ export interface Profile {
   full_name?: string | null;
   display_name?: string | null;
   avatar_url?: string | null;
+  phone?: string | null;
 }
 
 export interface Organization {
@@ -20,8 +21,10 @@ export interface Membership {
   id: string;
   organization_id: string;
   user_id: string;
+  role_id: string;
   role_name: string;
   organization: Organization;
+  status?: string | null;
 }
 
 export interface AuthState {
@@ -37,13 +40,24 @@ export interface AuthState {
 
 const AuthContext = createContext<AuthState | undefined>(undefined);
 
-function getInitials(name: string | null | undefined, email: string | null | undefined): string {
+function getInitials(
+  name: string | null | undefined,
+  email: string | null | undefined
+): string {
   if (name) {
     const parts = name.trim().split(/\s+/);
-    if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+
+    if (parts.length >= 2) {
+      return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+    }
+
     return parts[0].slice(0, 2).toUpperCase();
   }
-  if (email) return email.slice(0, 2).toUpperCase();
+
+  if (email) {
+    return email.slice(0, 2).toUpperCase();
+  }
+
   return 'BF';
 }
 
@@ -61,25 +75,63 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let profileData: Profile | null = null;
     let membershipData: Membership | null = null;
 
+    // ---------------------------------------------------------
+    // LOAD PROFILE
+    // ---------------------------------------------------------
+    // The verified profiles table contains:
+    // id, full_name, phone, avatar_url, created_at, updated_at
+    //
+    // Email comes from the authenticated Supabase user.
+    // ---------------------------------------------------------
+
     const { data: prof, error: profError } = await supabase
       .from('profiles')
-      .select('id, email, full_name, display_name, avatar_url')
+      .select('id, full_name, phone, avatar_url')
       .eq('id', currentUser.id)
       .maybeSingle();
 
     if (profError) {
       setError(`Unable to load profile: ${profError.message}`);
     } else if (prof) {
-      profileData = prof as Profile;
+      profileData = {
+        id: prof.id,
+        email: currentUser.email ?? '',
+        full_name: prof.full_name ?? null,
+        display_name: prof.full_name ?? null,
+        avatar_url: prof.avatar_url ?? null,
+        phone: prof.phone ?? null,
+      };
     } else {
+      // Graceful fallback if a profile record does not exist.
       profileData = {
         id: currentUser.id,
         email: currentUser.email ?? '',
         full_name: currentUser.user_metadata?.full_name ?? null,
-        display_name: null,
+        display_name: currentUser.user_metadata?.full_name ?? null,
         avatar_url: null,
+        phone: null,
       };
     }
+
+    // ---------------------------------------------------------
+    // LOAD ORGANIZATION MEMBERSHIP
+    // ---------------------------------------------------------
+    // Verified schema:
+    //
+    // organization_members:
+    // id
+    // organization_id
+    // user_id
+    // role_id
+    // status
+    //
+    // roles:
+    // id
+    // organization_id
+    // name
+    //
+    // Therefore we DO NOT request organization_members.role_name.
+    // ---------------------------------------------------------
 
     const { data: memb, error: membError } = await supabase
       .from('organization_members')
@@ -87,29 +139,59 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         id,
         organization_id,
         user_id,
-        role_name,
-        organization:organizations(id, name, slug)
+        role_id,
+        status,
+        organization:organizations(
+          id,
+          name,
+          slug
+        )
       `)
       .eq('user_id', currentUser.id)
       .maybeSingle();
 
     if (membError) {
-      setError(`Unable to load organization membership: ${membError.message}`);
+      setError(
+        `Unable to load organization membership: ${membError.message}`
+      );
     } else if (memb) {
-      const m = memb as unknown as {
-        id: string;
-        organization_id: string;
-        user_id: string;
-        role_name: string;
-        organization: Organization | Organization[];
-      };
-      const org = Array.isArray(m.organization) ? m.organization[0] : m.organization;
+      const organizationData = Array.isArray(memb.organization)
+        ? memb.organization[0]
+        : memb.organization;
+
+      // -------------------------------------------------------
+      // LOAD ROLE USING role_id
+      // -------------------------------------------------------
+
+      let roleName = 'User';
+
+      if (memb.role_id) {
+        const { data: role, error: roleError } = await supabase
+          .from('roles')
+          .select('id, name')
+          .eq('id', memb.role_id)
+          .maybeSingle();
+
+        if (roleError) {
+          setError(`Unable to load user role: ${roleError.message}`);
+        } else if (role?.name) {
+          roleName = role.name;
+        }
+      }
+
       membershipData = {
-        id: m.id,
-        organization_id: m.organization_id,
-        user_id: m.user_id,
-        role_name: m.role_name,
-        organization: org ?? { id: m.organization_id, name: 'Unknown', slug: null },
+        id: memb.id,
+        organization_id: memb.organization_id,
+        user_id: memb.user_id,
+        role_id: memb.role_id,
+        role_name: roleName,
+        status: memb.status ?? null,
+        organization:
+          organizationData ?? {
+            id: memb.organization_id,
+            name: 'Unknown',
+            slug: null,
+          },
       };
     }
 
@@ -118,26 +200,50 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session: s } }) => {
-      setSession(s);
-      setUser(s?.user ?? null);
-      if (s?.user) {
-        loadProfileAndMembership(s.user).finally(() => setLoading(false));
+    let mounted = true;
+
+    // ---------------------------------------------------------
+    // INITIAL SESSION
+    // ---------------------------------------------------------
+
+    supabase.auth.getSession().then(({ data: { session: currentSession } }) => {
+      if (!mounted) return;
+
+      setSession(currentSession);
+      setUser(currentSession?.user ?? null);
+
+      if (currentSession?.user) {
+        loadProfileAndMembership(currentSession.user).finally(() => {
+          if (mounted) {
+            setLoading(false);
+          }
+        });
       } else {
         setLoading(false);
       }
     });
 
-    const { data: authListener } = supabase.auth.onAuthStateChange((_event, s) => {
-      setSession(s);
-      setUser(s?.user ?? null);
+    // ---------------------------------------------------------
+    // AUTH STATE CHANGES
+    // ---------------------------------------------------------
+
+    const {
+      data: authListener,
+    } = supabase.auth.onAuthStateChange((_event, currentSession) => {
+      if (!mounted) return;
+
+      setSession(currentSession);
+      setUser(currentSession?.user ?? null);
       setError(null);
-      if (s?.user) {
+
+      if (currentSession?.user) {
         setLoading(true);
-        (async () => {
-          await loadProfileAndMembership(s.user);
-          setLoading(false);
-        })();
+
+        loadProfileAndMembership(currentSession.user).finally(() => {
+          if (mounted) {
+            setLoading(false);
+          }
+        });
       } else {
         setProfile(null);
         setMembership(null);
@@ -145,25 +251,63 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     });
 
-    return () => authListener.subscription.unsubscribe();
+    return () => {
+      mounted = false;
+      authListener.subscription.unsubscribe();
+    };
   }, []);
+
+  // -----------------------------------------------------------
+  // SIGN IN
+  // -----------------------------------------------------------
 
   const signIn = async (email: string, password: string) => {
     setError(null);
-    const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
-    if (signInError) return { error: signInError.message };
-    return { error: null };
+
+    const { error: signInError } =
+      await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+    if (signInError) {
+      return {
+        error: signInError.message,
+      };
+    }
+
+    return {
+      error: null,
+    };
   };
+
+  // -----------------------------------------------------------
+  // SIGN OUT
+  // -----------------------------------------------------------
 
   const signOut = async () => {
     await supabase.auth.signOut();
+
+    setSession(null);
+    setUser(null);
     setProfile(null);
     setMembership(null);
     setError(null);
   };
 
   return (
-    <AuthContext.Provider value={{ session, user, profile, membership, loading, error, signIn, signOut }}>
+    <AuthContext.Provider
+      value={{
+        session,
+        user,
+        profile,
+        membership,
+        loading,
+        error,
+        signIn,
+        signOut,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );
@@ -171,6 +315,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
 export function useAuth() {
   const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error('useAuth must be used within AuthProvider');
+
+  if (!ctx) {
+    throw new Error('useAuth must be used within AuthProvider');
+  }
+
   return ctx;
 }
