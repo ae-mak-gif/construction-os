@@ -1,19 +1,33 @@
 import { useState } from 'react';
-import { Search, Plus, ArrowRight, Phone, Mail, Building2, X } from 'lucide-react';
+import { Search, Plus, ArrowRight, Phone, Mail, Building2 } from 'lucide-react';
 import { Card, CardHeader, CardBody } from '@/components/ui/Card';
 import { Table, Th, Td, Tr } from '@/components/ui/Table';
 import { StatusBadge, Badge } from '@/components/ui/Badge';
 import { Modal } from '@/components/ui/Modal';
-import { enquiries as initialEnquiries, clients as initialClients, type Enquiry, type EnquiryStage, type Client } from '@/data/mockData';
+import {
+  enquiries as initialEnquiries,
+  clients as initialClients,
+  type Enquiry,
+  type EnquiryStage,
+  type Client,
+} from '@/data/mockData';
 import { formatCurrency, formatDate } from '@/utils/format';
 
-const stages: EnquiryStage[] = ['New', 'Contacted', 'Qualified', 'Quoted', 'Won', 'Lost'];
+const stages: EnquiryStage[] = [
+  'New',
+  'Contacted',
+  'Qualified',
+  'Quoted',
+  'Won',
+  'Lost',
+];
 
 export function Enquiries() {
   const [enquiries, setEnquiries] = useState<Enquiry[]>(initialEnquiries);
   const [clients, setClients] = useState<Client[]>(initialClients);
   const [search, setSearch] = useState('');
-  const [stageFilter, setStageFilter] = useState<EnquiryStage | 'All'>('All');
+  const [stageFilter, setStageFilter] =
+    useState<EnquiryStage | 'All'>('All');
   const [selected, setSelected] = useState<Enquiry | null>(null);
   const [showNew, setShowNew] = useState(false);
 
@@ -57,6 +71,7 @@ export function Enquiries() {
     };
 
     setEnquiries((prev) => [newEnquiry, ...prev]);
+
     setForm({
       client: '',
       company: '',
@@ -66,6 +81,7 @@ export function Enquiries() {
       phone: '',
       email: '',
     });
+
     setShowNew(false);
   }
 
@@ -77,11 +93,15 @@ export function Enquiries() {
 
     if (!nextStage || nextStage === 'Lost') return;
 
-    const updated = { ...selected, stage: nextStage };
+    const updated = {
+      ...selected,
+      stage: nextStage,
+    };
 
     setEnquiries((prev) =>
       prev.map((e) => (e.id === selected.id ? updated : e))
     );
+
     setSelected(updated);
   }
 
@@ -113,7 +133,10 @@ export function Enquiries() {
       setClients((prev) => [newClient, ...prev]);
     }
 
-    const updated = { ...selected, stage: 'Won' as EnquiryStage };
+    const updated = {
+      ...selected,
+      stage: 'Won' as EnquiryStage,
+    };
 
     setEnquiries((prev) =>
       prev.map((e) => (e.id === selected.id ? updated : e))
@@ -137,10 +160,14 @@ export function Enquiries() {
           >
             <div
               onClick={() =>
-                setStageFilter(stageFilter === s.stage ? 'All' : s.stage)
+                setStageFilter(
+                  stageFilter === s.stage ? 'All' : s.stage
+                )
               }
             >
-              <p className="text-xs text-gray-400 font-medium">{s.stage}</p>
+              <p className="text-xs text-gray-400 font-medium">
+                {s.stage}
+              </p>
               <p className="text-2xl font-bold text-gray-800 mt-1">
                 {s.count}
               </p>
@@ -193,11 +220,17 @@ export function Enquiries() {
             <tbody>
               {filtered.map((e) => (
                 <Tr key={e.id} onClick={() => setSelected(e)}>
-                  <Td className="font-mono text-xs text-gray-400">{e.id}</Td>
+                  <Td className="font-mono text-xs text-gray-400">
+                    {e.id}
+                  </Td>
 
                   <Td>
-                    <p className="font-medium text-gray-700">{e.client}</p>
-                    <p className="text-xs text-gray-400">{e.company}</p>
+                    <p className="font-medium text-gray-700">
+                      {e.client}
+                    </p>
+                    <p className="text-xs text-gray-400">
+                      {e.company}
+                    </p>
                   </Td>
 
                   <Td className="text-gray-600">{e.project}</Td>
@@ -237,7 +270,9 @@ export function Enquiries() {
                 <h3 className="text-lg font-semibold text-gray-800">
                   {selected.project}
                 </h3>
-                <p className="text-sm text-gray-400">{selected.company}</p>
+                <p className="text-sm text-gray-400">
+                  {selected.company}
+                </p>
               </div>
 
               <StatusBadge status={selected.stage} />
@@ -250,7 +285,10 @@ export function Enquiries() {
                 value={formatCurrency(selected.value)}
               />
               <InfoRow label="Source" value={selected.source} />
-              <InfoRow label="Date" value={formatDate(selected.date)} />
+              <InfoRow
+                label="Date"
+                value={formatDate(selected.date)}
+              />
             </div>
 
             <div className="border-t border-gray-100 pt-4 space-y-2">
@@ -266,14 +304,15 @@ export function Enquiries() {
             </div>
 
             <div className="flex flex-wrap items-center gap-2 pt-3 border-t border-gray-100">
-              {selected.stage !== 'Won' && selected.stage !== 'Lost' && (
-                <button
-                  onClick={moveStage}
-                  className="flex items-center gap-1.5 bg-brand-600 text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-brand-700 transition-colors"
-                >
-                  Move Stage <ArrowRight size={14} />
-                </button>
-              )}
+              {selected.stage !== 'Won' &&
+                selected.stage !== 'Lost' && (
+                  <button
+                    onClick={moveStage}
+                    className="flex items-center gap-1.5 bg-brand-600 text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-brand-700 transition-colors"
+                  >
+                    Move Stage <ArrowRight size={14} />
+                  </button>
+                )}
 
               {selected.stage !== 'Won' && (
                 <button
@@ -298,21 +337,27 @@ export function Enquiries() {
           <Input
             label="Client Name"
             value={form.client}
-            onChange={(value) => setForm({ ...form, client: value })}
+            onChange={(value) =>
+              setForm({ ...form, client: value })
+            }
             placeholder="e.g. John Smith"
           />
 
           <Input
             label="Company"
             value={form.company}
-            onChange={(value) => setForm({ ...form, company: value })}
+            onChange={(value) =>
+              setForm({ ...form, company: value })
+            }
             placeholder="e.g. Smith Properties"
           />
 
           <Input
             label="Project"
             value={form.project}
-            onChange={(value) => setForm({ ...form, project: value })}
+            onChange={(value) =>
+              setForm({ ...form, project: value })
+            }
             placeholder="Project name"
           />
 
@@ -320,21 +365,27 @@ export function Enquiries() {
             label="Estimated Value"
             type="number"
             value={form.value}
-            onChange={(value) => setForm({ ...form, value })}
+            onChange={(value) =>
+              setForm({ ...form, value })
+            }
             placeholder="e.g. 750000"
           />
 
           <Input
             label="Phone"
             value={form.phone}
-            onChange={(value) => setForm({ ...form, phone: value })}
+            onChange={(value) =>
+              setForm({ ...form, phone: value })
+            }
             placeholder="+263..."
           />
 
           <Input
             label="Email"
             value={form.email}
-            onChange={(value) => setForm({ ...form, email: value })}
+            onChange={(value) =>
+              setForm({ ...form, email: value })
+            }
             placeholder="client@example.com"
           />
 
@@ -346,7 +397,10 @@ export function Enquiries() {
             <select
               value={form.source}
               onChange={(e) =>
-                setForm({ ...form, source: e.target.value })
+                setForm({
+                  ...form,
+                  source: e.target.value,
+                })
               }
               className="mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-400"
             >
@@ -386,14 +440,52 @@ export function Enquiries() {
 export function Clients() {
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<Client | null>(null);
+  const [clients, setClients] = useState<Client[]>(initialClients);
 
-  const [clients] = useState<Client[]>(initialClients);
+  const [showNew, setShowNew] = useState(false);
+
+  const [form, setForm] = useState({
+    name: '',
+    company: '',
+    phone: '',
+    email: '',
+  });
 
   const filtered = clients.filter(
     (c) =>
       c.name.toLowerCase().includes(search.toLowerCase()) ||
       c.company.toLowerCase().includes(search.toLowerCase())
   );
+
+  function createClient() {
+    if (!form.name || !form.company) return;
+
+    const newClient: Client = {
+      id: `C${String(clients.length + 1).padStart(3, '0')}`,
+      name: form.name,
+      company: form.company,
+      email: form.email,
+      phone: form.phone,
+      activeProjects: 0,
+      accountBalance: 0,
+      status: 'Active',
+      since: new Date().toLocaleDateString('en-US', {
+        month: 'short',
+        year: 'numeric',
+      }),
+    };
+
+    setClients((prev) => [newClient, ...prev]);
+
+    setForm({
+      name: '',
+      company: '',
+      phone: '',
+      email: '',
+    });
+
+    setShowNew(false);
+  }
 
   return (
     <div className="space-y-6">
@@ -414,7 +506,10 @@ export function Clients() {
                 />
               </div>
 
-              <button className="flex items-center gap-1.5 bg-brand-600 text-white text-sm font-medium px-3 py-1.5 rounded-lg hover:bg-brand-700 transition-colors">
+              <button
+                onClick={() => setShowNew(true)}
+                className="flex items-center gap-1.5 bg-brand-600 text-white text-sm font-medium px-3 py-1.5 rounded-lg hover:bg-brand-700 transition-colors"
+              >
                 <Plus size={16} /> Add Client
               </button>
             </div>
@@ -437,7 +532,10 @@ export function Clients() {
 
             <tbody>
               {filtered.map((c) => (
-                <Tr key={c.id} onClick={() => setSelected(c)}>
+                <Tr
+                  key={c.id}
+                  onClick={() => setSelected(c)}
+                >
                   <Td>
                     <div className="flex items-center gap-2">
                       <div className="w-8 h-8 rounded-full bg-navy-100 text-navy-700 flex items-center justify-center text-xs font-bold">
@@ -453,11 +551,17 @@ export function Clients() {
                     </div>
                   </Td>
 
-                  <Td className="text-gray-600">{c.company}</Td>
+                  <Td className="text-gray-600">
+                    {c.company}
+                  </Td>
 
                   <Td>
-                    <p className="text-xs text-gray-500">{c.phone}</p>
-                    <p className="text-xs text-gray-400">{c.email}</p>
+                    <p className="text-xs text-gray-500">
+                      {c.phone}
+                    </p>
+                    <p className="text-xs text-gray-400">
+                      {c.email}
+                    </p>
                   </Td>
 
                   <Td>
@@ -479,7 +583,9 @@ export function Clients() {
                       {c.accountBalance > 0
                         ? formatCurrency(c.accountBalance)
                         : c.accountBalance < 0
-                        ? `-${formatCurrency(Math.abs(c.accountBalance))}`
+                        ? `-${formatCurrency(
+                            Math.abs(c.accountBalance)
+                          )}`
                         : '$0'}
                     </span>
                   </Td>
@@ -488,7 +594,9 @@ export function Clients() {
                     <StatusBadge status={c.status} />
                   </Td>
 
-                  <Td className="text-gray-500 text-xs">{c.since}</Td>
+                  <Td className="text-gray-500 text-xs">
+                    {c.since}
+                  </Td>
                 </Tr>
               ))}
             </tbody>
@@ -496,6 +604,7 @@ export function Clients() {
         </CardBody>
       </Card>
 
+      {/* Client details */}
       <Modal
         open={!!selected}
         onClose={() => setSelected(null)}
@@ -517,18 +626,28 @@ export function Clients() {
                 </h3>
 
                 <p className="text-sm text-gray-400 flex items-center gap-1">
-                  <Building2 size={12} /> {selected.company}
+                  <Building2 size={12} />
+                  {selected.company}
                 </p>
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4 border-t border-gray-100 pt-4">
-              <InfoRow label="Phone" value={selected.phone} />
-              <InfoRow label="Email" value={selected.email} />
+              <InfoRow
+                label="Phone"
+                value={selected.phone}
+              />
+
+              <InfoRow
+                label="Email"
+                value={selected.email}
+              />
+
               <InfoRow
                 label="Active Projects"
                 value={String(selected.activeProjects)}
               />
+
               <InfoRow
                 label="Account Balance"
                 value={
@@ -537,11 +656,80 @@ export function Clients() {
                     : '$0'
                 }
               />
-              <InfoRow label="Client Since" value={selected.since} />
-              <InfoRow label="Status" value={selected.status} />
+
+              <InfoRow
+                label="Client Since"
+                value={selected.since}
+              />
+
+              <InfoRow
+                label="Status"
+                value={selected.status}
+              />
             </div>
           </div>
         )}
+      </Modal>
+
+      {/* Add Client modal */}
+      <Modal
+        open={showNew}
+        onClose={() => setShowNew(false)}
+        title="Add Client"
+      >
+        <div className="space-y-4">
+          <Input
+            label="Client Name"
+            value={form.name}
+            onChange={(value) =>
+              setForm({ ...form, name: value })
+            }
+            placeholder="e.g. John Smith"
+          />
+
+          <Input
+            label="Company"
+            value={form.company}
+            onChange={(value) =>
+              setForm({ ...form, company: value })
+            }
+            placeholder="e.g. Smith Properties"
+          />
+
+          <Input
+            label="Phone"
+            value={form.phone}
+            onChange={(value) =>
+              setForm({ ...form, phone: value })
+            }
+            placeholder="+263..."
+          />
+
+          <Input
+            label="Email"
+            value={form.email}
+            onChange={(value) =>
+              setForm({ ...form, email: value })
+            }
+            placeholder="client@example.com"
+          />
+
+          <div className="flex justify-end gap-2 pt-3 border-t border-gray-100">
+            <button
+              onClick={() => setShowNew(false)}
+              className="px-4 py-2 text-sm font-medium text-gray-500 border border-gray-200 rounded-lg hover:bg-gray-50"
+            >
+              Cancel
+            </button>
+
+            <button
+              onClick={createClient}
+              className="px-4 py-2 text-sm font-medium bg-brand-600 text-white rounded-lg hover:bg-brand-700"
+            >
+              Add Client
+            </button>
+          </div>
+        </div>
       </Modal>
     </div>
   );
@@ -586,8 +774,13 @@ function InfoRow({
 }) {
   return (
     <div>
-      <p className="text-xs text-gray-400 font-medium">{label}</p>
-      <p className="text-sm text-gray-700 mt-0.5">{value}</p>
+      <p className="text-xs text-gray-400 font-medium">
+        {label}
+      </p>
+
+      <p className="text-sm text-gray-700 mt-0.5">
+        {value}
+      </p>
     </div>
   );
 }
