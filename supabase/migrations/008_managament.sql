@@ -451,4 +451,139 @@ create table if not exists public.inspections (
     references public.projects(id)
     on delete cascade,
 
-  inspection
+  inspection_number text,
+
+  inspection_type text not null,
+
+  scheduled_date date,
+  inspection_date date,
+
+  status text not null default 'scheduled'
+    check (
+      status in (
+        'scheduled',
+        'completed',
+        'failed',
+        'cancelled'
+      )
+    ),
+
+  inspector_name text,
+
+  findings text,
+  corrective_actions text,
+
+  created_by uuid null
+    references auth.users(id)
+    on delete set null,
+
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+
+  constraint inspections_unique_number
+    unique (
+      organization_id,
+      inspection_number
+    )
+);
+
+create index if not exists idx_inspections_org
+  on public.inspections(organization_id);
+
+create index if not exists idx_inspections_project
+  on public.inspections(project_id);
+
+create index if not exists idx_inspections_status
+  on public.inspections(
+    organization_id,
+    status
+  );
+
+create index if not exists idx_inspections_date
+  on public.inspections(
+    organization_id,
+    inspection_date
+  );
+
+
+-- ------------------------------------------------------------
+-- UPDATED_AT TRIGGERS
+-- ------------------------------------------------------------
+
+drop trigger if exists set_staff_updated_at
+  on public.staff;
+
+create trigger set_staff_updated_at
+before update on public.staff
+for each row
+execute function public.set_updated_at();
+
+
+drop trigger if exists set_equipment_updated_at
+  on public.equipment;
+
+create trigger set_equipment_updated_at
+before update on public.equipment
+for each row
+execute function public.set_updated_at();
+
+
+drop trigger if exists set_work_orders_updated_at
+  on public.work_orders;
+
+create trigger set_work_orders_updated_at
+before update on public.work_orders
+for each row
+execute function public.set_updated_at();
+
+
+drop trigger if exists set_risks_updated_at
+  on public.risks;
+
+create trigger set_risks_updated_at
+before update on public.risks
+for each row
+execute function public.set_updated_at();
+
+
+drop trigger if exists set_quality_issues_updated_at
+  on public.quality_issues;
+
+create trigger set_quality_issues_updated_at
+before update on public.quality_issues
+for each row
+execute function public.set_updated_at();
+
+
+drop trigger if exists set_inspections_updated_at
+  on public.inspections;
+
+create trigger set_inspections_updated_at
+before update on public.inspections
+for each row
+execute function public.set_updated_at();
+
+
+-- ------------------------------------------------------------
+-- COMPLETE PROJECT MEMBER STAFF RELATIONSHIP
+-- ------------------------------------------------------------
+
+do $$
+begin
+  if not exists (
+    select 1
+    from pg_constraint
+    where conname = 'project_members_staff_id_fkey'
+  ) then
+    alter table public.project_members
+      add constraint project_members_staff_id_fkey
+      foreign key (staff_id)
+      references public.staff(id)
+      on delete set null;
+  end if;
+end $$;
+
+
+-- ------------------------------------------------------------
+-- END 008
+-- ------------------------------------------------------------
