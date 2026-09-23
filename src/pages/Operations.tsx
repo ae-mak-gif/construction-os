@@ -864,3 +864,124 @@ export function Procurement() {
     </div>
   );
 }
+export function Suppliers() {
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-semibold text-gray-900">Suppliers</h1>
+        <p className="mt-1 text-sm text-gray-500">
+          Manage suppliers and procurement contacts.
+        </p>
+      </div>
+
+      <Card>
+        <CardHeader title="Supplier Directory" />
+        <CardBody>
+          <div className="overflow-x-auto">
+            <Table>
+              <thead>
+                <tr>
+                  <Th>Supplier</Th>
+                  <Th>Contact</Th>
+                  <Th>Status</Th>
+                </tr>
+              </thead>
+              <tbody>
+                {suppliers.map((supplier: any) => (
+                  <Tr key={supplier.id}>
+                    <Td>
+                      <div className="font-medium text-gray-900">
+                        {supplier.name ||
+                          supplier.company_name ||
+                          supplier.supplier_name ||
+                          'Unnamed Supplier'}
+                      </div>
+                    </Td>
+                    <Td>
+                      {supplier.email ||
+                        supplier.phone ||
+                        supplier.contact_name ||
+                        '—'}
+                    </Td>
+                    <Td>
+                      <Badge>
+                        {supplier.status || 'Active'}
+                      </Badge>
+                    </Td>
+                  </Tr>
+                ))}
+              </tbody>
+            </Table>
+          </div>
+        </CardBody>
+      </Card>
+    </div>
+  );
+}
+
+export function Inventory() {
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-semibold text-gray-900">Inventory</h1>
+        <p className="mt-1 text-sm text-gray-500">
+          Track materials, stock levels and inventory movements.
+        </p>
+      </div>
+
+      <Card>
+        <CardHeader title="Inventory" />
+        <CardBody>
+          <div className="overflow-x-auto">
+            <Table>
+              <thead>
+                <tr>
+                  <Th>Item</Th>
+                  <Th>Quantity</Th>
+                  <Th>Unit</Th>
+                  <Th>Status</Th>
+                </tr>
+              </thead>
+              <tbody>
+                {inventory.map((item: any) => (
+                  <Tr key={item.id}>
+                    <Td>
+                      <div className="font-medium text-gray-900">
+                        {item.name ||
+                          item.item_name ||
+                          item.description ||
+                          'Unnamed Item'}
+                      </div>
+                    </Td>
+                    <Td>
+                      {item.quantity ??
+                        item.stock_quantity ??
+                        item.current_stock ??
+                        0}
+                    </Td>
+                    <Td>
+                      {item.unit || '—'}
+                    </Td>
+                    <Td>
+                      <Badge>
+                        {item.status ||
+                          (Number(
+                            item.quantity ??
+                              item.stock_quantity ??
+                              item.current_stock ??
+                              0
+                          ) > 0
+                            ? 'In Stock'
+                            : 'Out of Stock')}
+                      </Badge>
+                    </Td>
+                  </Tr>
+                ))}
+              </tbody>
+            </Table>
+          </div>
+        </CardBody>
+      </Card>
+    </div>
+  );
+}
