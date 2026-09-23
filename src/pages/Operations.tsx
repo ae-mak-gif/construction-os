@@ -861,4 +861,4 @@ export function Procurement() {
           </div>
         </div>
       )}
-    </div
+    </div>
