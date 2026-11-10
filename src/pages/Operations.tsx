@@ -1,15 +1,12 @@
 import { useState } from 'react';
 import {
-  Search,
   Plus,
   ChevronLeft,
   ChevronRight,
   AlertTriangle,
-  Package,
   Check,
   X,
   ArrowRight,
-  Star,
 } from 'lucide-react';
 import { Card, CardHeader, CardBody, StatCard } from '@/components/ui/Card';
 import { Table, Th, Td, Tr } from '@/components/ui/Table';
@@ -21,6 +18,8 @@ import {
   purchaseRequests,
   suppliers,
   inventory,
+  type Task,
+  type PurchaseRequest,
 } from '@/data/mockData';
 import { formatFullCurrency, formatDateShort } from '@/utils/format';
 
@@ -34,7 +33,7 @@ export function TasksCalendar() {
   const [taskProject, setTaskProject] = useState('');
   const [taskAssignee, setTaskAssignee] = useState('');
   const [taskDueDate, setTaskDueDate] = useState('');
-  const [taskPriority, setTaskPriority] = useState('Medium');
+  const [taskPriority, setTaskPriority] = useState<Task['priority']>('Medium');
   const [currentMonth, setCurrentMonth] = useState(new Date(2026, 8, 1));
 
   const filteredTasks =
@@ -51,7 +50,7 @@ export function TasksCalendar() {
   const createTask = () => {
     if (!taskTitle.trim()) return;
 
-    const newTask = {
+    const newTask: Task = {
       id: `T${String(taskItems.length + 1).padStart(3, '0')}`,
       title: taskTitle.trim(),
       project: taskProject || 'Riverside Office Development',
@@ -61,7 +60,7 @@ export function TasksCalendar() {
       status: 'To Do',
     };
 
-    setTaskItems([newTask as any, ...taskItems]);
+    setTaskItems([newTask, ...taskItems]);
     setTaskTitle('');
     setTaskProject('');
     setTaskAssignee('');
@@ -459,7 +458,7 @@ export function BOQEstimates() {
   const markup = subtotal * 0.15;
   const total = subtotal + contingency + markup;
 
-  const categoryColors: Record<string, string> = {
+  const categoryColors: Record<string, React.ComponentProps<typeof Badge>['variant']> = {
     Materials: 'blue',
     Labour: 'green',
     Equipment: 'orange',
@@ -541,7 +540,7 @@ export function BOQEstimates() {
                   <Td className="font-medium text-gray-700">{i.item}</Td>
                   <Td className="text-gray-500 text-xs">{i.description}</Td>
                   <Td>
-                    <Badge variant={categoryColors[i.category] as any}>
+                    <Badge variant={categoryColors[i.category] ?? 'gray'}>
                       {i.category}
                     </Badge>
                   </Td>
@@ -646,7 +645,7 @@ export function Procurement() {
   const createRequest = () => {
     if (!item.trim()) return;
 
-    const newRequest = {
+    const newRequest: PurchaseRequest = {
       id: `PR${String(requests.length + 1).padStart(3, '0')}`,
       item: item.trim(),
       project: project || 'Riverside Office Development',
@@ -659,7 +658,7 @@ export function Procurement() {
       status: 'Requested',
     };
 
-    setRequests([newRequest as any, ...requests]);
+    setRequests([newRequest, ...requests]);
 
     setItem('');
     setProject('');
@@ -887,21 +886,15 @@ export function Suppliers() {
                 </tr>
               </thead>
               <tbody>
-                {suppliers.map((supplier: any) => (
+                {suppliers.map((supplier) => (
                   <Tr key={supplier.id}>
                     <Td>
                       <div className="font-medium text-gray-900">
-                        {supplier.name ||
-                          supplier.company_name ||
-                          supplier.supplier_name ||
-                          'Unnamed Supplier'}
+                        {supplier.name}
                       </div>
                     </Td>
                     <Td>
-                      {supplier.email ||
-                        supplier.phone ||
-                        supplier.contact_name ||
-                        '—'}
+                      {supplier.email || supplier.phone || supplier.contact || '—'}
                     </Td>
                     <Td>
                       <Badge>
@@ -943,34 +936,23 @@ export function Inventory() {
                 </tr>
               </thead>
               <tbody>
-                {inventory.map((item: any) => (
+                {inventory.map((item) => (
                   <Tr key={item.id}>
                     <Td>
                       <div className="font-medium text-gray-900">
-                        {item.name ||
-                          item.item_name ||
-                          item.description ||
-                          'Unnamed Item'}
+                        {item.material}
                       </div>
                     </Td>
                     <Td>
-                      {item.quantity ??
-                        item.stock_quantity ??
-                        item.current_stock ??
-                        0}
+                      {item.stock}
                     </Td>
                     <Td>
-                      {item.unit || '—'}
+                      {item.unit}
                     </Td>
                     <Td>
                       <Badge>
                         {item.status ||
-                          (Number(
-                            item.quantity ??
-                              item.stock_quantity ??
-                              item.current_stock ??
-                              0
-                          ) > 0
+                          (item.stock > 0
                             ? 'In Stock'
                             : 'Out of Stock')}
                       </Badge>
