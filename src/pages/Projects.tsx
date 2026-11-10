@@ -1206,6 +1206,12 @@ function BOQTab({
 }
 
 function CostsTab({ project }: { project: Project }) {
+  const { records } = useBuildFlowData();
+  const liveCosts = (records.project_costs ?? []).filter((row) => row.project_id === project.id);
+  const liveCostTotal = liveCosts.reduce((sum, row) => sum + Number(row.amount ?? 0), 0);
+  const costBreakdown = liveCostTotal > 0
+    ? Array.from(liveCosts.reduce((map, row) => { const label = String(row.cost_type ?? 'Other').replace(/_/g, ' '); map.set(label, (map.get(label) ?? 0) + Number(row.amount ?? 0)); return map; }, new Map<string, number>()).entries()).map(([label, amount]) => ({ label, amount, pct: Math.round((amount / liveCostTotal) * 100) }))
+    : [ { label: 'Materials', amount: project.actualCost * 0.45, pct: 45 }, { label: 'Labour', amount: project.actualCost * 0.25, pct: 25 }, { label: 'Subcontractors', amount: project.actualCost * 0.18, pct: 18 }, { label: 'Equipment', amount: project.actualCost * 0.08, pct: 8 }, { label: 'Overheads', amount: project.actualCost * 0.04, pct: 4 } ];
   const remaining = project.budget - project.actualCost;
 
   const variance =
@@ -1250,33 +1256,7 @@ function CostsTab({ project }: { project: Project }) {
 
         <CardBody>
           <div className="space-y-3">
-            {[
-              {
-                label: 'Materials',
-                amount: project.actualCost * 0.45,
-                pct: 45,
-              },
-              {
-                label: 'Labour',
-                amount: project.actualCost * 0.25,
-                pct: 25,
-              },
-              {
-                label: 'Subcontractors',
-                amount: project.actualCost * 0.18,
-                pct: 18,
-              },
-              {
-                label: 'Equipment',
-                amount: project.actualCost * 0.08,
-                pct: 8,
-              },
-              {
-                label: 'Overheads',
-                amount: project.actualCost * 0.04,
-                pct: 4,
-              },
-            ].map((c) => (
+            {costBreakdown.map((c) => (
               <div key={c.label}>
                 <div className="flex items-center justify-between text-sm mb-1">
                   <span className="text-gray-600">
