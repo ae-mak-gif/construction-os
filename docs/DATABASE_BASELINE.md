@@ -9,6 +9,7 @@ Method: read-only metadata and catalog queries; no DDL or data mutations were pe
 - Row-level security is enabled across all 39 public tables.
 - 146 public-schema RLS policies are present.
 - Migration ledger is empty (Supabase migration listing returned no applied migrations).
+- The 39 table names declared across migrations 001-010 match the 39 live public base-table names. This confirms table-name parity only; it does not yet prove column, constraint, index, trigger, function or policy equivalence.
 - Storage buckets: 0; Edge Functions: 0.
 - Current operational data is effectively empty: one organisation, one organisation membership, one profile and one auth user; zero projects and zero clients.
 
@@ -29,7 +30,7 @@ The development notes refer to 011_seed_demo.sql, but that file is not present i
 ## Authentication and tenant findings
 - The live profiles table uses id, first_name, last_name, display_name, phone and avatar_url; it has no full_name column. The UI query mismatch is corrected on the feature branch.
 - organization_members has a non-null status field; the only current membership is active.
-- The frontend currently loads one membership with maybeSingle(). The database supports multiple membership rows per user; explicit organisation selection is required before enabling multi-organisation accounts. Do not select an arbitrary first membership.
+- The frontend now filters to active memberships and fails closed if there are none or more than one. The database supports multiple membership rows per user; explicit organisation selection is required before enabling multi-organisation accounts. Do not select an arbitrary first membership.
 - private.is_active_org_member(uuid) checks auth.uid() and status='active'. It is SECURITY DEFINER with an empty search_path and an explicit auth.uid() predicate; retain careful review of ownership and EXECUTE grants because it bypasses ordinary RLS execution context.
 - Operational RLS policies largely apply the same active-organisation-member predicate for SELECT/INSERT/UPDATE/DELETE. This is tenant isolation, not role-based authorisation.
 - The roles table currently contains only id, organization_id, name, description and timestamps. There is no permission matrix or permission column, and role-specific CRUD enforcement is not present.
