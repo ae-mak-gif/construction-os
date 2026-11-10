@@ -29,12 +29,13 @@ const integrations: Integration[] = [
   { name: 'SMS', description: 'Send SMS notifications and alerts', icon: <Smartphone size={22} />, status: 'ready', category: 'Communication', color: 'bg-blue-50 text-blue-600' },
   { name: 'Email', description: 'Send emails and manage email campaigns', icon: <Mail size={22} />, status: 'ready', category: 'Communication', color: 'bg-orange-50 text-orange-600' },
   { name: 'Google Calendar', description: 'Sync project meetings, inspections, and deadlines', icon: <Calendar size={22} />, status: 'ready', category: 'Productivity', color: 'bg-purple-50 text-purple-600' },
-  { name: 'Google Drive', description: 'Cloud storage for project documents and drawings', icon: <HardDrive size={22} />, status: 'coming', category: 'Storage', color: 'bg-gray-50 text-gray-500' },
-  { name: 'Accounting', description: 'Sync with accounting software (e.g. QuickBooks, Pastel)', icon: <Calculator size={22} />, status: 'coming', category: 'Finance', color: 'bg-gray-50 text-gray-500' },
+  { name: 'Google Drive', description: 'Connect Google Drive to store, organise, preview and share project documents and drawings', icon: <HardDrive size={22} />, status: 'ready', category: 'Storage', color: 'bg-blue-50 text-blue-600' },
+  { name: 'Accounting', description: 'Connect accounting platforms such as Sage / Pastel and QuickBooks for invoices, expenses and reconciliation', icon: <Calculator size={22} />, status: 'ready', category: 'Finance', color: 'bg-indigo-50 text-indigo-600' },
   { name: 'Banking', description: 'Connect bank accounts for transaction tracking', icon: <Landmark size={22} />, status: 'coming', category: 'Finance', color: 'bg-gray-50 text-gray-500' },
-  { name: 'Payment Gateway', description: 'Accept online payments from clients', icon: <CreditCard size={22} />, status: 'coming', category: 'Finance', color: 'bg-gray-50 text-gray-500' },
+  { name: 'Online Payments', description: 'Connect payment providers to accept client payments online and reconcile transactions', icon: <CreditCard size={22} />, status: 'ready', category: 'Finance', color: 'bg-emerald-50 text-emerald-600' },
   { name: 'ClickUp', description: 'Sync tasks and project management with ClickUp', icon: <ListChecks size={22} />, status: 'coming', category: 'Productivity', color: 'bg-gray-50 text-gray-500' },
   { name: 'Advanced AI', description: 'Connect an AI API for intelligent insights and automation', icon: <Brain size={22} />, status: 'coming', category: 'AI', color: 'bg-gray-50 text-gray-500' },
+  { name: 'Virtual Executive Assistant', description: 'AI executive support for email triage, scheduling, task coordination, follow-ups and workflow execution', icon: <Brain size={22} />, status: 'ready', category: 'AI & Productivity', color: 'bg-violet-50 text-violet-600' },
 ];
 
 export function Settings() {
