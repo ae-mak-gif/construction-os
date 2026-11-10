@@ -51,7 +51,7 @@ export function Projects({
   const { records } = useBuildFlowData();
   const clientById = new Map((records.clients ?? []).map((row) => [row.id, row]));
   const staffById = new Map((records.staff ?? []).map((row) => [row.id, row]));
-  const projectRows: Project[] = records.projects?.length ? records.projectRows.map((row) => ({
+  const projectRows: Project[] = records.projects?.length ? records.projects.map((row) => ({
     id: row.id, name: String(row.name ?? ''), client: String(clientById.get(String(row.client_id))?.name ?? 'Client'), clientCompany: String(clientById.get(String(row.client_id))?.name ?? 'Client'),
     manager: String(staffById.get(String(row.project_manager_id))?.first_name ?? 'Unassigned'), progress: Number(row.progress_percent ?? 0), budget: Number(row.contract_value ?? 0),
     actualCost: (records.project_costs ?? []).filter((cost) => cost.project_id === row.id).reduce((sum, cost) => sum + Number(cost.amount ?? 0), 0), deadline: String(row.expected_completion_date ?? ''), startDate: String(row.start_date ?? ''),
