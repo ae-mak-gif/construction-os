@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { AuthProvider, useAuth } from '@/context/AuthContext';
 import { LoginPage } from '@/pages/Login';
+import { ResetPasswordPage } from '@/pages/ResetPassword';
 import { Sidebar, type PageKey } from '@/components/layout/Sidebar';
 import { TopBar } from '@/components/layout/TopBar';
 import { Dashboard } from '@/pages/Dashboard';
@@ -45,6 +46,10 @@ function AppContent() {
   const [projectId, setProjectId] = useState<string | null>(null);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
+  if (window.location.pathname === '/reset-password') {
+    return <ResetPasswordPage />;
+  }
+
   const handleNavigate = (p: PageKey) => {
     setPage(p);
     if (p !== 'project-detail') setProjectId(null);
@@ -67,9 +72,7 @@ function AppContent() {
     );
   }
 
-  if (!session) {
-    return <LoginPage />;
-  }
+  if (!session) return <LoginPage />;
 
   if (error) {
     return (
@@ -86,33 +89,21 @@ function AppContent() {
     );
   }
 
-  // Client portal is full-screen
-  if (page === 'client-portal') {
-    return <ClientPortal onExit={() => handleNavigate('dashboard')} />;
-  }
+  if (page === 'client-portal') return <ClientPortal onExit={() => handleNavigate('dashboard')} />;
 
   const currentProject = projectId ? projects.find((p) => p.id === projectId) : null;
 
   return (
     <div className="flex min-h-screen bg-gray-50">
-      <Sidebar
-        current={page}
-        onNavigate={handleNavigate}
-        mobileOpen={mobileSidebarOpen}
-        onCloseMobile={() => setMobileSidebarOpen(false)}
-      />
-
+      <Sidebar current={page} onNavigate={handleNavigate} mobileOpen={mobileSidebarOpen} onCloseMobile={() => setMobileSidebarOpen(false)} />
       <div className="flex-1 flex flex-col min-w-0">
         <TopBar title={pageTitles[page]} onMenuClick={() => setMobileSidebarOpen(true)} />
-
         <main className="flex-1 p-4 lg:p-6 overflow-x-hidden">
           {page === 'dashboard' && <Dashboard onNavigate={handleNavigate} />}
           {page === 'crm-enquiries' && <Enquiries />}
           {page === 'crm-clients' && <Clients />}
           {page === 'projects' && <Projects onOpenProject={openProject} />}
-          {page === 'project-detail' && currentProject && (
-            <ProjectDetail project={currentProject} onBack={() => handleNavigate('projects')} />
-          )}
+          {page === 'project-detail' && currentProject && <ProjectDetail project={currentProject} onBack={() => handleNavigate('projects')} />}
           {page === 'ops-tasks' && <TasksCalendar />}
           {page === 'ops-boq' && <BOQEstimates />}
           {page === 'ops-procurement' && <Procurement />}
@@ -134,11 +125,7 @@ function AppContent() {
 }
 
 function App() {
-  return (
-    <AuthProvider>
-      <AppContent />
-    </AuthProvider>
-  );
+  return <AuthProvider><AppContent /></AuthProvider>;
 }
 
 export default App;
