@@ -12,12 +12,12 @@ import { Card, CardHeader, CardBody, StatCard } from '@/components/ui/Card';
 import { Table, Th, Td, Tr } from '@/components/ui/Table';
 import { StatusBadge, Badge } from '@/components/ui/Badge';
 import {
-  tasks,
+  tasks as mockTasks,
   calendarEvents,
-  boqItems,
-  purchaseRequests,
-  suppliers,
-  inventory,
+  boqItems as mockBoqItems,
+  purchaseRequests as mockPurchaseRequests,
+  suppliers as mockSuppliers,
+  inventory as mockInventory,
   type Task,
   type PurchaseRequest,
 } from '@/data/mockData';
@@ -27,9 +27,11 @@ import { useBuildFlowData } from '@/context/BuildFlowDataContext';
 // ── Tasks & Calendar ──────────────────────────────────────────
 export function TasksCalendar() {
   const { create, update, records } = useBuildFlowData();
+  const projectById = new Map((records.projects ?? []).map((row) => [row.id, row]));
+  const liveTasks: Task[] = records.tasks?.length ? records.tasks.map((row) => ({ id: row.id, title: String(row.title ?? ''), project: String(projectById.get(String(row.project_id))?.name ?? 'Unassigned project'), assignee: 'Unassigned', dueDate: String(row.due_date ?? ''), priority: row.priority === 'high' || row.priority === 'urgent' ? 'High' : row.priority === 'low' ? 'Low' : 'Medium', status: row.status === 'completed' ? 'Done' : row.status === 'in_progress' ? 'In Progress' : row.status === 'blocked' ? 'Review' : 'To Do' } as Task)) : mockTasks;
   const [tab, setTab] = useState<'tasks' | 'calendar'>('tasks');
   const [statusFilter, setStatusFilter] = useState<string>('All');
-  const [taskItems, setTaskItems] = useState(tasks);
+  const [taskItems, setTaskItems] = useState(liveTasks);
   const [showTaskModal, setShowTaskModal] = useState(false);
   const [taskTitle, setTaskTitle] = useState('');
   const [taskProject, setTaskProject] = useState('');
@@ -456,12 +458,15 @@ function CalendarView({
 
 // ── BOQ & Estimates ───────────────────────────────────────────
 export function BOQEstimates() {
+  const { records, create, remove } = useBuildFlowData();
+  const projectById = new Map((records.projects ?? []).map((row) => [row.id, row]));
+  const liveBoqItems = records.boq_items?.length ? records.boq_items.map((row) => ({ id: row.id, item: String(row.item_code ?? row.description ?? ''), description: String(row.description ?? ''), qty: Number(row.quantity ?? 1), unit: String(row.unit ?? ''), unitCost: Number(row.unit_rate ?? 0), category: String(row.category ?? 'Materials'), project: String(projectById.get(String(row.project_id))?.name ?? 'Unassigned project') } as (typeof mockBoqItems)[number])) : mockBoqItems;
   const [projectFilter, setProjectFilter] = useState('All');
-  const [items, setItems] = useState(boqItems);
+  const [items, setItems] = useState(liveBoqItems);
 
   const projects = [
     'All',
-    ...Array.from(new Set(boqItems.map((b) => b.project))),
+    ...Array.from(new Set(items.map((b) => b.project))),
   ];
 
   const filtered =
@@ -481,28 +486,24 @@ export function BOQEstimates() {
     Subcontractors: 'purple',
   };
 
-  const removeItem = (id: string) =>
+  const removeItem = (id: string) => {
     setItems(items.filter((i) => i.id !== id));
+    if (/^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(id)) void remove('boq_items', id).catch((error) => window.alert(error.message));
+  };
 
-  const addItem = () => {
+  const addItem = async () => {
     const newId = `B${String(items.length + 1).padStart(3, '0')}`;
 
-    setItems([
-      ...items,
-      {
-        id: newId,
-        item: 'New Item',
-        description: 'Enter description',
-        qty: 1,
-        unit: 'pcs',
-        unitCost: 0,
-        category: 'Materials',
-        project:
-          projectFilter === 'All'
-            ? 'Riverside Office Development'
-            : projectFilter,
-      },
-    ]);
+    const projectName = projectFilter === 'All' ? 'Riverside Office Development' : projectFilter;
+    const linkedProject = (records.projects ?? []).find((row) => row.name === projectName);
+    const item = { id: newId, item: 'New Item', description: 'Enter description', qty: 1, unit: 'pcs', unitCost: 0, category: 'Materials' as const, project: projectName };
+    if (linkedProject) {
+      try {
+        const saved = await create('boq_items', { project_id: linkedProject.id, item_code: newId, description: item.description, quantity: 1, unit: 'pcs', unit_rate: 0, total_amount: 0, category: 'Materials', status: 'planned' });
+        item.id = saved.id;
+      } catch (error) { window.alert(error instanceof Error ? error.message : 'Unable to save BOQ item.'); return; }
+    }
+    setItems((current) => [...current, item]);
   };
 
   return (
@@ -625,8 +626,10 @@ export function BOQEstimates() {
 // ── Procurement ──────────────────────────────────────────────
 export function Procurement() {
   const { create, records } = useBuildFlowData();
+  const projectById = new Map((records.projects ?? []).map((row) => [row.id, row]));
+  const liveRequests = records.purchase_requests?.length ? records.purchase_requests.map((row) => ({ id: String(row.request_number ?? row.id), item: String(row.description ?? ''), project: String(projectById.get(String(row.project_id))?.name ?? 'Unassigned project'), qty: 1, unit: 'item', estCost: Number(row.estimated_amount ?? 0), requestedBy: 'Team member', date: String(row.created_at ?? '').slice(0, 10), status: row.status === 'approved' ? 'Approved' : row.status === 'ordered' ? 'PO Issued' : row.status === 'delivered' ? 'Delivered' : row.status === 'rejected' ? 'Rejected' : 'Requested', supplier: 'Pending' } as PurchaseRequest)) : mockPurchaseRequests;
   const [statusFilter, setStatusFilter] = useState('All');
-  const [requests, setRequests] = useState(purchaseRequests);
+  const [requests, setRequests] = useState(liveRequests);
   const [showModal, setShowModal] = useState(false);
 
   const [item, setItem] = useState('');
@@ -890,6 +893,8 @@ export function Procurement() {
   );
 }
 export function Suppliers() {
+  const { records } = useBuildFlowData();
+  const supplierRows = records.suppliers?.length ? records.suppliers.map((row) => ({ id: row.id, name: String(row.name ?? ''), category: 'Supplier', contact: String(row.contact_name ?? ''), phone: String(row.phone ?? ''), email: String(row.email ?? ''), rating: 0, totalOrders: 0, outstandingBalance: 0, status: row.status === 'inactive' ? 'Inactive' : 'Active' } as (typeof mockSuppliers)[number])) : mockSuppliers;
   return (
     <div className="space-y-6">
       <div>
@@ -912,7 +917,7 @@ export function Suppliers() {
                 </tr>
               </thead>
               <tbody>
-                {suppliers.map((supplier) => (
+                {supplierRows.map((supplier) => (
                   <Tr key={supplier.id}>
                     <Td>
                       <div className="font-medium text-gray-900">
@@ -939,6 +944,8 @@ export function Suppliers() {
 }
 
 export function Inventory() {
+  const { records } = useBuildFlowData();
+  const inventoryRows = records.inventory_items?.length ? records.inventory_items.map((row) => ({ id: row.id, material: String(row.name ?? ''), category: String(row.category ?? ''), stock: Number(row.quantity_on_hand ?? 0), allocated: 0, reorderLevel: Number(row.reorder_level ?? 0), unit: String(row.unit ?? ''), unitCost: Number(row.unit_cost ?? 0) } as (typeof mockInventory)[number])) : mockInventory;
   return (
     <div className="space-y-6">
       <div>
@@ -962,7 +969,7 @@ export function Inventory() {
                 </tr>
               </thead>
               <tbody>
-                {inventory.map((item) => (
+                {inventoryRows.map((item) => (
                   <Tr key={item.id}>
                     <Td>
                       <div className="font-medium text-gray-900">
