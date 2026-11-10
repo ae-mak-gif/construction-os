@@ -160,16 +160,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         )
       `)
       .eq('user_id', currentUser.id)
-      .maybeSingle();
+      .eq('status', 'active')
+      .limit(2);
 
     if (membError) {
       setError(
         `Unable to load organization membership: ${membError.message}`
       );
-    } else if (memb) {
-      const organizationData = Array.isArray(memb.organization)
-        ? memb.organization[0]
-        : memb.organization;
+    } else if (!memb || memb.length === 0) {
+      setError('Your account does not have an active organisation membership. Please contact your administrator.');
+    } else if (memb.length > 1) {
+      setError('Your account is linked to more than one organisation. Organisation selection must be configured before you can continue.');
+    } else {
+      const member = memb[0];
+      const organizationData = Array.isArray(member.organization)
+        ? member.organization[0]
+        : member.organization;
 
       // -------------------------------------------------------
       // LOAD ROLE USING role_id
@@ -177,11 +183,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       let roleName = 'User';
 
-      if (memb.role_id) {
+      if (member.role_id) {
         const { data: role, error: roleError } = await supabase
           .from('roles')
           .select('id, name')
-          .eq('id', memb.role_id)
+          .eq('id', member.role_id)
           .maybeSingle();
 
         if (roleError) {
@@ -192,15 +198,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       membershipData = {
-        id: memb.id,
-        organization_id: memb.organization_id,
-        user_id: memb.user_id,
-        role_id: memb.role_id,
+        id: member.id,
+        organization_id: member.organization_id,
+        user_id: member.user_id,
+        role_id: member.role_id,
         role_name: roleName,
         status: memb.status ?? null,
         organization:
           organizationData ?? {
-            id: memb.organization_id,
+            id: member.organization_id,
             name: 'Unknown',
             slug: null,
           },
