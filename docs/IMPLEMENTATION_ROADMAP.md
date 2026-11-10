@@ -13,11 +13,12 @@ This roadmap advances the existing Construction OS / BuildFlow repository. It is
 
 ## Delivery sequence and exit criteria
 
-### 0. Stabilisation and source control
+### 0. Stabilisation and source control — completed on feature branch
 - Align frontend queries with the live Supabase schema.
-- Confirm clean build, lint and typecheck; add automated checks to pull requests.
+- Add prebuild lint and typecheck gates; add a GitHub Actions workflow for pull requests and main-branch pushes.
 - Record the current live schema and migration-history discrepancy.
-- Exit: authentication can load the existing profile schema; checks pass on a preview deployment; no production schema change was needed.
+- Fix the initial lint findings and TypeScript errors revealed by the new gates.
+- Exit achieved: the feature-branch Vercel preview passes lint (0 errors, 2 non-blocking Fast Refresh warnings), typecheck and Vite production build. No production schema or deployment change was made.
 
 ### 1. Authentication, organisation context and tenancy
 - Complete sign-in, sign-out, session restoration, loading/error handling and profile fallback.
@@ -91,7 +92,8 @@ For each module: define data contracts, typed repository/service functions, load
 - Exit: production release checklist signed off; demo, development and production boundaries verified.
 
 ## Immediate next work
-1. Complete and verify the profile-schema fix and active-membership guard in a Vercel preview build.
-2. Review auth/membership state transitions and implement an explicit organisation-selection model before enabling multi-organisation users.
-3. Produce a schema baseline report from the live database and compare it to the ten checked-in migrations.
-4. Build the security/RLS matrix before connecting business modules.
+1. Complete the authentication profile and active-membership guard; feature-branch lint, typecheck and build now pass.
+2. Create an isolated Development Supabase environment and configure Vercel Preview to use it; current Preview and Production variables are shared across both targets.
+3. Review auth/membership state transitions and implement an explicit organisation selector before enabling multi-organisation users.
+4. Complete column/constraint/index/function/policy-level comparison of the live schema with migrations 001-010; table-name parity is confirmed but full equivalence is not.
+5. Build and test the security/RLS matrix, prioritising recipient-scoped notifications and project/client document access.
