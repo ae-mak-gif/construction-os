@@ -22,9 +22,11 @@ import {
   type PurchaseRequest,
 } from '@/data/mockData';
 import { formatFullCurrency, formatDateShort } from '@/utils/format';
+import { useBuildFlowData } from '@/context/BuildFlowDataContext';
 
 // ── Tasks & Calendar ──────────────────────────────────────────
 export function TasksCalendar() {
+  const { create, update, records } = useBuildFlowData();
   const [tab, setTab] = useState<'tasks' | 'calendar'>('tasks');
   const [statusFilter, setStatusFilter] = useState<string>('All');
   const [taskItems, setTaskItems] = useState(tasks);
@@ -47,7 +49,7 @@ export function TasksCalendar() {
   const inProgressCount = taskItems.filter((t) => t.status === 'In Progress').length;
   const doneCount = taskItems.filter((t) => t.status === 'Done').length;
 
-  const createTask = () => {
+  const createTask = async () => {
     if (!taskTitle.trim()) return;
 
     const newTask: Task = {
@@ -60,6 +62,15 @@ export function TasksCalendar() {
       status: 'To Do',
     };
 
+    try {
+      const linkedProject = (records.projects ?? []).find((p) => String(p.name) === newTask.project);
+      const saved = await create('tasks', { title: newTask.title, project_id: linkedProject?.id ?? null, status: 'todo', priority: newTask.priority.toLowerCase(), due_date: newTask.dueDate });
+      newTask.id = saved.id;
+    } catch (error) {
+      console.error('Unable to save task:', error);
+      window.alert(error instanceof Error ? error.message : 'Unable to save this task.');
+      return;
+    }
     setTaskItems([newTask, ...taskItems]);
     setTaskTitle('');
     setTaskProject('');
@@ -69,8 +80,13 @@ export function TasksCalendar() {
     setShowTaskModal(false);
   };
 
-  const advanceTask = (id: string) => {
+  const advanceTask = async (id: string) => {
     const stages: Task['status'][] = ['To Do', 'In Progress', 'Review', 'Done'];
+    const selectedTask = taskItems.find((task) => task.id === id);
+    if (selectedTask && /^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(selectedTask.id)) {
+      const next = stages[stages.indexOf(selectedTask.status) + 1];
+      if (next) void update('tasks', id, { status: next === 'Done' ? 'completed' : next.toLowerCase().replace(' ', '_') }).catch((error) => window.alert(error.message));
+    }
     setTaskItems(
       taskItems.map((task) => {
         if (task.id !== id) return task;
@@ -608,6 +624,7 @@ export function BOQEstimates() {
 
 // ── Procurement ──────────────────────────────────────────────
 export function Procurement() {
+  const { create, records } = useBuildFlowData();
   const [statusFilter, setStatusFilter] = useState('All');
   const [requests, setRequests] = useState(purchaseRequests);
   const [showModal, setShowModal] = useState(false);
@@ -642,7 +659,7 @@ export function Procurement() {
     'Project',
   ];
 
-  const createRequest = () => {
+  const createRequest = async () => {
     if (!item.trim()) return;
 
     const newRequest: PurchaseRequest = {
@@ -658,6 +675,15 @@ export function Procurement() {
       status: 'Requested',
     };
 
+    try {
+      const linkedProject = (records.projects ?? []).find((p) => String(p.name) === newRequest.project);
+      const saved = await create('purchase_requests', { project_id: linkedProject?.id ?? null, description: newRequest.item, status: 'pending', estimated_amount: newRequest.estCost, required_date: new Date().toISOString().slice(0, 10), notes: `Quantity: ${newRequest.qty} ${newRequest.unit}` });
+      newRequest.id = saved.id;
+    } catch (error) {
+      console.error('Unable to save purchase request:', error);
+      window.alert(error instanceof Error ? error.message : 'Unable to save this purchase request.');
+      return;
+    }
     setRequests([newRequest, ...requests]);
 
     setItem('');
