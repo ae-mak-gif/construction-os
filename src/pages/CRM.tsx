@@ -169,14 +169,8 @@ export function Enquiries() {
         const parts = selected.client.trim().split(/\s+/);
         const contactRow = await create('contacts', { client_id: clientRow.id, first_name: parts[0] || selected.client, last_name: parts.slice(1).join(' ') || null, email: selected.email || null, phone: selected.phone || null, is_primary: true });
         contactId = contactRow.id;
-        if (!localExists) {
-          const newClient: Client = {
-            id: clientRow.id, name: selected.client, company: selected.company, email: selected.email,
-            phone: selected.phone, activeProjects: 0, accountBalance: 0, status: 'Active',
-            since: new Date().toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),
-          };
-          setClients((prev) => [newClient, ...prev]);
-        }
+        // The shared data context adds the saved row to records; the client list
+        // derives from that live snapshot plus the immutable demo fixtures.
       } catch (error) {
         if (contactId) await remove('contacts', contactId).catch(() => undefined);
         if (clientId) await remove('clients', clientId).catch(() => undefined);
