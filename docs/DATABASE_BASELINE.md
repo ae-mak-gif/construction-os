@@ -40,6 +40,7 @@ The development notes refer to 011_seed_demo.sql, but that file is not present i
 - notifications policies are organisation-membership scoped, although each notification has a user_id recipient. A member of the organisation can therefore potentially read or mutate another member's notifications. Policies should be recipient-scoped, with a separately controlled insert path.
 - messages and project_documents are currently protected at broad organisation-member scope. Before client portal access, add explicit sender/recipient, client identity, project membership and document visibility rules as appropriate.
 - The client portal is currently mock-data UI; it must not be exposed as a real client surface until client identities and project-level permissions are designed and tested.
+- Vercel currently has VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY configured for both Production and Preview in the same environment-variable entries. This means Preview is not independently isolated from Production. Keep preview login/data testing blocked until a separate Development Supabase project is provisioned and Preview variables are split.
 
 ## Advisor findings (10 November 2026)
 - Security: public.set_updated_at has a mutable search_path warning. Set an explicit safe search_path in a reviewed migration.
