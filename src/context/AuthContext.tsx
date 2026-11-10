@@ -78,26 +78,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // ---------------------------------------------------------
     // LOAD PROFILE
     // ---------------------------------------------------------
-    // The verified profiles table contains:
-    // id, full_name, phone, avatar_url, created_at, updated_at
+    // The live profiles table contains first_name, last_name, display_name,
+    // phone and avatar_url. Keep the UI-facing full_name field derived here.
     //
     // Email comes from the authenticated Supabase user.
     // ---------------------------------------------------------
 
     const { data: prof, error: profError } = await supabase
       .from('profiles')
-      .select('id, full_name, phone, avatar_url')
+      .select('id, first_name, last_name, display_name, phone, avatar_url')
       .eq('id', currentUser.id)
       .maybeSingle();
 
     if (profError) {
       setError(`Unable to load profile: ${profError.message}`);
     } else if (prof) {
+      const derivedName = [prof.first_name, prof.last_name]
+        .filter(Boolean)
+        .join(' ')
+        .trim();
+      const displayName = prof.display_name?.trim() || derivedName || null;
+
       profileData = {
         id: prof.id,
         email: currentUser.email ?? '',
-        full_name: prof.full_name ?? null,
-        display_name: prof.full_name ?? null,
+        full_name: displayName,
+        display_name: displayName,
         avatar_url: prof.avatar_url ?? null,
         phone: prof.phone ?? null,
       };
@@ -106,8 +112,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       profileData = {
         id: currentUser.id,
         email: currentUser.email ?? '',
-        full_name: currentUser.user_metadata?.full_name ?? null,
-        display_name: currentUser.user_metadata?.full_name ?? null,
+        full_name:
+          currentUser.user_metadata?.display_name ??
+          currentUser.user_metadata?.full_name ??
+          null,
+        display_name:
+          currentUser.user_metadata?.display_name ??
+          currentUser.user_metadata?.full_name ??
+          null,
         avatar_url: null,
         phone: null,
       };
