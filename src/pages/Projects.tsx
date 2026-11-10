@@ -407,7 +407,6 @@ function ProjectTabContent({
   onProgressChange?: (progress: number) => void;
 }) {
   const { records } = useBuildFlowData();
-  const projectById = new Map((records.projects ?? []).map((row) => [row.id, row]));
   const staffById = new Map((records.staff ?? []).map((row) => [row.id, row]));
   const projectTasks = records.tasks?.some((row) => row.project_id === project.id)
     ? records.tasks.filter((row) => row.project_id === project.id).map((row) => ({ id: row.id, title: String(row.title ?? ''), project: project.name, assignee: String(staffById.get(String(row.assigned_to))?.first_name ?? 'Unassigned'), dueDate: String(row.due_date ?? ''), priority: row.priority === 'high' || row.priority === 'urgent' ? 'High' : row.priority === 'low' ? 'Low' : 'Medium', status: row.status === 'completed' ? 'Done' : row.status === 'in_progress' ? 'In Progress' : row.status === 'blocked' ? 'Review' : 'To Do' } as (typeof tasks)[number]))
