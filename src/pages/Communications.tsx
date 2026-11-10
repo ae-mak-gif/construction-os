@@ -9,7 +9,7 @@ export function Communications() {
   const { create, records } = useBuildFlowData();
   const liveMessages: Message[] = records.messages?.length ? records.messages.map((row) => {
     const content = String(row.content ?? '');
-    const recipientLine = content.match(/^To:\\s*(.+)$/m)?.[1] ?? 'BuildFlow';
+    const recipientLine = content.match(/^To:\s*(.+)$/m)?.[1] ?? 'BuildFlow';
     const body = content.replace(/^To:.*\\n\\n/, '');
     const channel = row.message_type === 'sms' ? 'SMS' : row.message_type === 'email' ? 'Email' : 'WhatsApp';
     return { id: row.id, channel, from: 'BuildFlow', to: recipientLine, subject: String(row.subject ?? ''), preview: body, time: String(row.created_at ?? '').slice(11, 16), unread: false } as Message;
