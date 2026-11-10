@@ -3,8 +3,14 @@ import { MessageSquare, Mail, Smartphone, Send, Search } from 'lucide-react';
 import { Card, CardHeader, CardBody } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { messages } from '@/data/mockData';
+import { useBuildFlowData } from '@/context/BuildFlowDataContext';
 
 export function Communications() {
+  const { create } = useBuildFlowData();
+  const [messageItems, setMessageItems] = useState(messages);
+  const [recipient, setRecipient] = useState('');
+  const [subject, setSubject] = useState('');
+  const [messageBody, setMessageBody] = useState('');
   type MessageChannel = 'WhatsApp' | 'SMS' | 'Email';
   type ChannelFilter = 'All' | MessageChannel;
   const channelOptions: ChannelFilter[] = ['All', 'WhatsApp', 'SMS', 'Email'];
@@ -14,7 +20,7 @@ export function Communications() {
   const [composeOpen, setComposeOpen] = useState(false);
   const [composeChannel, setComposeChannel] = useState<'WhatsApp' | 'SMS' | 'Email'>('WhatsApp');
 
-  const filtered = messages.filter(
+  const filtered = messageItems.filter(
     (m) =>
       (channel === 'All' || m.channel === channel) &&
       (m.from.toLowerCase().includes(search.toLowerCase()) ||
@@ -40,7 +46,7 @@ export function Communications() {
       <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg px-4 py-2.5">
         <div className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
         <p className="text-sm text-amber-700 font-medium">Demo Mode</p>
-        <p className="text-xs text-amber-600">— Messaging is simulated. No real messages are sent.</p>
+        <p className="text-xs text-amber-600">— Messages are saved to the outbox; external delivery integrations are not connected.</p>
       </div>
 
       {/* Channel filter + compose buttons */}
@@ -168,14 +174,26 @@ export function Communications() {
             <div className="p-5 space-y-3">
               <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
                 <div className="w-2 h-2 rounded-full bg-amber-500" />
-                <p className="text-xs text-amber-700 font-medium">Demo Mode — This message will not actually be sent.</p>
+                <p className="text-xs text-amber-700 font-medium">Saved as a draft/outbox item. External delivery is not connected yet.</p>
               </div>
-              <input placeholder="To: recipient name or number" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-brand-400" />
-              <input placeholder="Subject" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-brand-400" />
-              <textarea placeholder="Type your message..." rows={4} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-brand-400 resize-none" />
+              <input value={recipient} onChange={(event) => setRecipient(event.target.value)} placeholder="To: recipient name or number" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-brand-400" />
+              <input value={subject} onChange={(event) => setSubject(event.target.value)} placeholder="Subject" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-brand-400" />
+              <textarea value={messageBody} onChange={(event) => setMessageBody(event.target.value)} placeholder="Type your message..." rows={4} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-brand-400 resize-none" />
               <div className="flex items-center justify-end gap-2">
                 <button onClick={() => setComposeOpen(false)} className="text-sm font-medium text-gray-500 px-4 py-2 rounded-lg border border-gray-200 hover:bg-gray-50">Cancel</button>
-                <button onClick={() => setComposeOpen(false)} className="flex items-center gap-1.5 bg-brand-600 text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-brand-700">
+                <button onClick={async () => {
+                  if (!recipient.trim() || !messageBody.trim()) return;
+                  try {
+                    const saved = await create('messages', { subject: subject.trim() || `${composeChannel} message`, content: messageBody.trim(), message_type: composeChannel.toLowerCase(), status: 'draft' });
+                    const item = { id: saved.id, channel: composeChannel, from: 'BuildFlow', to: recipient.trim(), subject: subject.trim() || `${composeChannel} message`, preview: messageBody.trim(), time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), unread: false } as (typeof messages)[number];
+                    setMessageItems((current) => [item, ...current]);
+                    setSelected(item);
+                    setRecipient(''); setSubject(''); setMessageBody(''); setComposeOpen(false);
+                  } catch (error) {
+                    console.error('Unable to save communication:', error);
+                    window.alert(error instanceof Error ? error.message : 'Unable to save this message.');
+                  }
+                }} className="flex items-center gap-1.5 bg-brand-600 text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-brand-700">
                   <Send size={14} /> Send {composeChannel}
                 </button>
               </div>
