@@ -70,7 +70,7 @@ export function TasksCalendar() {
   };
 
   const advanceTask = (id: string) => {
-    const stages = ['To Do', 'In Progress', 'Review', 'Done'];
+    const stages: Task['status'][] = ['To Do', 'In Progress', 'Review', 'Done'];
     setTaskItems(
       taskItems.map((task) => {
         if (task.id !== id) return task;
@@ -264,7 +264,7 @@ export function TasksCalendar() {
 
               <select
                 value={taskPriority}
-                onChange={(e) => setTaskPriority(e.target.value)}
+                onChange={(e) => setTaskPriority(e.target.value as Task['priority'])}
                 className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none"
               >
                 <option>Low</option>
@@ -951,10 +951,7 @@ export function Inventory() {
                     </Td>
                     <Td>
                       <Badge>
-                        {item.status ||
-                          (item.stock > 0
-                            ? 'In Stock'
-                            : 'Out of Stock')}
+                        {item.stock > 0 ? 'In Stock' : 'Out of Stock'}
                       </Badge>
                     </Td>
                   </Tr>
