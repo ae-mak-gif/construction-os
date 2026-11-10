@@ -318,9 +318,11 @@ export function TasksCalendar() {
 function CalendarView({
   currentMonth,
   setCurrentMonth,
+  events,
 }: {
   currentMonth: Date;
   setCurrentMonth: (d: Date) => void;
+  events: (typeof calendarEvents);
 }) {
   const year = currentMonth.getFullYear();
   const month = currentMonth.getMonth();
@@ -341,7 +343,7 @@ function CalendarView({
     `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
 
   const eventsForDay = (d: number) =>
-    liveCalendarEvents.filter((e) => e.date === dateStr(d));
+    events.filter((e) => e.date === dateStr(d));
 
   const eventTypeColors: Record<string, string> = {
     'project-meeting': 'bg-blue-50 text-blue-700 border-blue-200',
