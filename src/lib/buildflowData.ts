@@ -37,9 +37,10 @@ export async function createOrganizationRecord<T extends Record<string, unknown>
   userId: string,
   values: T,
 ): Promise<BuildFlowRow> {
+  if (table === 'organization_members') throw new Error('Membership administration is restricted to authorised administrators.');
   const payload: Record<string, unknown> = { ...values, organization_id: organizationId };
-  if ('created_by' in payload && !payload.created_by) payload.created_by = userId;
-  if ('actor_user_id' in payload && !payload.actor_user_id) payload.actor_user_id = userId;
+  if ('created_by' in payload) payload.created_by = userId;
+  if ('actor_user_id' in payload) payload.actor_user_id = userId;
   const { data, error } = await supabase.from(table).insert(payload).select('*').single();
   if (error) throw new Error(error.message);
   return data as BuildFlowRow;
