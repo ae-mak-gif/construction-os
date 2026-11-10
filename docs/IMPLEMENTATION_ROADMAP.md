@@ -21,6 +21,7 @@ This roadmap advances the existing Construction OS / BuildFlow repository. It is
 
 ### 1. Authentication, organisation context and tenancy
 - Complete sign-in, sign-out, session restoration, loading/error handling and profile fallback.
+- Filter memberships to active rows; fail closed for no active membership or multiple memberships until an organisation selector is implemented.
 - Define the supported membership lifecycle and organisation selection for users belonging to more than one organisation.
 - Enforce active membership and tenant scoping consistently in application queries and RLS.
 - Separate platform administration, organisation administration, project roles and client-portal access.
@@ -90,7 +91,7 @@ For each module: define data contracts, typed repository/service functions, load
 - Exit: production release checklist signed off; demo, development and production boundaries verified.
 
 ## Immediate next work
-1. Complete and verify the profile-schema fix in a Vercel preview build.
+1. Complete and verify the profile-schema fix and active-membership guard in a Vercel preview build.
 2. Review auth/membership state transitions and implement an explicit organisation-selection model before enabling multi-organisation users.
 3. Produce a schema baseline report from the live database and compare it to the ten checked-in migrations.
 4. Build the security/RLS matrix before connecting business modules.
