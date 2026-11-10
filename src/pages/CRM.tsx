@@ -129,34 +129,27 @@ export function Enquiries() {
   async function convertToClient() {
     if (!selected) return;
 
-    const exists = clients.some(
-      (c) =>
-        c.name.toLowerCase() === selected.client.toLowerCase() ||
-        c.company.toLowerCase() === selected.company.toLowerCase()
+    const persistedClient = (records.clients ?? []).find(
+      (client) => String(client.name).toLowerCase() === selected.company.toLowerCase()
+    );
+    const localExists = clients.some(
+      (client) => client.name.toLowerCase() === selected.client.toLowerCase() ||
+        client.company.toLowerCase() === selected.company.toLowerCase()
     );
 
-    if (!exists) {
-      const newClient: Client = {
-        id: `C${String(clients.length + 1).padStart(3, '0')}`,
-        name: selected.client,
-        company: selected.company,
-        email: selected.email,
-        phone: selected.phone,
-        activeProjects: 0,
-        accountBalance: 0,
-        status: 'Active',
-        since: new Date().toLocaleDateString('en-US', {
-          month: 'short',
-          year: 'numeric',
-        }),
-      };
-
+    if (!persistedClient) {
       try {
         const clientRow = await create('clients', { name: selected.company, client_type: 'company', status: 'active' });
         const parts = selected.client.trim().split(/\\s+/);
         await create('contacts', { client_id: clientRow.id, first_name: parts[0] || selected.client, last_name: parts.slice(1).join(' ') || null, email: selected.email || null, phone: selected.phone || null, is_primary: true });
-        newClient.id = clientRow.id;
-        setClients((prev) => [newClient, ...prev]);
+        if (!localExists) {
+          const newClient: Client = {
+            id: clientRow.id, name: selected.client, company: selected.company, email: selected.email,
+            phone: selected.phone, activeProjects: 0, accountBalance: 0, status: 'Active',
+            since: new Date().toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),
+          };
+          setClients((prev) => [newClient, ...prev]);
+        }
       } catch (error) {
         console.error('Unable to convert enquiry:', error);
         window.alert(error instanceof Error ? error.message : 'Unable to convert this enquiry.');
