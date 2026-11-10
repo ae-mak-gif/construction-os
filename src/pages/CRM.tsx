@@ -12,6 +12,9 @@ import {
   type Client,
 } from '@/data/mockData';
 import { formatCurrency, formatDate } from '@/utils/format';
+import { useBuildFlowData } from '@/context/BuildFlowDataContext';
+
+const isUuid = (value: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 
 const stages: EnquiryStage[] = [
   'New',
@@ -54,7 +57,7 @@ export function Enquiries() {
     count: enquiries.filter((e) => e.stage === s).length,
   }));
 
-  function createEnquiry() {
+  async function createEnquiry() {
     if (!form.client || !form.company || !form.project || !form.value) return;
 
     const newEnquiry: Enquiry = {
@@ -70,6 +73,17 @@ export function Enquiries() {
       email: form.email,
     };
 
+    try {
+      const clientRow = await create('clients', { name: form.company, client_type: 'company', status: 'prospect' });
+      const nameParts = form.client.trim().split(/\\s+/);
+      const contactRow = await create('contacts', { client_id: clientRow.id, first_name: nameParts[0] || form.client, last_name: nameParts.slice(1).join(' ') || null, email: form.email || null, phone: form.phone || null, is_primary: true });
+      const enquiryRow = await create('enquiries', { client_id: clientRow.id, contact_id: contactRow.id, title: form.project, description: `Prospect: ${form.client} · ${form.company}`, source: form.source, status: 'new', estimated_value: Number(form.value) });
+      newEnquiry.id = enquiryRow.id;
+    } catch (error) {
+      console.error('Unable to save enquiry to BuildFlow:', error);
+      window.alert(error instanceof Error ? error.message : 'Unable to save this enquiry. Please try again.');
+      return;
+    }
     setEnquiries((prev) => [newEnquiry, ...prev]);
 
     setForm({
@@ -98,6 +112,13 @@ export function Enquiries() {
       stage: nextStage,
     };
 
+    if (isUuid(selected.id)) {
+      const status = nextStage === 'Quoted' ? 'proposal' : nextStage.toLowerCase();
+      void update('enquiries', selected.id, { status }).catch((error) => window.alert(error.message));
+    }
+    if (isUuid(selected.id)) {
+      void update('enquiries', selected.id, { status: 'won' }).catch((error) => window.alert(error.message));
+    }
     setEnquiries((prev) =>
       prev.map((e) => (e.id === selected.id ? updated : e))
     );
@@ -130,7 +151,17 @@ export function Enquiries() {
         }),
       };
 
-      setClients((prev) => [newClient, ...prev]);
+      try {
+        const clientRow = await create('clients', { name: selected.company, client_type: 'company', status: 'active' });
+        const parts = selected.client.trim().split(/\\s+/);
+        await create('contacts', { client_id: clientRow.id, first_name: parts[0] || selected.client, last_name: parts.slice(1).join(' ') || null, email: selected.email || null, phone: selected.phone || null, is_primary: true });
+        newClient.id = clientRow.id;
+        setClients((prev) => [newClient, ...prev]);
+      } catch (error) {
+        console.error('Unable to convert enquiry:', error);
+        window.alert(error instanceof Error ? error.message : 'Unable to convert this enquiry.');
+        return;
+      }
     }
 
     const updated = {
@@ -457,7 +488,7 @@ export function Clients() {
       c.company.toLowerCase().includes(search.toLowerCase())
   );
 
-  function createClient() {
+  async function createClient() {
     if (!form.name || !form.company) return;
 
     const newClient: Client = {
@@ -475,6 +506,16 @@ export function Clients() {
       }),
     };
 
+    try {
+      const clientRow = await create('clients', { name: form.company, client_type: 'company', email: form.email || null, phone: form.phone || null, status: 'active' });
+      const parts = form.name.trim().split(/\\s+/);
+      await create('contacts', { client_id: clientRow.id, first_name: parts[0] || form.name, last_name: parts.slice(1).join(' ') || null, email: form.email || null, phone: form.phone || null, is_primary: true });
+      newClient.id = clientRow.id;
+    } catch (error) {
+      console.error('Unable to save client to BuildFlow:', error);
+      window.alert(error instanceof Error ? error.message : 'Unable to save this client. Please try again.');
+      return;
+    }
     setClients((prev) => [newClient, ...prev]);
 
     setForm({
