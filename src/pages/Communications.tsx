@@ -184,7 +184,7 @@ export function Communications() {
                 <button onClick={async () => {
                   if (!recipient.trim() || !messageBody.trim()) return;
                   try {
-                    const saved = await create('messages', { subject: subject.trim() || `${composeChannel} message`, content: messageBody.trim(), message_type: composeChannel.toLowerCase(), status: 'draft' });
+                    const saved = await create('messages', { subject: subject.trim() || `${composeChannel} message`, content: `To: ${recipient.trim()}\\n\\n${messageBody.trim()}`, message_type: composeChannel.toLowerCase(), status: 'draft' });
                     const item = { id: saved.id, channel: composeChannel, from: 'BuildFlow', to: recipient.trim(), subject: subject.trim() || `${composeChannel} message`, preview: messageBody.trim(), time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), unread: false } as (typeof messages)[number];
                     setMessageItems((current) => [item, ...current]);
                     setSelected(item);
