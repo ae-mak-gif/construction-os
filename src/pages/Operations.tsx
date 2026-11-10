@@ -29,6 +29,7 @@ export function TasksCalendar() {
   const { create, update, records } = useBuildFlowData();
   const projectById = new Map((records.projects ?? []).map((row) => [row.id, row]));
   const liveTasks: Task[] = records.tasks?.length ? records.tasks.map((row) => ({ id: row.id, title: String(row.title ?? ''), project: String(projectById.get(String(row.project_id))?.name ?? 'Unassigned project'), assignee: 'Unassigned', dueDate: String(row.due_date ?? ''), priority: row.priority === 'high' || row.priority === 'urgent' ? 'High' : row.priority === 'low' ? 'Low' : 'Medium', status: row.status === 'completed' ? 'Done' : row.status === 'in_progress' ? 'In Progress' : row.status === 'blocked' ? 'Review' : 'To Do' } as Task)) : mockTasks;
+  const liveCalendarEvents = records.calendar_events?.length ? records.calendar_events.map((row) => ({ id: row.id, title: String(row.title ?? ''), date: String(row.start_at ?? '').slice(0, 10), time: String(row.start_at ?? '').slice(11, 16), type: row.event_type === 'inspection' ? 'inspection' : row.event_type === 'deadline' ? 'deadline' : row.event_type === 'client-meeting' ? 'client-meeting' : row.event_type === 'site-meeting' ? 'site-meeting' : 'project-meeting', project: String(projectById.get(String(row.project_id))?.name ?? 'General') } as (typeof calendarEvents)[number])) : calendarEvents;
   const [tab, setTab] = useState<'tasks' | 'calendar'>('tasks');
   const [statusFilter, setStatusFilter] = useState<string>('All');
   const [taskItems, setTaskItems] = useState(liveTasks);
@@ -340,7 +341,7 @@ function CalendarView({
     `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
 
   const eventsForDay = (d: number) =>
-    calendarEvents.filter((e) => e.date === dateStr(d));
+    liveCalendarEvents.filter((e) => e.date === dateStr(d));
 
   const eventTypeColors: Record<string, string> = {
     'project-meeting': 'bg-blue-50 text-blue-700 border-blue-200',
