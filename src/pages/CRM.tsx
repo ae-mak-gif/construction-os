@@ -182,6 +182,13 @@ export function Enquiries() {
       }
     }
 
+    if (persistedClient && persistedClient.status !== 'active') {
+      void update('clients', persistedClient.id, { status: 'active' }).catch((error) => window.alert(error.message));
+    }
+    if (isUuid(selected.id)) {
+      void update('enquiries', selected.id, { status: 'won' }).catch((error) => window.alert(error.message));
+    }
+
     const updated = {
       ...selected,
       stage: 'Won' as EnquiryStage,
