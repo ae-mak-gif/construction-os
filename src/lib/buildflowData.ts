@@ -5,7 +5,7 @@ export const ORGANIZATION_TABLES = [
   'activities','boq_items','calendar_events','clients','communication_logs','contacts',
   'enquiries','equipment','equipment_assignments','estimate_items','estimates','expenses',
   'finance_transactions','inspections','inventory_items','inventory_transactions','invoices',
-  'messages','notifications','organization_members','projects','purchase_order_items',
+  'messages','notifications','organization_members','payments','projects','purchase_order_items',
   'purchase_orders','purchase_requests','project_approvals','project_costs','project_documents',
   'project_updates','quality_issues','risks','staff','suppliers','tasks','work_orders',
 ] as const;
