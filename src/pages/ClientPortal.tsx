@@ -1,10 +1,7 @@
 import { useState } from 'react';
 import {
   Building2,
-  Calendar,
-  FileText,
   DollarSign,
-  Image as ImageIcon,
   CheckCircle2,
   Clock,
   MessageSquare,
