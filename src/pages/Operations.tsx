@@ -67,7 +67,8 @@ export function TasksCalendar() {
 
     try {
       const linkedProject = (records.projects ?? []).find((p) => String(p.name) === newTask.project);
-      const saved = await create('tasks', { title: newTask.title, project_id: linkedProject?.id ?? null, status: 'todo', priority: newTask.priority.toLowerCase(), due_date: newTask.dueDate });
+      const linkedStaff = (records.staff ?? []).find((member) => `${member.first_name ?? ''} ${member.last_name ?? ''}`.trim() === newTask.assignee);
+      const saved = await create('tasks', { title: newTask.title, project_id: linkedProject?.id ?? null, assigned_to: linkedStaff?.id ?? null, status: 'todo', priority: newTask.priority.toLowerCase(), due_date: newTask.dueDate });
       newTask.id = saved.id;
     } catch (error) {
       console.error('Unable to save task:', error);
