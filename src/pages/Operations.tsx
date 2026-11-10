@@ -230,6 +230,7 @@ export function TasksCalendar() {
         <CalendarView
           currentMonth={currentMonth}
           setCurrentMonth={setCurrentMonth}
+          events={liveCalendarEvents}
         />
       )}
 
