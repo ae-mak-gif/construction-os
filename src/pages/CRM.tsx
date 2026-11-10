@@ -27,8 +27,20 @@ const stages: EnquiryStage[] = [
 
 export function Enquiries() {
   const { create, update, records } = useBuildFlowData();
-  const [enquiries, setEnquiries] = useState<Enquiry[]>(initialEnquiries);
-  const [clients, setClients] = useState<Client[]>(initialClients);
+  const clientRows = records.clients ?? [];
+  const contactById = new Map((records.contacts ?? []).map((row) => [row.id, row]));
+  const clientById = new Map(clientRows.map((row) => [row.id, row]));
+  const liveClients: Client[] = clientRows.map((row) => {
+    const contact = (records.contacts ?? []).find((item) => item.client_id === row.id && item.is_primary) ?? (records.contacts ?? []).find((item) => item.client_id === row.id);
+    return { id: row.id, name: contact ? [contact.first_name, contact.last_name].filter(Boolean).join(' ') : String(row.name ?? ''), company: String(row.name ?? ''), email: String(contact?.email ?? row.email ?? ''), phone: String(contact?.phone ?? row.phone ?? ''), activeProjects: (records.projects ?? []).filter((project) => project.client_id === row.id && project.status === 'active').length, accountBalance: 0, status: row.status === 'prospect' ? 'Prospect' : row.status === 'inactive' ? 'Inactive' : 'Active', since: String(row.created_at ?? '').slice(0, 7) } as Client;
+  });
+  const liveEnquiries: Enquiry[] = (records.enquiries ?? []).map((row) => {
+    const client = clientById.get(String(row.client_id)); const contact = contactById.get(String(row.contact_id));
+    const stage = row.status === 'proposal' ? 'Quoted' : row.status === 'won' ? 'Won' : row.status === 'lost' ? 'Lost' : row.status === 'qualified' ? 'Qualified' : row.status === 'contacted' || row.status === 'on_hold' ? 'Contacted' : 'New';
+    return { id: row.id, client: contact ? [contact.first_name, contact.last_name].filter(Boolean).join(' ') : String(client?.name ?? 'Prospect'), company: String(client?.name ?? ''), project: String(row.title ?? ''), value: Number(row.estimated_value ?? 0), stage, date: String(row.created_at ?? '').slice(0, 10), source: String(row.source ?? ''), phone: String(contact?.phone ?? ''), email: String(contact?.email ?? '') } as Enquiry;
+  });
+  const [enquiries, setEnquiries] = useState<Enquiry[]>(liveEnquiries.length ? liveEnquiries : initialEnquiries);
+  const [clients, setClients] = useState<Client[]>(liveClients.length ? liveClients : initialClients);
   const [search, setSearch] = useState('');
   const [stageFilter, setStageFilter] =
     useState<EnquiryStage | 'All'>('All');
@@ -463,10 +475,14 @@ export function Enquiries() {
 }
 
 export function Clients() {
-  const { create } = useBuildFlowData();
+  const { create, records } = useBuildFlowData();
+  const liveClients: Client[] = (records.clients ?? []).map((row) => {
+    const contact = (records.contacts ?? []).find((item) => item.client_id === row.id && item.is_primary) ?? (records.contacts ?? []).find((item) => item.client_id === row.id);
+    return { id: row.id, name: contact ? [contact.first_name, contact.last_name].filter(Boolean).join(' ') : String(row.name ?? ''), company: String(row.name ?? ''), email: String(contact?.email ?? row.email ?? ''), phone: String(contact?.phone ?? row.phone ?? ''), activeProjects: (records.projects ?? []).filter((project) => project.client_id === row.id && project.status === 'active').length, accountBalance: 0, status: row.status === 'prospect' ? 'Prospect' : row.status === 'inactive' ? 'Inactive' : 'Active', since: String(row.created_at ?? '').slice(0, 7) } as Client;
+  });
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<Client | null>(null);
-  const [clients, setClients] = useState<Client[]>(initialClients);
+  const [clients, setClients] = useState<Client[]>(liveClients.length ? liveClients : initialClients);
 
   const [showNew, setShowNew] = useState(false);
 
