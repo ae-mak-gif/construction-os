@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { AuthProvider, useAuth } from '@/context/AuthContext';
-import { BuildFlowDataProvider } from '@/context/BuildFlowDataContext';
+import { BuildFlowDataProvider, useBuildFlowData } from '@/context/BuildFlowDataContext';
 import { LoginPage } from '@/pages/Login';
 import { ResetPasswordPage } from '@/pages/ResetPassword';
 import { Sidebar, type PageKey } from '@/components/layout/Sidebar';
@@ -43,6 +43,7 @@ const pageTitles: Record<PageKey, string> = {
 
 function AppContent() {
   const { session, loading, error } = useAuth();
+  const { loading: dataLoading } = useBuildFlowData();
   const [page, setPage] = useState<PageKey>('dashboard');
   const [projectId, setProjectId] = useState<string | null>(null);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
@@ -61,7 +62,7 @@ function AppContent() {
     setPage('project-detail');
   };
 
-  if (loading) {
+  if (loading || (session && dataLoading)) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-navy-900">
         <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center mb-4 shadow-lg">
