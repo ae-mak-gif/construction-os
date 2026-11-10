@@ -155,10 +155,6 @@ export function Enquiries() {
     const persistedClient = (records.clients ?? []).find(
       (client) => String(client.name).toLowerCase() === selected.company.toLowerCase()
     );
-    const localExists = clients.some(
-      (client) => client.name.toLowerCase() === selected.client.toLowerCase() ||
-        client.company.toLowerCase() === selected.company.toLowerCase()
-    );
 
     if (!persistedClient) {
       let clientId: string | null = null;
