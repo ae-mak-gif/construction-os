@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { AuthProvider, useAuth } from '@/context/AuthContext';
+import { BuildFlowDataProvider } from '@/context/BuildFlowDataContext';
 import { LoginPage } from '@/pages/Login';
 import { ResetPasswordPage } from '@/pages/ResetPassword';
 import { Sidebar, type PageKey } from '@/components/layout/Sidebar';
@@ -125,7 +126,7 @@ function AppContent() {
 }
 
 function App() {
-  return <AuthProvider><AppContent /></AuthProvider>;
+  return <AuthProvider><BuildFlowDataProvider><AppContent /></BuildFlowDataProvider></AuthProvider>;
 }
 
 export default App;
