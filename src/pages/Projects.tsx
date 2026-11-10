@@ -1074,7 +1074,7 @@ function BOQTab({
   const markup = subtotal * 0.15;
   const total = subtotal + contingency + markup;
 
-  const categoryColors: Record<string, string> = {
+  const categoryColors: Record<string, React.ComponentProps<typeof Badge>['variant']> = {
     Materials: 'blue',
     Labour: 'green',
     Equipment: 'orange',
@@ -1115,7 +1115,7 @@ function BOQTab({
 
                 <Td>
                   <Badge
-                    variant={categoryColors[i.category] as any}
+                    variant={categoryColors[i.category] ?? 'gray'}
                   >
                     {i.category}
                   </Badge>
