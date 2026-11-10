@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { Link, Lock, Loader2, AlertCircle, CheckCircle2, Building2 } from 'lucide-react';
+import { Lock, Loader2, AlertCircle, CheckCircle2, Building2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 
 export function ResetPasswordPage() {
