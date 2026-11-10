@@ -45,7 +45,9 @@ export function Enquiries() {
     return { id: row.id, client: contact ? [contact.first_name, contact.last_name].filter(Boolean).join(' ') : String(client?.name ?? 'Prospect'), company: String(client?.name ?? ''), project: String(row.title ?? ''), value: Number(row.estimated_value ?? 0), stage, date: String(row.created_at ?? '').slice(0, 10), source: String(row.source ?? ''), phone: String(contact?.phone ?? ''), email: String(contact?.email ?? '') } as Enquiry;
   });
   const [enquiries, setEnquiries] = useState<Enquiry[]>(preserveDemoRows(liveEnquiries, initialEnquiries));
-  const [clients, setClients] = useState<Client[]>(preserveDemoRows(liveClients, initialClients));
+  // Derive the visible list from immutable demo fixtures plus the latest live snapshot.
+  // This prevents an early state initialisation from hiding demo rows after hydration.
+  const clients = preserveDemoRows(liveClients, initialClients);
   const [search, setSearch] = useState('');
   const [stageFilter, setStageFilter] =
     useState<EnquiryStage | 'All'>('All');
@@ -523,21 +525,6 @@ export function Clients() {
   async function createClient() {
     if (!form.name || !form.company) return;
 
-    const newClient: Client = {
-      id: `C${String(clients.length + 1).padStart(3, '0')}`,
-      name: form.name,
-      company: form.company,
-      email: form.email,
-      phone: form.phone,
-      activeProjects: 0,
-      accountBalance: 0,
-      status: 'Active',
-      since: new Date().toLocaleDateString('en-US', {
-        month: 'short',
-        year: 'numeric',
-      }),
-    };
-
     let clientId: string | null = null;
     let contactId: string | null = null;
     try {
@@ -546,7 +533,6 @@ export function Clients() {
       const parts = form.name.trim().split(/\s+/);
       const contactRow = await create('contacts', { client_id: clientRow.id, first_name: parts[0] || form.name, last_name: parts.slice(1).join(' ') || null, email: form.email || null, phone: form.phone || null, is_primary: true });
       contactId = contactRow.id;
-      newClient.id = clientRow.id;
     } catch (error) {
       if (contactId) await remove('contacts', contactId).catch(() => undefined);
       if (clientId) await remove('clients', clientId).catch(() => undefined);
@@ -554,8 +540,6 @@ export function Clients() {
       window.alert(error instanceof Error ? error.message : 'Unable to save this client. Please try again.');
       return;
     }
-    setClients((prev) => [newClient, ...prev]);
-
     setForm({
       name: '',
       company: '',
