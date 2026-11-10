@@ -85,7 +85,7 @@ export function TasksCalendar() {
     const selectedTask = taskItems.find((task) => task.id === id);
     if (selectedTask && /^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(selectedTask.id)) {
       const next = stages[stages.indexOf(selectedTask.status) + 1];
-      if (next) void update('tasks', id, { status: next === 'Done' ? 'completed' : next.toLowerCase().replace(' ', '_') }).catch((error) => window.alert(error.message));
+      if (next) void update('tasks', id, { status: next === 'Done' ? 'completed' : next === 'Review' ? 'blocked' : next.toLowerCase().replace(' ', '_') }).catch((error) => window.alert(error.message));
     }
     setTaskItems(
       taskItems.map((task) => {
