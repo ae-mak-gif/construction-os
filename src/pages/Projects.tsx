@@ -337,8 +337,15 @@ export function ProjectDetail({
   project: Project;
   onBack: () => void;
 }) {
+  const { update } = useBuildFlowData();
   const [tab, setTab] = useState<ProjectTab>('overview');
   const [projectProgress, setProjectProgress] = useState(project.progress);
+  const handleProgressChange = (progress: number) => {
+    setProjectProgress(progress);
+    if (/^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(project.id)) {
+      void update('projects', project.id, { progress_percent: progress }).catch((error) => window.alert(error.message));
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -391,7 +398,7 @@ export function ProjectDetail({
           ...project,
           progress: projectProgress,
         }}
-        onProgressChange={setProjectProgress}
+        onProgressChange={handleProgressChange}
       />
     </div>
   );
