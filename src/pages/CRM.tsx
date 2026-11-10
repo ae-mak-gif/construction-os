@@ -26,7 +26,7 @@ const stages: EnquiryStage[] = [
 ];
 
 export function Enquiries() {
-  const { create, update, records } = useBuildFlowData();
+  const { create, update, remove, records } = useBuildFlowData();
   const clientRows = records.clients ?? [];
   const contactById = new Map((records.contacts ?? []).map((row) => [row.id, row]));
   const clientById = new Map(clientRows.map((row) => [row.id, row]));
@@ -86,13 +86,19 @@ export function Enquiries() {
       email: form.email,
     };
 
+    let clientId: string | null = null;
+    let contactId: string | null = null;
     try {
       const clientRow = await create('clients', { name: form.company, client_type: 'company', status: 'prospect' });
-      const nameParts = form.client.trim().split(/\\s+/);
+      clientId = clientRow.id;
+      const nameParts = form.client.trim().split(/\s+/);
       const contactRow = await create('contacts', { client_id: clientRow.id, first_name: nameParts[0] || form.client, last_name: nameParts.slice(1).join(' ') || null, email: form.email || null, phone: form.phone || null, is_primary: true });
+      contactId = contactRow.id;
       const enquiryRow = await create('enquiries', { client_id: clientRow.id, contact_id: contactRow.id, title: form.project, description: `Prospect: ${form.client} · ${form.company}`, source: form.source, status: 'new', estimated_value: Number(form.value) });
       newEnquiry.id = enquiryRow.id;
     } catch (error) {
+      if (contactId) await remove('contacts', contactId).catch(() => undefined);
+      if (clientId) await remove('clients', clientId).catch(() => undefined);
       console.error('Unable to save enquiry to BuildFlow:', error);
       window.alert(error instanceof Error ? error.message : 'Unable to save this enquiry. Please try again.');
       return;
@@ -151,10 +157,14 @@ export function Enquiries() {
     );
 
     if (!persistedClient) {
+      let clientId: string | null = null;
+      let contactId: string | null = null;
       try {
         const clientRow = await create('clients', { name: selected.company, client_type: 'company', status: 'active' });
-        const parts = selected.client.trim().split(/\\s+/);
-        await create('contacts', { client_id: clientRow.id, first_name: parts[0] || selected.client, last_name: parts.slice(1).join(' ') || null, email: selected.email || null, phone: selected.phone || null, is_primary: true });
+        clientId = clientRow.id;
+        const parts = selected.client.trim().split(/\s+/);
+        const contactRow = await create('contacts', { client_id: clientRow.id, first_name: parts[0] || selected.client, last_name: parts.slice(1).join(' ') || null, email: selected.email || null, phone: selected.phone || null, is_primary: true });
+        contactId = contactRow.id;
         if (!localExists) {
           const newClient: Client = {
             id: clientRow.id, name: selected.client, company: selected.company, email: selected.email,
@@ -164,6 +174,8 @@ export function Enquiries() {
           setClients((prev) => [newClient, ...prev]);
         }
       } catch (error) {
+        if (contactId) await remove('contacts', contactId).catch(() => undefined);
+        if (clientId) await remove('clients', clientId).catch(() => undefined);
         console.error('Unable to convert enquiry:', error);
         window.alert(error instanceof Error ? error.message : 'Unable to convert this enquiry.');
         return;
@@ -475,7 +487,7 @@ export function Enquiries() {
 }
 
 export function Clients() {
-  const { create, records } = useBuildFlowData();
+  const { create, remove, records } = useBuildFlowData();
   const liveClients: Client[] = (records.clients ?? []).map((row) => {
     const contact = (records.contacts ?? []).find((item) => item.client_id === row.id && item.is_primary) ?? (records.contacts ?? []).find((item) => item.client_id === row.id);
     return { id: row.id, name: contact ? [contact.first_name, contact.last_name].filter(Boolean).join(' ') : String(row.name ?? ''), company: String(row.name ?? ''), email: String(contact?.email ?? row.email ?? ''), phone: String(contact?.phone ?? row.phone ?? ''), activeProjects: (records.projects ?? []).filter((project) => project.client_id === row.id && project.status === 'active').length, accountBalance: 0, status: row.status === 'prospect' ? 'Prospect' : row.status === 'inactive' ? 'Inactive' : 'Active', since: String(row.created_at ?? '').slice(0, 7) } as Client;
@@ -517,12 +529,18 @@ export function Clients() {
       }),
     };
 
+    let clientId: string | null = null;
+    let contactId: string | null = null;
     try {
       const clientRow = await create('clients', { name: form.company, client_type: 'company', email: form.email || null, phone: form.phone || null, status: 'active' });
-      const parts = form.name.trim().split(/\\s+/);
-      await create('contacts', { client_id: clientRow.id, first_name: parts[0] || form.name, last_name: parts.slice(1).join(' ') || null, email: form.email || null, phone: form.phone || null, is_primary: true });
+      clientId = clientRow.id;
+      const parts = form.name.trim().split(/\s+/);
+      const contactRow = await create('contacts', { client_id: clientRow.id, first_name: parts[0] || form.name, last_name: parts.slice(1).join(' ') || null, email: form.email || null, phone: form.phone || null, is_primary: true });
+      contactId = contactRow.id;
       newClient.id = clientRow.id;
     } catch (error) {
+      if (contactId) await remove('contacts', contactId).catch(() => undefined);
+      if (clientId) await remove('clients', clientId).catch(() => undefined);
       console.error('Unable to save client to BuildFlow:', error);
       window.alert(error instanceof Error ? error.message : 'Unable to save this client. Please try again.');
       return;
