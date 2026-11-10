@@ -5,10 +5,15 @@ import { StatusBadge, Badge } from '@/components/ui/Badge';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import { BarChart } from '@/components/ui/BarChart';
 import { DonutChart } from '@/components/ui/DonutChart';
-import { projects, invoices, expenses, revenueCostData } from '@/data/mockData';
+import { projects as mockProjects, invoices as mockInvoices, expenses as mockExpenses, revenueCostData } from '@/data/mockData';
+import { useBuildFlowData } from '@/context/BuildFlowDataContext';
 import { formatCurrency, formatFullCurrency, formatDate } from '@/utils/format';
 
 export function Finance() {
+  const { records } = useBuildFlowData();
+  const projects = records.projects?.length ? records.projects.map((row) => ({ id: row.id, name: String(row.name ?? ''), contractValue: Number(row.contract_value ?? 0), budget: Number(row.contract_value ?? 0), actualCost: (records.project_costs ?? []).filter((cost) => cost.project_id === row.id).reduce((sum, cost) => sum + Number(cost.amount ?? 0), 0) })) : mockProjects;
+  const invoices = records.invoices?.length ? records.invoices.map((row) => ({ id: String(row.invoice_number ?? row.id), client: String(row.client_id ?? ''), project: String(row.project_id ?? ''), amount: Number(row.total_amount ?? 0), issuedDate: String(row.issue_date ?? ''), dueDate: String(row.due_date ?? ''), status: row.status === 'paid' ? 'Paid' : row.status === 'overdue' ? 'Overdue' : row.status === 'partially_paid' ? 'Partial' : 'Outstanding', paidAmount: (records.payments ?? []).filter((payment) => payment.invoice_id === row.id).reduce((sum, payment) => sum + Number(payment.amount ?? 0), 0) })) : mockInvoices;
+  const expenses = records.expenses?.length ? records.expenses.map((row) => ({ id: String(row.expense_number ?? row.id), description: String(row.description ?? ''), project: String(row.project_id ?? ''), category: String(row.category ?? ''), amount: Number(row.amount ?? 0), date: String(row.expense_date ?? '') })) : mockExpenses;
   const totalContract = projects.reduce((s, p) => s + p.contractValue, 0);
   const totalBudget = projects.reduce((s, p) => s + p.budget, 0);
   const totalCost = projects.reduce((s, p) => s + p.actualCost, 0);
