@@ -16,6 +16,11 @@ import { useBuildFlowData } from '@/context/BuildFlowDataContext';
 
 const isUuid = (value: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 
+function preserveDemoRows<T extends { id: string }>(liveRows: T[], demoRows: T[]): T[] {
+  const liveIds = new Set(liveRows.map((row) => row.id));
+  return [...liveRows, ...demoRows.filter((row) => !liveIds.has(row.id))];
+}
+
 const stages: EnquiryStage[] = [
   'New',
   'Contacted',
@@ -39,8 +44,8 @@ export function Enquiries() {
     const stage = row.status === 'proposal' ? 'Quoted' : row.status === 'won' ? 'Won' : row.status === 'lost' ? 'Lost' : row.status === 'qualified' ? 'Qualified' : row.status === 'contacted' || row.status === 'on_hold' ? 'Contacted' : 'New';
     return { id: row.id, client: contact ? [contact.first_name, contact.last_name].filter(Boolean).join(' ') : String(client?.name ?? 'Prospect'), company: String(client?.name ?? ''), project: String(row.title ?? ''), value: Number(row.estimated_value ?? 0), stage, date: String(row.created_at ?? '').slice(0, 10), source: String(row.source ?? ''), phone: String(contact?.phone ?? ''), email: String(contact?.email ?? '') } as Enquiry;
   });
-  const [enquiries, setEnquiries] = useState<Enquiry[]>(liveEnquiries.length ? liveEnquiries : initialEnquiries);
-  const [clients, setClients] = useState<Client[]>(liveClients.length ? liveClients : initialClients);
+  const [enquiries, setEnquiries] = useState<Enquiry[]>(preserveDemoRows(liveEnquiries, initialEnquiries));
+  const [clients, setClients] = useState<Client[]>(preserveDemoRows(liveClients, initialClients));
   const [search, setSearch] = useState('');
   const [stageFilter, setStageFilter] =
     useState<EnquiryStage | 'All'>('All');
@@ -134,9 +139,6 @@ export function Enquiries() {
     if (isUuid(selected.id)) {
       const status = nextStage === 'Quoted' ? 'proposal' : nextStage.toLowerCase();
       void update('enquiries', selected.id, { status }).catch((error) => window.alert(error.message));
-    }
-    if (isUuid(selected.id)) {
-      void update('enquiries', selected.id, { status: 'won' }).catch((error) => window.alert(error.message));
     }
     setEnquiries((prev) =>
       prev.map((e) => (e.id === selected.id ? updated : e))
@@ -501,7 +503,7 @@ export function Clients() {
   });
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<Client | null>(null);
-  const [clients, setClients] = useState<Client[]>(liveClients.length ? liveClients : initialClients);
+  const [clients, setClients] = useState<Client[]>(preserveDemoRows(liveClients, initialClients));
 
   const [showNew, setShowNew] = useState(false);
 
