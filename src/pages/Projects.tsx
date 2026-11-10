@@ -406,29 +406,34 @@ function ProjectTabContent({
   project: Project;
   onProgressChange?: (progress: number) => void;
 }) {
-  const projectTasks = tasks.filter(
-    (t) => t.project === project.name
-  );
-
-  const projectBOQ = boqItems.filter(
-    (b) => b.project === project.name
-  );
-
-  const projectProc = purchaseRequests.filter(
-    (p) => p.project === project.name
-  );
-
-  const projectRisks = risks.filter(
-    (r) => r.project === project.name
-  );
-
-  const projectUpdateItems = projectUpdates.filter(
-    (u) => u.projectId === project.id
-  );
-
-  const projectDocs = projectDocuments.filter(
-    (d) => d.projectId === project.id
-  );
+  const { records } = useBuildFlowData();
+  const projectById = new Map((records.projects ?? []).map((row) => [row.id, row]));
+  const staffById = new Map((records.staff ?? []).map((row) => [row.id, row]));
+  const projectTasks = records.tasks?.some((row) => row.project_id === project.id)
+    ? records.tasks.filter((row) => row.project_id === project.id).map((row) => ({ id: row.id, title: String(row.title ?? ''), project: project.name, assignee: String(staffById.get(String(row.assigned_to))?.first_name ?? 'Unassigned'), dueDate: String(row.due_date ?? ''), priority: row.priority === 'high' || row.priority === 'urgent' ? 'High' : row.priority === 'low' ? 'Low' : 'Medium', status: row.status === 'completed' ? 'Done' : row.status === 'in_progress' ? 'In Progress' : row.status === 'blocked' ? 'Review' : 'To Do' } as (typeof tasks)[number]))
+    : tasks.filter((row) => row.project === project.name);
+  const projectBOQ = records.boq_items?.some((row) => row.project_id === project.id)
+    ? records.boq_items.filter((row) => row.project_id === project.id).map((row) => ({ id: row.id, item: String(row.item_code ?? row.description ?? ''), description: String(row.description ?? ''), qty: Number(row.quantity ?? 1), unit: String(row.unit ?? ''), unitCost: Number(row.unit_rate ?? 0), category: String(row.category ?? 'Materials'), project: project.name } as (typeof boqItems)[number]))
+    : boqItems.filter((row) => row.project === project.name);
+  const projectProc = records.purchase_requests?.some((row) => row.project_id === project.id)
+    ? records.purchase_requests.filter((row) => row.project_id === project.id).map((row) => ({ id: String(row.request_number ?? row.id), item: String(row.description ?? ''), project: project.name, qty: 1, unit: 'item', estCost: Number(row.estimated_amount ?? 0), requestedBy: 'Team member', date: String(row.created_at ?? '').slice(0, 10), status: row.status === 'approved' ? 'Approved' : row.status === 'ordered' ? 'PO Issued' : row.status === 'delivered' ? 'Delivered' : row.status === 'rejected' ? 'Rejected' : 'Requested', supplier: 'Pending' } as (typeof purchaseRequests)[number]))
+    : purchaseRequests.filter((row) => row.project === project.name);
+  const projectRisks = records.risks?.some((row) => row.project_id === project.id)
+    ? records.risks.filter((row) => row.project_id === project.id).map((row) => ({ id: row.id, risk: String(row.title ?? ''), project: project.name, probability: row.likelihood === 'high' ? 'High' : row.likelihood === 'low' ? 'Low' : 'Medium', impact: row.impact === 'high' ? 'High' : row.impact === 'low' ? 'Low' : 'Medium', owner: String(staffById.get(String(row.owner_id))?.first_name ?? 'Unassigned'), status: row.status === 'closed' ? 'Closed' : row.status === 'mitigated' ? 'Mitigated' : 'Open', mitigation: String(row.mitigation_plan ?? '') } as (typeof risks)[number]))
+    : risks.filter((row) => row.project === project.name);
+  const projectUpdateItems = records.project_updates?.some((row) => row.project_id === project.id)
+    ? records.project_updates.filter((row) => row.project_id === project.id).map((row) => ({ id: row.id, projectId: project.id, date: String(row.created_at ?? ''), author: 'Team member', message: String(row.content ?? row.title ?? ''), type: 'progress' } as (typeof projectUpdates)[number]))
+    : projectUpdates.filter((row) => row.projectId === project.id);
+  const projectDocs = records.project_documents?.some((row) => row.project_id === project.id)
+    ? records.project_documents.filter((row) => row.project_id === project.id).map((row) => ({ id: row.id, projectId: project.id, name: String(row.name ?? ''), type: String(row.file_type ?? 'Report'), date: String(row.created_at ?? ''), size: '—' } as (typeof projectDocuments)[number]))
+    : projectDocuments.filter((row) => row.projectId === project.id);
+  const projectQualityIssues = records.quality_issues?.some((row) => row.project_id === project.id)
+    ? records.quality_issues.filter((row) => row.project_id === project.id).map((row) => ({ id: row.id, type: String(row.category ?? '').toLowerCase().includes('safety') ? 'Safety Observation' : String(row.category ?? '').toLowerCase().includes('snag') ? 'Snag' : String(row.category ?? '').toLowerCase().includes('defect') ? 'Defect' : 'Issue', description: String(row.description ?? row.title ?? ''), project: project.name, location: '', reportedBy: 'Team member', date: String(row.created_at ?? ''), status: row.status === 'resolved' ? 'Resolved' : row.status === 'in_progress' ? 'In Progress' : 'Open', action: String(row.corrective_action ?? '') } as (typeof qualityIssues)[number]))
+    : qualityIssues.filter((row) => row.project === project.name);
+  const projectInventory = records.inventory_items?.length ? records.inventory_items.map((row) => {
+    const allocated = (records.inventory_transactions ?? []).filter((tx) => tx.inventory_item_id === row.id && tx.project_id === project.id).reduce((sum, tx) => sum + Number(tx.quantity ?? 0), 0);
+    return { id: row.id, material: String(row.name ?? ''), category: String(row.category ?? ''), stock: Number(row.quantity_on_hand ?? 0), allocated, reorderLevel: Number(row.reorder_level ?? 0), unit: String(row.unit ?? ''), unitCost: Number(row.unit_cost ?? 0) } as (typeof inventory)[number];
+  }).filter((row) => row.allocated > 0) : inventory;
 
   switch (tab) {
     case 'overview':
@@ -577,7 +582,7 @@ function ProjectTabContent({
               </thead>
 
               <tbody>
-                {inventory.slice(0, 6).map((i) => (
+                {projectInventory.slice(0, 6).map((i) => (
                   <Tr key={i.id}>
                     <Td className="font-medium text-gray-700">
                       {i.material}
@@ -742,9 +747,7 @@ function ProjectTabContent({
                 </thead>
 
                 <tbody>
-                  {qualityIssues
-                    .filter((q) => q.project === project.name)
-                    .map((q) => (
+                  {projectQualityIssues.map((q) => (
                       <Tr key={q.id}>
                         <Td>
                           <Badge
