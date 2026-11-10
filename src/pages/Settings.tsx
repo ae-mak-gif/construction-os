@@ -9,7 +9,6 @@ import {
   CreditCard,
   ListChecks,
   Brain,
-  CheckCircle2,
   Clock,
   Plug,
 } from 'lucide-react';
