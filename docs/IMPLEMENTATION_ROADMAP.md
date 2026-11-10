@@ -37,6 +37,7 @@ This roadmap advances the existing Construction OS / BuildFlow repository. It is
 
 ### 3. Security and operational readiness
 - Review every RLS policy against tenant and role requirements, including notifications, documents, messages and client access.
+- Publish the security/RLS target matrix and adversarial test plan in `docs/SECURITY_RLS_MATRIX.md`.
 - Fix function search paths; enable leaked-password protection; review indexes based on query plans and workload rather than deleting unused indexes blindly.
 - Verify secrets and environment variables independently in Demo, Preview/Development and Production.
 - Exit: security review passes, no service-role secret is exposed to the browser, and tenant-isolation tests pass.
@@ -96,4 +97,4 @@ For each module: define data contracts, typed repository/service functions, load
 2. Create an isolated Development Supabase environment and configure Vercel Preview to use it; current Preview and Production variables are shared across both targets.
 3. Review auth/membership state transitions and implement an explicit organisation selector before enabling multi-organisation users.
 4. Complete column/constraint/index/function/policy-level comparison of the live schema with migrations 001-010; table-name parity is confirmed but full equivalence is not.
-5. Build and test the security/RLS matrix, prioritising recipient-scoped notifications and project/client document access.
+5. Security/RLS matrix and test plan are now documented; implementation and adversarial tests remain blocked on isolated Development.
