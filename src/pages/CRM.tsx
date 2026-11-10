@@ -26,6 +26,7 @@ const stages: EnquiryStage[] = [
 ];
 
 export function Enquiries() {
+  const { create, update, records } = useBuildFlowData();
   const [enquiries, setEnquiries] = useState<Enquiry[]>(initialEnquiries);
   const [clients, setClients] = useState<Client[]>(initialClients);
   const [search, setSearch] = useState('');
@@ -462,6 +463,7 @@ export function Enquiries() {
 }
 
 export function Clients() {
+  const { create } = useBuildFlowData();
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<Client | null>(null);
   const [clients, setClients] = useState<Client[]>(initialClients);
