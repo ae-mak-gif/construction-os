@@ -16,6 +16,7 @@ import { ClientPortal } from '@/pages/ClientPortal';
 import { AIAssistant } from '@/pages/AIAssistant';
 import { Settings } from '@/pages/Settings';
 import { projects } from '@/data/mockData';
+import type { Project } from '@/data/mockData';
 import { Loader2, Building2 } from 'lucide-react';
 
 const pageTitles: Record<PageKey, string> = {
@@ -43,7 +44,7 @@ const pageTitles: Record<PageKey, string> = {
 
 function AppContent() {
   const { session, loading, error } = useAuth();
-  const { loading: dataLoading } = useBuildFlowData();
+  const { loading: dataLoading, records } = useBuildFlowData();
   const [page, setPage] = useState<PageKey>('dashboard');
   const [projectId, setProjectId] = useState<string | null>(null);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
@@ -93,7 +94,20 @@ function AppContent() {
 
   if (page === 'client-portal') return <ClientPortal onExit={() => handleNavigate('dashboard')} />;
 
-  const currentProject = projectId ? projects.find((p) => p.id === projectId) : null;
+  const currentProject: Project | null = projectId ? (() => {
+    const row = (records.projects ?? []).find((project) => project.id === projectId);
+    if (!row) return projects.find((project) => project.id === projectId) ?? null;
+    const client = (records.clients ?? []).find((item) => item.id === row.client_id);
+    const manager = (records.staff ?? []).find((item) => item.id === row.project_manager_id);
+    return {
+      id: row.id, name: String(row.name ?? ''), client: String(client?.name ?? 'Client'), clientCompany: String(client?.name ?? 'Client'),
+      manager: manager ? [manager.first_name, manager.last_name].filter(Boolean).join(' ') : 'Unassigned', progress: Number(row.progress_percent ?? 0), budget: Number(row.contract_value ?? 0),
+      actualCost: (records.project_costs ?? []).filter((cost) => cost.project_id === row.id).reduce((sum, cost) => sum + Number(cost.amount ?? 0), 0),
+      deadline: String(row.expected_completion_date ?? ''), startDate: String(row.start_date ?? ''),
+      health: row.health_status === 'at_risk' ? 'at-risk' : row.health_status === 'critical' ? 'delayed' : row.health_status === 'completed' ? 'completed' : 'on-track',
+      status: row.status === 'completed' ? 'Completed' : row.status === 'planning' ? 'Planning' : 'Active', location: String(row.location ?? ''), description: String(row.description ?? ''), contractValue: Number(row.contract_value ?? 0),
+    } as Project;
+  })() : null;
 
   return (
     <div className="flex min-h-screen bg-gray-50">
