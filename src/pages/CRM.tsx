@@ -505,7 +505,8 @@ export function Clients() {
   });
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<Client | null>(null);
-  const [clients, setClients] = useState<Client[]>(preserveDemoRows(liveClients, initialClients));
+  // Always derive from immutable demo fixtures and the latest live snapshot.
+  const clients = preserveDemoRows(liveClients, initialClients);
 
   const [showNew, setShowNew] = useState(false);
 
