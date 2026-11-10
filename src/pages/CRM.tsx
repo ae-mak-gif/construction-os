@@ -126,7 +126,7 @@ export function Enquiries() {
     setSelected(updated);
   }
 
-  function convertToClient() {
+  async function convertToClient() {
     if (!selected) return;
 
     const exists = clients.some(
