@@ -1,11 +1,10 @@
 import { useState } from 'react';
-import { Search, Plus, Wrench, HardHat, Users, ShieldAlert, FileBarChart, Star, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { Search, Plus, Wrench, HardHat, Users, ShieldAlert, FileBarChart, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { Card, CardHeader, CardBody, StatCard } from '@/components/ui/Card';
 import { Table, Th, Td, Tr } from '@/components/ui/Table';
-import { StatusBadge, Badge, HealthBadge } from '@/components/ui/Badge';
-import { ProgressBar } from '@/components/ui/ProgressBar';
+import { StatusBadge, Badge } from '@/components/ui/Badge';
 import { staff, workOrders, equipment, risks, qualityIssues } from '@/data/mockData';
-import { formatFullCurrency, formatDate, formatDateShort } from '@/utils/format';
+import { formatDate, formatDateShort } from '@/utils/format';
 
 // ── HR & Staff ───────────────────────────────────────────────
 export function HR() {
@@ -201,10 +200,10 @@ export function EquipmentPage() {
 
 // ── Risk & Quality ───────────────────────────────────────────
 export function RiskQuality() {
-  const [tab, setTab] = useState<'risks' | 'issues' | 'safety'>('risks');
+  type RiskTab = 'risks' | 'issues' | 'safety';
+  const [tab, setTab] = useState<RiskTab>('risks');
 
   const openRisks = risks.filter((r) => r.status === 'Open').length;
-  const openIssues = qualityIssues.filter((q) => q.status === 'Open' || q.status === 'In Progress').length;
   const safetyItems = qualityIssues.filter((q) => q.type === 'Safety Observation');
 
   return (
@@ -217,14 +216,14 @@ export function RiskQuality() {
       </div>
 
       <div className="flex items-center gap-1 border-b border-gray-200">
-        {[
+        {([
           { key: 'risks', label: 'Risk Register' },
           { key: 'issues', label: 'Issues & Snags' },
           { key: 'safety', label: 'Safety Observations' },
-        ].map((t) => (
+        ] satisfies { key: RiskTab; label: string }[]).map((t) => (
           <button
             key={t.key}
-            onClick={() => setTab(t.key as any)}
+            onClick={() => setTab(t.key)}
             className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
               tab === t.key ? 'border-brand-500 text-brand-600' : 'border-transparent text-gray-400 hover:text-gray-600'
             }`}
