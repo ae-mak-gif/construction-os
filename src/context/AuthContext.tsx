@@ -203,7 +203,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         user_id: member.user_id,
         role_id: member.role_id,
         role_name: roleName,
-        status: memb.status ?? null,
+        status: member.status ?? null,
         organization:
           organizationData ?? {
             id: member.organization_id,
