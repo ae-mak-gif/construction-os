@@ -39,7 +39,7 @@ export async function createOrganizationRecord<T extends Record<string, unknown>
 ): Promise<BuildFlowRow> {
   if (table === 'organization_members') throw new Error('Membership administration is restricted to authorised administrators.');
   const payload: Record<string, unknown> = { ...values, organization_id: organizationId };
-  if ('created_by' in payload || ['calendar_events','project_updates','project_documents','expenses','invoices','estimates','purchase_orders','work_orders','quality_issues','inspections','project_costs','finance_transactions','communication_logs'].includes(table)) payload.created_by = userId;
+  if ('created_by' in payload || ['calendar_events','project_updates','expenses','invoices','estimates','purchase_orders','work_orders','quality_issues','inspections','project_costs','finance_transactions','communication_logs'].includes(table)) payload.created_by = userId;
   if ('actor_user_id' in payload) payload.actor_user_id = userId;
   if (table === 'messages') payload.sender_user_id = userId;
   if (table === 'purchase_requests') payload.requested_by = userId;
