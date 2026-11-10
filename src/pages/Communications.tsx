@@ -5,7 +5,10 @@ import { Badge } from '@/components/ui/Badge';
 import { messages } from '@/data/mockData';
 
 export function Communications() {
-  const [channel, setChannel] = useState<'All' | 'WhatsApp' | 'SMS' | 'Email'>('All');
+  type MessageChannel = 'WhatsApp' | 'SMS' | 'Email';
+  type ChannelFilter = 'All' | MessageChannel;
+  const channelOptions: ChannelFilter[] = ['All', 'WhatsApp', 'SMS', 'Email'];
+  const [channel, setChannel] = useState<ChannelFilter>('All');
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState(messages[0]);
   const [composeOpen, setComposeOpen] = useState(false);
@@ -19,13 +22,13 @@ export function Communications() {
         m.preview.toLowerCase().includes(search.toLowerCase()))
   );
 
-  const channelIcons: Record<string, React.ReactNode> = {
+  const channelIcons: Record<MessageChannel, React.ReactNode> = {
     WhatsApp: <MessageSquare size={14} />,
     SMS: <Smartphone size={14} />,
     Email: <Mail size={14} />,
   };
 
-  const channelColors: Record<string, string> = {
+  const channelColors: Record<MessageChannel, React.ComponentProps<typeof Badge>['variant']> = {
     WhatsApp: 'green',
     SMS: 'blue',
     Email: 'orange',
@@ -43,10 +46,10 @@ export function Communications() {
       {/* Channel filter + compose buttons */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
-          {['All', 'WhatsApp', 'SMS', 'Email'].map((c) => (
+          {channelOptions.map((c) => (
             <button
               key={c}
-              onClick={() => setChannel(c as any)}
+              onClick={() => setChannel(c)}
               className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
                 channel === c ? 'bg-brand-600 text-white' : 'bg-white border border-gray-200 text-gray-500 hover:bg-gray-50'
               }`}
@@ -124,7 +127,7 @@ export function Communications() {
           {selected && (
             <>
               <CardHeader title={selected.subject} subtitle={`From ${selected.from} via ${selected.channel}`} action={
-                <Badge variant={channelColors[selected.channel] as any}>{selected.channel}</Badge>
+                <Badge variant={channelColors[selected.channel]}>{selected.channel}</Badge>
               } />
               <CardBody>
                 <div className="space-y-4">
