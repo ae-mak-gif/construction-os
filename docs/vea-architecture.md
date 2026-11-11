@@ -7,7 +7,7 @@ VEA is the executive experience built on top of BuildFlow AI. It is not a second
 ## Runtime and deployment boundaries
 
 - Frontend: existing Vite + React + TypeScript application in this repository.
-- Source control: feature branch `feature/buildflow-vea-integration`; production `main` is not changed by this work.
+- Source control: feature branch `feature/buildflow-vea-integration-current`; production `main` is not changed by this work.
 - Authentication and tenant data: existing Supabase Auth, `organizations`, `organization_members`, and RLS membership helper.
 - Development database: dedicated Supabase project `buildflow-dev` (`amqknbijdjpcapwkeyyh`). Apply VEA migrations here first. Do not apply to the production BuildFlow project until separately reviewed.
 - Hosting: existing Vercel project linked to this repository. Feature-branch commits should create preview deployments.
@@ -42,12 +42,12 @@ The current `src/pages/AIAssistant.tsx` is a demo implementation backed by `src/
 
 1. Establish isolated VEA branch and architecture notes.
 2. Add and verify the organisation-scoped data foundation in `buildflow-dev` (completed; five RLS-protected tables and participant-scoped policies).
-3. Build the VEA command-centre UI while preserving existing BuildFlow navigation and data (initial Executive Office shell added; existing AI demo is embedded rather than duplicated).
+3. Build the VEA command-centre UI while preserving existing BuildFlow navigation and data (initial Executive Office shell added; existing AI demo is embedded rather than duplicated). The specialist roster includes Executive Admin, Business & Finance, Project Intelligence, Procurement, People & Workforce, Research & Documents, Delegation & Accountability, and Risk & Compliance, coordinated by the Executive Orchestrator.
 4. Implement authenticated server-side orchestration and the first read-only agents (Executive, Project, Finance, Procurement).
 5. Add approvals, audit logging, and action-specific tool permissions before enabling any writes.
 6. Add n8n workflows and external integrations after the core permission model is tested.
-7. Map feature entitlements and human support hours to the four BuildFlow SaaS tiers.
+7. Map feature entitlements and human support hours to the four BuildFlow SaaS tiers. The VEA service tiers remain Essential, Professional, Executive, and Strategic Office, mapped to the corresponding BuildFlow subscription level.
 
 ## Current implementation limits
 
-The current app is a Vite SPA with no established server-side AI route, no connected model provider, and no Supabase Edge Functions in the development project. The first VEA UI is therefore explicitly marked as preview/sample data and the existing chat remains labelled as demo mode. The feature branch has a successful Vercel preview build. Do not install an agent framework or expose model/API credentials in client code until the server runtime, model routing, and environment variables are selected and tested.
+The current app is a Vite SPA with no established server-side AI route, no connected model provider, and no Supabase Edge Functions in the development project. The first VEA UI is therefore explicitly marked as preview/sample data and the existing chat remains labelled as demo mode. The original VEA branch has an earlier successful preview build. The refreshed branch is based on the latest BuildFlow development head and requires its own preview validation. Do not install an agent framework or expose model/API credentials in client code until the server runtime, model routing, and environment variables are selected and tested.
