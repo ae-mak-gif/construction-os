@@ -1,5 +1,6 @@
 import {
   LayoutDashboard,
+  Layers3,
   Users,
   UserCheck,
   FolderKanban,
@@ -25,6 +26,7 @@ import { useState } from 'react';
 
 export type PageKey =
   | 'dashboard'
+  | 'construction-modules'
   | 'crm-enquiries'
   | 'crm-clients'
   | 'projects'
@@ -70,6 +72,11 @@ const navGroups: NavGroup[] = [
       { key: 'crm-enquiries', label: 'Enquiries', icon: <UserCheck size={18} /> },
       { key: 'crm-clients', label: 'Clients', icon: <Users size={18} /> },
     ],
+  },
+  {
+    label: 'Construction Modules',
+    icon: <Layers3 size={18} />,
+    items: [{ key: 'construction-modules', label: 'Module Catalogue', icon: <Layers3 size={18} /> }],
   },
   {
     label: 'Projects',
