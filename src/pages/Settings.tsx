@@ -295,6 +295,138 @@ function RoleManagement() {
   );
 }
 
+function ProjectAccessManagement() {
+  const { membership } = useAuth();
+  const [projects, setProjects] = useState<Array<{ id: string; name: string }>>([]);
+  const [members, setMembers] = useState<Array<{ user_id: string; display_name: string; status: string }>>([]);
+  const [assignments, setAssignments] = useState<Array<{ id: string; project_id: string; user_id: string | null; staff_id: string | null; role: string | null }>>([]);
+  const [selectedProject, setSelectedProject] = useState('');
+  const [selectedUser, setSelectedUser] = useState('');
+  const [projectRole, setProjectRole] = useState('Project member');
+  const [loading, setLoading] = useState(true);
+  const [allowed, setAllowed] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
+
+  const load = useCallback(async () => {
+    if (!membership?.organization_id) { setLoading(false); return; }
+    setLoading(true); setError('');
+    try {
+      const { data: canManage, error: permissionError } = await supabase.rpc('has_org_permission', {
+        target_organization_id: membership.organization_id,
+        target_permission_key: 'project_members.manage',
+      });
+      if (permissionError) throw permissionError;
+      setAllowed(canManage === true);
+      if (canManage !== true) return;
+
+      const [{ data: projectRows, error: projectError }, { data: memberRows, error: memberError }, { data: assignmentRows, error: assignmentError }] = await Promise.all([
+        supabase.from('projects').select('id,name').order('name'),
+        supabase.rpc('get_org_members', { target_organization_id: membership.organization_id }),
+        supabase.from('project_members').select('id,project_id,user_id,staff_id,role'),
+      ]);
+      if (projectError) throw projectError;
+      if (memberError) throw memberError;
+      if (assignmentError) throw assignmentError;
+      setProjects(projectRows || []);
+      setMembers((memberRows || []).filter((member: any) => member.status === 'active'));
+      setAssignments(assignmentRows || []);
+      setSelectedProject((current) => current || projectRows?.[0]?.id || '');
+      setSelectedUser((current) => current || (memberRows || []).find((member: any) => member.status === 'active')?.user_id || '');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Project access settings could not be loaded.');
+    } finally { setLoading(false); }
+  }, [membership?.organization_id]);
+
+  useEffect(() => { void load(); }, [load]);
+
+  async function addMember(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedProject || !selectedUser) return;
+    setBusy(true); setError(''); setNotice('');
+    try {
+      const { error: insertError } = await supabase.from('project_members').insert({
+        project_id: selectedProject, user_id: selectedUser, role: projectRole,
+      });
+      if (insertError) throw insertError;
+      setNotice('Project access assigned successfully.');
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Project access could not be assigned.');
+    } finally { setBusy(false); }
+  }
+
+  async function removeMember(assignmentId: string) {
+    if (!window.confirm('Remove this user from the project?')) return;
+    setBusy(true); setError(''); setNotice('');
+    try {
+      const { error: deleteError } = await supabase.from('project_members').delete().eq('id', assignmentId);
+      if (deleteError) throw deleteError;
+      setNotice('Project access removed.');
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Project access could not be removed.');
+    } finally { setBusy(false); }
+  }
+
+  if (!loading && !allowed) return null;
+  const projectAssignments = assignments.filter((assignment) => assignment.project_id === selectedProject);
+  const memberName = (userId: string | null) => members.find((member) => member.user_id === userId)?.display_name || 'Unlinked staff record';
+
+  return (
+    <Card>
+      <CardHeader title="Project Access" subtitle="Assign active organisation users to individual projects. Project membership is enforced by database policies." />
+      <CardBody>
+        {loading ? <p className="text-sm text-gray-500">Loading project access…</p> : (
+          <div className="space-y-4">
+            {error && <p role="alert" className="rounded-lg bg-amber-50 p-3 text-xs text-amber-800">{error}</p>}
+            {notice && <p role="status" className="text-xs text-emerald-700">{notice}</p>}
+            {projects.length === 0 ? <p className="text-xs text-gray-500">Create a project before assigning project access.</p> : <>
+              <form onSubmit={addMember} className="grid grid-cols-1 gap-3 rounded-xl border border-gray-200 p-4 md:grid-cols-[1.2fr_1fr_1fr_auto] md:items-end">
+                <label className="block">
+                  <span className="mb-1 block text-xs font-medium text-gray-600">Project</span>
+                  <select value={selectedProject} onChange={(event) => setSelectedProject(event.target.value)} required className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm">
+                    {projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}
+                  </select>
+                </label>
+                <label className="block">
+                  <span className="mb-1 block text-xs font-medium text-gray-600">Team member</span>
+                  <select value={selectedUser} onChange={(event) => setSelectedUser(event.target.value)} required className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm">
+                    {members.map((member) => <option key={member.user_id} value={member.user_id}>{member.display_name}</option>)}
+                  </select>
+                </label>
+                <label className="block">
+                  <span className="mb-1 block text-xs font-medium text-gray-600">Project role</span>
+                  <input value={projectRole} onChange={(event) => setProjectRole(event.target.value)} maxLength={60} required className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" />
+                </label>
+                <button type="submit" disabled={busy || !selectedUser} className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"><Plus size={14} className="mr-1 inline" /> Assign</button>
+              </form>
+              <div className="overflow-hidden rounded-xl border border-gray-200">
+                <div className="border-b border-gray-100 px-4 py-3">
+                  <h3 className="text-sm font-semibold text-gray-800">Assigned project users</h3>
+                  <p className="mt-0.5 text-xs text-gray-500">{projects.find((project) => project.id === selectedProject)?.name}</p>
+                </div>
+                {projectAssignments.length === 0 ? <p className="px-4 py-4 text-xs text-gray-500">No explicit user assignments. Existing organisation permissions currently govern access to this project.</p> : (
+                  <div className="divide-y divide-gray-100">
+                    {projectAssignments.map((assignment) => (
+                      <div key={assignment.id} className="flex items-center justify-between gap-3 px-4 py-3">
+                        <div><p className="text-sm font-medium text-gray-800">{memberName(assignment.user_id)}</p><p className="text-xs text-gray-500">{assignment.role || 'Project member'}</p></div>
+                        <button type="button" disabled={busy} onClick={() => void removeMember(assignment.id)} className="rounded-lg border border-red-200 px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-50">Remove</button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <p className="text-xs text-gray-400">When a project has explicit user assignments, other organisation users lose access to its project-linked records unless they hold project membership management permission.</p>
+            </>}
+          </div>
+        )}
+      </CardBody>
+    </Card>
+  );
+}
+
 export function Settings() {
   const ready = integrations.filter((i) => i.status === 'ready');
   const coming = integrations.filter((i) => i.status === 'coming');
@@ -302,6 +434,7 @@ export function Settings() {
   return (
     <div className="space-y-6">
       <RoleManagement />
+      <ProjectAccessManagement />
       {/* Ready to connect */}
       <Card>
         <CardHeader title="Ready to Connect" subtitle={`${ready.length} integrations available`} />
