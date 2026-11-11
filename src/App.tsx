@@ -15,12 +15,14 @@ import { Communications } from '@/pages/Communications';
 import { ClientPortal } from '@/pages/ClientPortal';
 import { AIAssistant } from '@/pages/AIAssistant';
 import { Settings } from '@/pages/Settings';
+import { ConstructionModules } from '@/pages/ConstructionModules';
 import { projects } from '@/data/mockData';
 import type { Project } from '@/data/mockData';
 import { Loader2, Building2 } from 'lucide-react';
 
 const pageTitles: Record<PageKey, string> = {
   'dashboard': 'Dashboard',
+  'construction-modules': 'Construction Modules',
   'crm-enquiries': 'CRM — Enquiries',
   'crm-clients': 'CRM — Clients',
   'projects': 'Projects',
@@ -138,6 +140,7 @@ function AppContent() {
             </div>
           )}
           {page === 'dashboard' && <Dashboard onNavigate={handleNavigate} />}
+          {page === 'construction-modules' && <ConstructionModules onNavigate={handleNavigate} />}
           {page === 'crm-enquiries' && <Enquiries />}
           {page === 'crm-clients' && <Clients />}
           {page === 'projects' && <Projects onOpenProject={openProject} />}
