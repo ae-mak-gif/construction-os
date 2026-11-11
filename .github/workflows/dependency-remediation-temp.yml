@@ -15,7 +15,7 @@ concurrency:
 jobs:
   remediate:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 30
     steps:
       - name: Checkout
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
@@ -28,11 +28,12 @@ jobs:
           node-version: 24
           package-manager-cache: false
 
-      - name: Install locked dependencies
-        run: npm ci
+      - name: Resolve updated dependency tree
+        run: npm install --no-audit --no-fund
 
-      - name: Apply non-breaking security updates
+      - name: Apply remaining compatible security updates
         run: npm audit fix
+        continue-on-error: true
 
       - name: Report remaining high-severity advisories
         run: npm audit --audit-level=high
@@ -44,7 +45,7 @@ jobs:
           npm run typecheck
           npm run build
 
-      - name: Commit reviewed lockfile updates
+      - name: Commit reviewed dependency files
         if: success()
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -56,7 +57,7 @@ jobs:
             echo "No dependency file changes to commit."
             exit 0
           fi
-          git commit -m "Fix vulnerable transitive dependencies"
+          git commit -m "Upgrade Vite and patch vulnerable dependencies"
           cat > "$RUNNER_TEMP/askpass.sh" <<'EOF'
           #!/bin/sh
           case "$1" in
