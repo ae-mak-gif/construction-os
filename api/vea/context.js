@@ -36,7 +36,12 @@ export default async function handler(req, res) {
   const token = authorization.match(/^Bearer\s+(.+)$/i)?.[1];
   if (!token) return res.status(401).json({ error: 'A valid BuildFlow session is required.' });
 
-  const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
+  let body;
+  try {
+    body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
+  } catch {
+    return res.status(400).json({ error: 'The request body must be valid JSON.' });
+  }
   const organizationId = body?.organization_id;
   if (typeof organizationId !== 'string' || !uuidPattern.test(organizationId)) {
     return res.status(400).json({ error: 'A valid organisation identifier is required.' });
