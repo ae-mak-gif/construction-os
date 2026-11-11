@@ -98,3 +98,32 @@ For each module: define data contracts, typed repository/service functions, load
 3. Review auth/membership state transitions and implement an explicit organisation selector before enabling multi-organisation users.
 4. Complete column/constraint/index/function/policy-level comparison of the live schema with migrations 001-010; table-name parity is confirmed but full equivalence is not.
 5. Security/RLS matrix and test plan are now documented; implementation and adversarial tests remain blocked on isolated Development.
+
+## Status update — 11 November 2026
+This section supersedes the earlier `Immediate next work` list above.
+
+### Completed since the original roadmap was written
+- A dedicated `buildflow-dev` Supabase project is active and healthy.
+- Vercel Preview for `fix/auth-profile-schema-alignment` has branch-specific Development Supabase URL and publishable-key entries.
+- Shared Supabase environment entries are now Production-only; other Preview branches fail closed until separately configured.
+- Development migration `20261111072421_secure_message_notification_scope` restricts notifications to recipients and messages to participants.
+- The Development `set_updated_at` function has a fixed safe search path.
+- CI is SHA-pinned and separates lint/typecheck/build validation from the dependency security audit.
+- Vite 8.3.8 and `@vitejs/plugin-react` 6.3.0 are installed; the latest remediation run passed lint (0 errors), TypeScript and production build.
+- High-severity npm audit findings have been cleared. Eleven lower-severity findings (9 moderate, 2 low) remain under review.
+- Weekly Dependabot updates are configured for npm and GitHub Actions.
+
+### Remaining release blockers
+1. Agree and implement the organisation role/permission model before enabling role-aware CRUD.
+2. Complete project membership, document visibility, client identity and private Storage policies.
+3. Complete a verified Development schema baseline against migrations 001–010.
+4. Enable Supabase leaked-password protection if the project's plan supports it; Supabase documents this feature as Pro and above.
+5. Add automated unit, integration, cross-tenant RLS and end-to-end tests using dedicated Development test identities.
+6. Complete live write workflows for Finance and remaining operational modules; replace demo-only AI, communications and client-portal paths with explicitly scoped implementations.
+7. Build and test the requested Google Drive, accounting, online payment and Virtual Executive Assistant integrations. Listing them as ready-to-connect is not equivalent to completed OAuth or API workflows.
+8. Review and resolve the remaining 9 moderate and 2 low dependency advisories.
+9. Rebuild and validate the latest Preview after the current branch commits. Do not test against Production.
+10. Keep PR #1 in Draft until the above release gates are accepted. Do not merge or deploy Production as part of this work.
+
+### Environment and production safety
+Production Supabase schema/data, Production environment values and Production deployment have not been changed. No Production migrations, interactive tests, PR merge or Production deployment have been performed.
