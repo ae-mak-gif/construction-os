@@ -2,12 +2,12 @@ import { useEffect, useMemo, useState } from 'react';
 import { AIAssistant } from '@/pages/AIAssistant';
 import { useAuth } from '@/context/AuthContext';
 import { loadVEAContext, type VEAContext } from '@/lib/vea';
+import { veaAgents } from '@/lib/vea-agents';
 import {
   AlertTriangle,
   ArrowUpRight,
   Bot,
   CalendarClock,
-  CheckCircle2,
   CircleDollarSign,
   FolderKanban,
   ListChecks,
@@ -17,16 +17,27 @@ import {
   ShoppingCart,
   Sparkles,
   Users,
+  FileSearch,
+  ClipboardList,
+  ShieldAlert,
 } from 'lucide-react';
 
-const specialistAgents = [
-  { name: 'Executive Orchestrator', detail: 'Routes requests and coordinates specialist work', icon: Bot, status: 'Foundation' },
-  { name: 'Project Intelligence', detail: 'Progress, programme, delays and project exposure', icon: FolderKanban, status: 'Next' },
-  { name: 'Finance Intelligence', detail: 'Cash flow, invoices, budgets and cost signals', icon: CircleDollarSign, status: 'Next' },
-  { name: 'Procurement', detail: 'Purchase requests, supplier and materials visibility', icon: ShoppingCart, status: 'Next' },
-  { name: 'People & Workforce', detail: 'Capacity, assignments and workforce coordination', icon: Users, status: 'Planned' },
-  { name: 'Delegation & Accountability', detail: 'Follow-ups, commitments and ownership', icon: ListChecks, status: 'Planned' },
-];
+const agentIcons = {
+  executive: Bot,
+  project: FolderKanban,
+  finance: CircleDollarSign,
+  procurement: ShoppingCart,
+  workforce: Users,
+  documents: FileSearch,
+  accountability: ClipboardList,
+  risk: ShieldAlert,
+} as const;
+
+function agentStatusLabel(status: string) {
+  if (status === 'foundation') return 'Foundation';
+  if (status === 'next') return 'Next';
+  return 'Planned';
+}
 
 function isClosedStatus(status: string | null | undefined) {
   return ['done', 'completed', 'closed', 'cancelled', 'paid'].includes((status || '').toLowerCase());
@@ -209,7 +220,7 @@ export function VEA() {
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
               <div>
                 <h2 className="font-semibold text-gray-900">Your specialist team</h2>
-                <p className="mt-1 text-sm text-gray-500">One orchestrator will coordinate these construction-focused agents.</p>
+                <p className="mt-1 text-sm text-gray-500">The Executive Orchestrator will route work across eight specialist capabilities. Execution remains disabled until the secure model and tool layer is connected.</p>
               </div>
               <span className="rounded-full bg-gray-100 px-3 py-1 text-xs text-gray-600">Agent execution not yet enabled</span>
             </div>
@@ -222,7 +233,7 @@ export function VEA() {
                     <div className="min-w-0">
                       <p className="text-sm font-medium text-gray-800">{agent.name}</p>
                       <p className="mt-1 text-xs leading-5 text-gray-500">{agent.detail}</p>
-                      <p className="mt-2 text-[10px] font-semibold uppercase tracking-wide text-gray-400">{agent.status}</p>
+                      <p className="mt-2 text-[10px] font-semibold uppercase tracking-wide text-gray-400">{agentStatusLabel(agent.status)} · Read-only</p>
                     </div>
                   </div>
                 );
