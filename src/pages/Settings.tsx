@@ -47,11 +47,13 @@ const integrations: Integration[] = [
 
 type PermissionItem = { key: string; module: string; description: string };
 type OrganisationRole = { id: string; name: string; description: string | null; is_system: boolean; permissions: Record<string, boolean> };
+type OrganisationMember = { id: string; user_id: string; role_id: string; role_name: string; status: string; display_name: string };
 
 function RoleManagement() {
   const { session, membership } = useAuth();
   const [roles, setRoles] = useState<OrganisationRole[]>([]);
   const [permissions, setPermissions] = useState<PermissionItem[]>([]);
+  const [members, setMembers] = useState<OrganisationMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
@@ -69,6 +71,24 @@ function RoleManagement() {
       });
       if (rpcError) throw new Error(rpcError.message || 'Role permissions could not be loaded.');
       return data;
+    }
+
+    if (payload.action === 'list_members') {
+      const { data, error: rpcError } = await supabase.rpc('get_org_members', {
+        target_organization_id: organizationId,
+      });
+      if (rpcError) throw new Error(rpcError.message || 'Organisation members could not be loaded.');
+      return data;
+    }
+
+    if (payload.action === 'assign_member_role') {
+      const { data, error: rpcError } = await supabase.rpc('assign_org_member_role', {
+        target_organization_id: organizationId,
+        target_member_id: String(payload.member_id ?? ''),
+        target_role_id: String(payload.role_id ?? ''),
+      });
+      if (rpcError) throw new Error(rpcError.message || 'Member role could not be updated.');
+      return { updated: data === true };
     }
 
     if (payload.action === 'create') {
@@ -102,6 +122,8 @@ function RoleManagement() {
       const data = await send({ action: 'list' });
       setRoles(data.roles || []);
       setPermissions(data.permissions || []);
+      const memberData = await send({ action: 'list_members' });
+      setMembers(memberData || []);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Role permissions could not be loaded.');
     } finally {
@@ -113,6 +135,25 @@ function RoleManagement() {
     if (session?.access_token && membership?.organization_id) void loadRoles();
     else setLoading(false);
   }, [loadRoles, session?.access_token, membership?.organization_id]);
+
+  async function changeMemberRole(member: OrganisationMember, roleId: string) {
+    setBusy(true);
+    setError('');
+    setNotice('');
+    try {
+      await send({ action: 'assign_member_role', member_id: member.id, role_id: roleId });
+      const nextRole = roles.find((role) => role.id === roleId);
+      setMembers((current) => current.map((item) => item.id === member.id
+        ? { ...item, role_id: roleId, role_name: nextRole?.name || item.role_name }
+        : item));
+      setNotice('Updated organisation role for ' + member.display_name + '.');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Member role could not be updated.');
+      await loadRoles();
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function createRole(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -183,6 +224,33 @@ function RoleManagement() {
                   <Plus size={15} /> Create role
                 </button>
               </form>
+              <section className="rounded-xl border border-gray-200">
+                <div className="border-b border-gray-100 px-4 py-3">
+                  <h3 className="text-sm font-semibold text-gray-800">Team role assignments</h3>
+                  <p className="mt-0.5 text-xs text-gray-500">Assign existing organisation members to a role. You cannot change your own role or demote the last active administrator.</p>
+                </div>
+                <div className="divide-y divide-gray-100">
+                  {members.map((member) => (
+                    <div key={member.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+                      <div>
+                        <p className="text-sm font-medium text-gray-800">{member.display_name}</p>
+                        <p className="mt-0.5 text-xs text-gray-400">{member.status}</p>
+                      </div>
+                      <select
+                        value={member.role_id}
+                        disabled={busy || member.user_id === session?.user?.id}
+                        onChange={(event) => void changeMemberRole(member, event.target.value)}
+                        className="min-w-44 rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {roles.map((role) => (
+                          <option key={role.id} value={role.id} disabled={role.is_system}>{role.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  ))}
+                  {members.length === 0 && <p className="px-4 py-3 text-xs text-gray-500">No organisation members were returned.</p>}
+                </div>
+              </section>
               <div className="space-y-3">
                 {roles.map((role) => {
                   const locked = role.is_system || role.id === membership?.role_id;
