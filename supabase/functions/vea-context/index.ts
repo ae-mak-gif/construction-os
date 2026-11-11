@@ -99,6 +99,7 @@ Deno.serve(async (request: Request) => {
       .order("updated_at", { ascending: false }).limit(12),
     supabase.from("calendar_events")
       .select("id, title, start_at, end_at, event_type, project_id")
+      .gte("start_at", new Date().toISOString())
       .order("start_at", { ascending: true }).limit(12),
     supabase.from("projects").select("id", { count: "exact", head: true }),
     supabase.from("tasks").select("id", { count: "exact", head: true }),
