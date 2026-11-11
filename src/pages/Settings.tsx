@@ -180,7 +180,7 @@ function RoleManagement() {
                                 <label key={permission.key} className={locked ? 'flex items-start gap-2 rounded-lg border border-gray-100 p-2.5 text-xs opacity-60' : 'flex items-start gap-2 rounded-lg border border-gray-100 p-2.5 text-xs hover:bg-gray-50'}>
                                   <input type="checkbox" checked={role.permissions[permission.key] === true} disabled={locked || busy} onChange={(event) => void changePermission(role, permission, event.target.checked)} className="mt-0.5 accent-brand-600" />
                                   <span className="min-w-0">
-                                    <span className="block font-medium text-gray-700">{permission.key.split('.')[1].replaceAll('_', ' ')}</span>
+                                    <span className="block font-medium text-gray-700">{permission.key.split('.')[1].replace(/_/g, ' ')}</span>
                                     <span className="mt-0.5 block text-gray-400">{permission.description}</span>
                                   </span>
                                 </label>
