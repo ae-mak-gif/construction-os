@@ -321,17 +321,16 @@ function ProjectAccessManagement() {
       setAllowed(canManage === true);
       if (canManage !== true) return;
 
-      const [{ data: projectRows, error: projectError }, { data: memberRows, error: memberError }, { data: assignmentRows, error: assignmentError }] = await Promise.all([
-        supabase.from('projects').select('id,name').order('name'),
-        supabase.rpc('get_org_members', { target_organization_id: membership.organization_id }),
-        supabase.from('project_members').select('id,project_id,user_id,staff_id,role'),
-      ]);
-      if (projectError) throw projectError;
-      if (memberError) throw memberError;
-      if (assignmentError) throw assignmentError;
-      setProjects(projectRows || []);
-      setMembers((memberRows || []).filter((member: any) => member.status === 'active'));
-      setAssignments(assignmentRows || []);
+      const { data: directory, error: directoryError } = await supabase.rpc('get_project_access_admin_data', {
+        target_organization_id: membership.organization_id,
+      });
+      if (directoryError) throw directoryError;
+      const projectRows = directory?.projects || [];
+      const memberRows = directory?.members || [];
+      const assignmentRows = directory?.assignments || [];
+      setProjects(projectRows);
+      setMembers(memberRows);
+      setAssignments(assignmentRows);
       setSelectedProject((current) => current || projectRows?.[0]?.id || '');
       setSelectedUser((current) => current || (memberRows || []).find((member: any) => member.status === 'active')?.user_id || '');
     } catch (e) {
