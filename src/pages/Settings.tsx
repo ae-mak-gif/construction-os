@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { useAuth } from '@/context/AuthContext';
+import { supabase } from '@/lib/supabase';
 import {
   MessageSquare,
   Smartphone,
@@ -59,16 +60,40 @@ function RoleManagement() {
   const [roleDescription, setRoleDescription] = useState('');
 
   const send = useCallback(async (payload: Record<string, unknown>) => {
-    if (!session?.access_token || !membership?.organization_id) throw new Error('Your active organisation session is unavailable.');
-    const response = await fetch('/api/organization/roles', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + session.access_token },
-      body: JSON.stringify({ ...payload, organization_id: membership.organization_id }),
-    });
-    const result = await response.json();
-    if (!response.ok) throw new Error(result.error || 'Role management request failed.');
-    return result.data;
-  }, [session?.access_token, membership?.organization_id]);
+    if (!session?.user?.id || !membership?.organization_id) throw new Error('Your active organisation session is unavailable.');
+    const organizationId = membership.organization_id;
+
+    if (payload.action === 'list') {
+      const { data, error: rpcError } = await supabase.rpc('get_org_roles_permissions', {
+        target_organization_id: organizationId,
+      });
+      if (rpcError) throw new Error(rpcError.message || 'Role permissions could not be loaded.');
+      return data;
+    }
+
+    if (payload.action === 'create') {
+      const { data, error: rpcError } = await supabase.rpc('create_org_role', {
+        target_organization_id: organizationId,
+        target_name: String(payload.name ?? ''),
+        target_description: String(payload.description ?? '') || null,
+      });
+      if (rpcError) throw new Error(rpcError.message || 'Role could not be created.');
+      return { role_id: data };
+    }
+
+    if (payload.action === 'set_permission') {
+      const { data, error: rpcError } = await supabase.rpc('set_org_role_permission', {
+        target_organization_id: organizationId,
+        target_role_id: String(payload.role_id ?? ''),
+        target_permission_key: String(payload.permission_key ?? ''),
+        target_allowed: payload.allowed === true,
+      });
+      if (rpcError) throw new Error(rpcError.message || 'Permission could not be updated.');
+      return { updated: data === true };
+    }
+
+    throw new Error('Unknown role management action.');
+  }, [session?.user?.id, membership?.organization_id]);
 
   const loadRoles = useCallback(async () => {
     setLoading(true);
