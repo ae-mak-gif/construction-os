@@ -138,7 +138,7 @@ export default async function handler(req, res) {
       .eq('organization_id', organizationId).order('updated_at', { ascending: false }).limit(20)),
     read(include('procurement') && permissions['procurement.view'], client.from('purchase_requests')
       .select('id,request_number,project_id,description,status,required_date,estimated_amount')
-      .eq('organization_id', organizationId).order('created_at', { ascending: false }).limit(40)),
+      .eq('organization_id', organizationId).order('created_at', { ascending: false }).limit(20)),
     read(include('procurement') && permissions['procurement.view'], client.from('purchase_orders')
       .select('id,po_number,project_id,status,total_amount,expected_delivery_date')
       .eq('organization_id', organizationId).order('created_at', { ascending: false }).limit(20)),
