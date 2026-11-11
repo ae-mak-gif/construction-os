@@ -11,7 +11,7 @@ VEA is the executive experience built on top of BuildFlow AI. It is not a second
 - Authentication and tenant data: existing Supabase Auth, `organizations`, `organization_members`, and RLS membership helper.
 - Development database: dedicated Supabase project `buildflow-dev` (`amqknbijdjpcapwkeyyh`). Apply VEA migrations here first. Do not apply to the production BuildFlow project until separately reviewed.
 - Hosting: existing Vercel project linked to this repository. Feature-branch commits should create preview deployments.
-- Automation: n8n is an integration/workflow runner, not the authorization boundary or source of truth for agent permissions.
+- Automation: Supabase Queues + Cron handle native background work; Inngest is the planned durable agent orchestrator; Make and Activepieces are external BPA/integration runners. n8n remains optional. None of these platforms is the authorization boundary or source of truth for agent permissions.
 
 ## Logical architecture
 
@@ -49,7 +49,7 @@ The current `src/pages/AIAssistant.tsx` is a demo implementation backed by `src/
 3. Build the VEA command-centre UI while preserving existing BuildFlow navigation and data (initial Executive Office shell added; existing AI demo is embedded rather than duplicated). The specialist roster includes Executive Admin, Business & Finance, Project Intelligence, Procurement, People & Workforce, Research & Documents, Delegation & Accountability, and Risk & Compliance, coordinated by the Executive Orchestrator.
 4. Implement authenticated server-side orchestration and the first read-only agents (Executive, Project, Finance, Procurement) (initial API and UI scaffold added; model credentials and runtime validation still required).
 5. Add approvals, audit logging, and action-specific tool permissions before enabling any writes.
-6. Add n8n workflows and external integrations after the core permission model is tested.
+6. Add Inngest for durable agent runs after the model-backed read-only agents are validated; use Make or Activepieces for external BPA and client integrations. Keep n8n optional.
 7. Map feature entitlements and human support hours to the four BuildFlow SaaS tiers. The VEA service tiers remain Essential, Professional, Executive, and Strategic Office, mapped to the corresponding BuildFlow subscription level.
 
 ## Current implementation limits
