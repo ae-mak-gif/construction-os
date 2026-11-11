@@ -114,3 +114,27 @@ export const veaAgentActionPolicy = {
     'changes to financial records',
   ],
 };
+
+/**
+ * Conservative keyword routing for previews and deterministic tests.
+ * The future model orchestrator may propose a route, but the server must
+ * validate the selected key against this registry before any tool is exposed.
+ */
+export function suggestVEAAgentKeys(message: string): string[] {
+  const normalized = message.toLowerCase();
+  const matches = veaAgents
+    .filter((agent) => agent.key !== 'executive')
+    .map((agent) => ({
+      key: agent.key,
+      score: agent.routeHints.reduce(
+        (score, hint) => score + (normalized.includes(hint) ? 1 : 0),
+        0,
+      ),
+    }))
+    .filter((item) => item.score > 0)
+    .sort((a, b) => b.score - a.score);
+
+  if (matches.length === 0) return ['executive'];
+  const topScore = matches[0].score;
+  return matches.filter((item) => item.score === topScore).map((item) => item.key);
+}
