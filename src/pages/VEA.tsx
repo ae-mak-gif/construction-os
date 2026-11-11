@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { AIAssistant } from '@/pages/AIAssistant';
 import { useAuth } from '@/context/AuthContext';
 import { projects, tasks, risks, purchaseRequests } from '@/data/mockData';
@@ -68,7 +69,7 @@ export function VEA() {
           <h2 className="text-lg font-semibold text-gray-900">Business pulse</h2>
           <p className="mt-1 text-sm text-gray-500">A consolidated view of the signals an executive should not miss.</p>
         </div>
-        <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-medium text-amber-800">Preview data · not live analysis</span>
+        <span className={`rounded-full border px-3 py-1 text-xs font-medium ${liveContext ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-amber-200 bg-amber-50 text-amber-800'}`}>{liveContext ? 'Live BuildFlow data' : contextLoading ? 'Connecting · sample preview' : 'Sample preview · live data unavailable'}</span>
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -92,10 +93,11 @@ export function VEA() {
           <div className="flex items-start justify-between gap-3">
             <div>
               <h2 className="font-semibold text-gray-900">Executive attention</h2>
-              <p className="mt-1 text-sm text-gray-500">Items the future VEA orchestrator will consolidate for you.</p>
+              <p className="mt-1 text-sm text-gray-500">{liveContext ? 'Live project health signals from your organisation.' : 'Sample items illustrating what the VEA orchestrator will consolidate.'}</p>
             </div>
             <ArrowUpRight size={18} className="text-gray-400" />
           </div>
+          {contextError && !liveContext && <p role="status" className="mb-3 rounded-lg bg-amber-50 p-3 text-xs text-amber-800">Live portfolio connection: {contextError}. The figures shown remain clearly marked sample data.</p>}
           <div className="mt-4 space-y-3">
             {watchProjects.slice(0, 3).map((project) => (
               <div key={project.id} className="flex items-center justify-between gap-3 rounded-lg bg-gray-50 px-3 py-3">
@@ -111,7 +113,7 @@ export function VEA() {
             {watchProjects.length === 0 && <p className="text-sm text-gray-500">No watchlist items in the sample portfolio.</p>}
             <div className="flex items-center gap-2 rounded-lg border border-dashed border-gray-200 px-3 py-3 text-sm text-gray-500">
               <ShieldCheck size={16} className="text-amber-600" />
-              {openRisks} open risk records in the sample workspace
+              {openRisks} open risk records {liveContext ? 'in the live workspace' : 'in the sample workspace'}
             </div>
           </div>
         </section>
@@ -122,11 +124,11 @@ export function VEA() {
           <div className="mt-4 space-y-3">
             <div className="flex items-start gap-3 rounded-lg bg-gray-50 p-3">
               <span className="rounded-lg bg-amber-100 p-2 text-amber-700"><ShoppingCart size={16} /></span>
-              <div><p className="text-sm font-medium text-gray-800">{pendingPurchases} purchase requests awaiting review</p><p className="mt-0.5 text-xs text-gray-500">Procurement decision queue · sample data</p></div>
+              <div><p className="text-sm font-medium text-gray-800">{pendingPurchases} purchase requests awaiting review</p><p className="mt-0.5 text-xs text-gray-500">Procurement decision queue · {liveContext ? 'live records' : 'sample data'}</p></div>
             </div>
             <div className="flex items-start gap-3 rounded-lg bg-gray-50 p-3">
               <span className="rounded-lg bg-red-100 p-2 text-red-700"><ListChecks size={16} /></span>
-              <div><p className="text-sm font-medium text-gray-800">{overdueTasks} overdue tasks need follow-up</p><p className="mt-0.5 text-xs text-gray-500">Delegation and accountability · sample data</p></div>
+              <div><p className="text-sm font-medium text-gray-800">{overdueTasks} overdue tasks need follow-up</p><p className="mt-0.5 text-xs text-gray-500">Delegation and accountability · {liveContext ? 'live records' : 'sample data'}</p></div>
             </div>
             <div className="rounded-lg border border-blue-100 bg-blue-50/70 p-3 text-xs leading-5 text-blue-800">
               <strong>Approval boundary:</strong> payments, contracts, employment decisions and material commitments remain with an authorised human decision-maker.
