@@ -34,6 +34,45 @@ Agents must not call Supabase with elevated credentials from the browser. Any pr
 
 The first VEA migrations add organization-scoped conversations, messages, agent runs, approvals, and audit events. All five tables have RLS enabled. Conversation and message visibility is limited to the creator, assigned human assistant, or an authorised organisation administrator; approvals are limited to their requester, assignee, or administrator; audit events are administrator-only. Composite foreign keys enforce same-organisation references. Browser users cannot update or delete approvals, agent-run outcomes, or audit records. Trusted server-side services will own those operations.
 
+
+## Specialist-agent registry and routing contract
+
+The source-controlled catalogue is `src/lib/vea-agents.ts`. It defines eight specialist capabilities and the first routing hints:
+
+- Executive Orchestrator — cross-functional briefings, prioritisation and delegation coordination.
+- Project Intelligence — project health, programme, milestones, tasks and delivery risks.
+- Finance Intelligence — budgets, invoices, cash flow and cost variance.
+- Procurement Intelligence — purchase requests, purchase orders, supplier records and materials visibility.
+- People & Workforce — workforce capacity and resource allocation; it must not make HR decisions.
+- Research & Documents — authorised document retrieval, evidence extraction and summaries.
+- Delegation & Accountability — commitments, ownership and follow-up visibility.
+- Risk & Compliance — project, safety, quality and compliance risk visibility.
+
+The registry is a capability contract, not a live agent runtime. The current release only advertises capabilities and status; no model-driven routing or specialist execution is claimed. All agents inherit a read-only policy. The first delivery wave is Executive, Project, Finance and Procurement. The remaining four follow after the first wave is tested.
+
+## Orchestration contract
+
+1. Authenticate the caller using the Supabase JWT; reject missing, invalid or expired sessions.
+2. Resolve exactly one active organisation membership. If a user has multiple active memberships, require explicit organisation selection rather than guessing.
+3. Route only to an allow-listed agent key from the source-controlled registry. Model output must never invent tools or permissions.
+4. Load only the minimum context needed for that agent, using the caller's JWT and existing RLS policies.
+5. Start with read-only tools: summaries, search, analysis, monitoring and draft preparation.
+6. Record each conversation, message and agent run with organisation scope and actor identity.
+7. Do not execute writes, approvals, payments, procurement commitments, contract actions or HR decisions in the initial runtime.
+8. When a future action requires approval, create a proposal for a human; approval is not execution authority. Re-check the approver's permission and the underlying action permission at execution time.
+9. Record tool invocation, outcome, model identifier and token usage in the audit trail. Do not store secrets or unnecessary sensitive content in logs.
+
+## First-wave acceptance tests
+
+- An unauthenticated request is rejected.
+- A user without active organisation membership is rejected.
+- A user with multiple active memberships is asked to select an organisation.
+- A user cannot retrieve another organisation's VEA conversations, messages, runs or business records.
+- Only registered agent keys can be selected.
+- Model output cannot expand the tool allow-list or turn on write permissions.
+- The four first-wave agents cannot perform writes or approval actions.
+- Existing BuildFlow modules, records, demo data and navigation remain unaffected.
+
 ## Existing AI Assistant migration
 
 The current `src/pages/AIAssistant.tsx` is a demo implementation backed by `src/data/mockData`; it does not call a model or a server endpoint. Preserve the useful question prompts and demo behavior while replacing its internal response function with a server-side VEA conversation API in a later implementation step. Do not label mock responses as live AI.
