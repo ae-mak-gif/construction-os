@@ -32,7 +32,7 @@ Agents must not call Supabase with elevated credentials from the browser. Any pr
 
 ## Data foundation
 
-The first VEA migration adds organization-scoped conversations, messages, agent runs, approvals, and audit events. All five tables have RLS enabled. Authenticated users can read only their active organization. Browser users may create their own conversations, human messages, agent-run requests, and approval requests. Browser users cannot update or delete approvals, agent-run outcomes, or audit records. Trusted server-side services will own those operations.
+The first VEA migrations add organization-scoped conversations, messages, agent runs, approvals, and audit events. All five tables have RLS enabled. Conversation and message visibility is limited to the creator, assigned human assistant, or an authorised organisation administrator; approvals are limited to their requester, assignee, or administrator; audit events are administrator-only. Composite foreign keys enforce same-organisation references. Browser users cannot update or delete approvals, agent-run outcomes, or audit records. Trusted server-side services will own those operations.
 
 ## Existing AI Assistant migration
 
@@ -41,8 +41,8 @@ The current `src/pages/AIAssistant.tsx` is a demo implementation backed by `src/
 ## Delivery sequence
 
 1. Establish isolated VEA branch and architecture notes.
-2. Add and verify the organization-scoped data foundation in `buildflow-dev`.
-3. Build the VEA command-centre UI while preserving existing BuildFlow navigation and data.
+2. Add and verify the organisation-scoped data foundation in `buildflow-dev` (completed; five RLS-protected tables and participant-scoped policies).
+3. Build the VEA command-centre UI while preserving existing BuildFlow navigation and data (initial Executive Office shell added; existing AI demo is embedded rather than duplicated).
 4. Implement authenticated server-side orchestration and the first read-only agents (Executive, Project, Finance, Procurement).
 5. Add approvals, audit logging, and action-specific tool permissions before enabling any writes.
 6. Add n8n workflows and external integrations after the core permission model is tested.
@@ -50,4 +50,4 @@ The current `src/pages/AIAssistant.tsx` is a demo implementation backed by `src/
 
 ## Current implementation limits
 
-The current app is a Vite SPA with no established server-side AI route, no connected model provider, and no Supabase Edge Functions in the development project. Do not install an agent framework or expose model/API credentials in client code until the server runtime, model routing, and environment variables are selected and tested.
+The current app is a Vite SPA with no established server-side AI route, no connected model provider, and no Supabase Edge Functions in the development project. The first VEA UI is therefore explicitly marked as preview/sample data and the existing chat remains labelled as demo mode. The feature branch has a successful Vercel preview build. Do not install an agent framework or expose model/API credentials in client code until the server runtime, model routing, and environment variables are selected and tested.
