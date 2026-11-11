@@ -16,7 +16,7 @@ export const constructionModules: ConstructionModule[] = [
     capabilities: ['Daily site diaries', 'Labour, plant and material records', 'Weather and site conditions', 'Progress photographs and instructions', 'Delay and disruption records'],
     currentFoundation: ['Projects', 'Project updates', 'Tasks', 'Equipment'],
     remainingBuild: ['Dedicated site diary records', 'Daily resource and weather capture', 'Photo and document attachments', 'Delay and instruction registers'],
-    proposedTier: 'Starter', openPage: 'projects' },
+    proposedTier: 'Starter', openPage: 'site-diaries' },
   { id: 'contracts', name: 'Contract & Variation Management', category: 'Commercial controls',
     summary: 'Control the commercial relationship between the original contract and approved changes.',
     capabilities: ['Contract register and key dates', 'Contract obligations and deliverables', 'Variation and change requests', 'Extensions of time and delay notices', 'Approval history and valuation tracking'],
