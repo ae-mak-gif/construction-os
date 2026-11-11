@@ -1,5 +1,5 @@
 import { useMemo, useState, type FormEvent } from 'react';
-import { AlertTriangle, ClipboardCheck, FileText, HardHat, Plus, ShieldCheck, Truck } from 'lucide-react';
+import { ClipboardCheck, FileText, HardHat, Plus, ShieldCheck, Truck } from 'lucide-react';
 import { Card, CardBody, CardHeader } from '@/components/ui/Card';
 import { useBuildFlowData } from '@/context/BuildFlowDataContext';
 
