@@ -1,4 +1,5 @@
-import { FormEvent, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
+import type { FormEvent } from 'react';
 import { Bot, LockKeyhole, Send, Sparkles, User, Loader2 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 
