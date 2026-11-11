@@ -6,12 +6,16 @@ on:
       - fix/auth-profile-schema-alignment
 
 permissions:
-  contents: read
+  contents: write
+
+concurrency:
+  group: dependency-remediation-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   remediate:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - name: Checkout
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
@@ -29,20 +33,36 @@ jobs:
 
       - name: Apply non-breaking security updates
         run: npm audit fix
+
+      - name: Report remaining high-severity advisories
+        run: npm audit --audit-level=high
         continue-on-error: true
 
-      - name: Capture post-remediation audit
-        if: always()
-        run: npm audit --json > audit-after.json || true
+      - name: Verify lint, TypeScript and production build
+        run: |
+          npm run lint
+          npm run typecheck
+          npm run build
 
-      - name: Upload reviewed dependency files
-        if: always()
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: buildflow-dependency-remediation
-          path: |
-            package.json
-            package-lock.json
-            audit-after.json
-          if-no-files-found: error
-          retention-days: 1
+      - name: Commit reviewed lockfile updates
+        if: success()
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package.json package-lock.json
+          if git diff --cached --quiet; then
+            echo "No dependency file changes to commit."
+            exit 0
+          fi
+          git commit -m "Fix vulnerable transitive dependencies"
+          cat > "$RUNNER_TEMP/askpass.sh" <<'EOF'
+          #!/bin/sh
+          case "$1" in
+            *Username*) printf '%s' "x-access-token" ;;
+            *Password*) printf '%s' "$GITHUB_TOKEN" ;;
+          esac
+          EOF
+          chmod 700 "$RUNNER_TEMP/askpass.sh"
+          GIT_ASKPASS="$RUNNER_TEMP/askpass.sh" GIT_TERMINAL_PROMPT=0 git push origin "HEAD:$GITHUB_REF_NAME"
