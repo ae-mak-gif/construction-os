@@ -326,7 +326,7 @@ function ProjectAccessManagement() {
       });
       if (directoryError) throw directoryError;
       const projectRows = directory?.projects || [];
-      const memberRows = directory?.members || [];
+      const memberRows: Array<{ user_id: string; display_name: string; status: string }> = directory?.members || [];
       const assignmentRows = directory?.assignments || [];
       setProjects(projectRows);
       setMembers(memberRows);
