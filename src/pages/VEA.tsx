@@ -3,18 +3,16 @@ import { AIAssistant } from '@/pages/AIAssistant';
 import { useAuth } from '@/context/AuthContext';
 import { projects, tasks, risks, purchaseRequests } from '@/data/mockData';
 import {
-  ArrowUpRight,
-  Bot,
-  FolderKanban,
-  ListChecks,
-  CalendarDays,
-  FileText,
-  LockKeyhole,
-  ShieldCheck,
-  ShoppingCart,
-  Sparkles,
-  Users,
+  ArrowUpRight, Bot, FolderKanban, ListChecks, CalendarDays, FileText,
+  LockKeyhole, ShieldCheck, ShoppingCart, Sparkles, Users,
 } from 'lucide-react';
+
+type LiveContext = {
+  projects: Array<{ id: string; name: string; status: string; health_status: string; progress_percent: number; project_manager_id: string | null }>;
+  tasks: Array<{ id: string; title: string; status: string; due_date: string | null; project_id: string | null }>;
+  risks: Array<{ id: string; title: string; status: string; project_id: string | null }>;
+  purchase_requests: Array<{ id: string; status: string; project_id: string | null }>;
+};
 
 const specialistAgents = [
   { name: 'Executive Orchestrator', detail: 'Routes requests and coordinates specialist work', icon: Bot, status: 'Core layer' },
@@ -29,19 +27,72 @@ const specialistAgents = [
 ];
 
 export function VEA() {
-  const { profile, membership } = useAuth();
+  const { profile, membership, session } = useAuth();
   const firstName = profile?.full_name?.trim().split(/\s+/)[0] || 'there';
-  const activeProjects = projects.filter((project) => project.status === 'Active').length;
-  const watchProjects = projects.filter((project) => project.health === 'at-risk' || project.health === 'delayed');
-  const overdueTasks = tasks.filter((task) => task.status === 'Overdue').length;
-  const pendingPurchases = purchaseRequests.filter((request) => request.status === 'Requested').length;
-  const openRisks = risks.filter((risk) => risk.status === 'Open').length;
+  const [liveContext, setLiveContext] = useState<LiveContext | null>(null);
+  const [contextLoading, setContextLoading] = useState(true);
+  const [contextError, setContextError] = useState('');
+
+  useEffect(() => {
+    let active = true;
+    const loadContext = async () => {
+      if (!session?.access_token || !membership?.organization_id) {
+        setContextLoading(false);
+        return;
+      }
+      setContextLoading(true);
+      setContextError('');
+      try {
+        const response = await fetch('/api/vea/context', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({ organization_id: membership.organization_id }),
+        });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || 'Could not load live executive context.');
+        if (active) setLiveContext(result.data as LiveContext);
+      } catch (loadError) {
+        if (active) setContextError(loadError instanceof Error ? loadError.message : 'Could not load live executive context.');
+      } finally {
+        if (active) setContextLoading(false);
+      }
+    };
+    void loadContext();
+    return () => { active = false; };
+  }, [session?.access_token, membership?.organization_id]);
+
+  const now = new Date();
+  const todayKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  const activeProjects = liveContext
+    ? liveContext.projects.filter((project) => !['completed', 'cancelled', 'archived'].includes(project.status)).length
+    : projects.filter((project) => project.status === 'Active').length;
+  const watchProjects = liveContext
+    ? liveContext.projects.filter((project) => ['at_risk', 'critical'].includes(project.health_status)).map((project) => ({
+        id: project.id, name: project.name, progress: Number(project.progress_percent ?? 0),
+        manager: project.project_manager_id ? 'Project manager assigned' : 'Unassigned',
+        health: project.health_status === 'critical' ? 'delayed' : 'at-risk',
+      }))
+    : projects.filter((project) => project.health === 'at-risk' || project.health === 'delayed').map((project) => ({
+        id: project.id, name: project.name, progress: project.progress, manager: project.manager, health: project.health,
+      }));
+  const overdueTasks = liveContext
+    ? liveContext.tasks.filter((task) => task.due_date && task.due_date < todayKey && task.status !== 'completed').length
+    : tasks.filter((task) => task.status === 'Overdue').length;
+  const pendingPurchases = liveContext
+    ? liveContext.purchase_requests.filter((request) => request.status === 'pending').length
+    : purchaseRequests.filter((request) => request.status === 'Requested').length;
+  const openRisks = liveContext
+    ? liveContext.risks.filter((risk) => !['closed', 'mitigated'].includes(risk.status)).length
+    : risks.filter((risk) => risk.status === 'Open').length;
 
   const metrics = [
-    { label: 'Active projects', value: activeProjects, note: 'Across the sample portfolio', icon: FolderKanban },
-    { label: 'Projects to watch', value: watchProjects.length, note: 'At-risk or delayed in sample data', icon: ShieldCheck },
-    { label: 'Overdue tasks', value: overdueTasks, note: 'Require owner follow-up', icon: ListChecks },
-    { label: 'Pending procurement', value: pendingPurchases, note: 'Requests awaiting a decision', icon: ShoppingCart },
+    { label: 'Active projects', value: activeProjects, note: liveContext ? 'Live organisation portfolio' : 'Sample portfolio', icon: FolderKanban },
+    { label: 'Projects to watch', value: watchProjects.length, note: liveContext ? 'At-risk or critical health status' : 'Sample at-risk projects', icon: ShieldCheck },
+    { label: 'Overdue tasks', value: overdueTasks, note: liveContext ? 'Open tasks past their due date' : 'Sample overdue tasks', icon: ListChecks },
+    { label: 'Pending procurement', value: pendingPurchases, note: liveContext ? 'Requests awaiting a decision' : 'Sample pending requests', icon: ShoppingCart },
   ];
 
   return (
@@ -69,8 +120,12 @@ export function VEA() {
           <h2 className="text-lg font-semibold text-gray-900">Business pulse</h2>
           <p className="mt-1 text-sm text-gray-500">A consolidated view of the signals an executive should not miss.</p>
         </div>
-        <span className={`rounded-full border px-3 py-1 text-xs font-medium ${liveContext ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-amber-200 bg-amber-50 text-amber-800'}`}>{liveContext ? 'Live BuildFlow data' : contextLoading ? 'Connecting · sample preview' : 'Sample preview · live data unavailable'}</span>
+        <span className={`rounded-full border px-3 py-1 text-xs font-medium ${liveContext ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-amber-200 bg-amber-50 text-amber-800'}`}>
+          {liveContext ? 'Live BuildFlow data' : contextLoading ? 'Connecting · sample preview' : 'Sample preview · live data unavailable'}
+        </span>
       </div>
+
+      {contextError && !liveContext && <p role="status" className="rounded-lg bg-amber-50 p-3 text-xs text-amber-800">Live portfolio connection: {contextError}. The figures shown remain clearly marked sample data.</p>}
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {metrics.map((metric) => {
@@ -97,7 +152,6 @@ export function VEA() {
             </div>
             <ArrowUpRight size={18} className="text-gray-400" />
           </div>
-          {contextError && !liveContext && <p role="status" className="mb-3 rounded-lg bg-amber-50 p-3 text-xs text-amber-800">Live portfolio connection: {contextError}. The figures shown remain clearly marked sample data.</p>}
           <div className="mt-4 space-y-3">
             {watchProjects.slice(0, 3).map((project) => (
               <div key={project.id} className="flex items-center justify-between gap-3 rounded-lg bg-gray-50 px-3 py-3">
@@ -110,7 +164,7 @@ export function VEA() {
                 </span>
               </div>
             ))}
-            {watchProjects.length === 0 && <p className="text-sm text-gray-500">No watchlist items in the sample portfolio.</p>}
+            {watchProjects.length === 0 && <p className="text-sm text-gray-500">No watchlist items in the {liveContext ? 'live portfolio' : 'sample portfolio'}.</p>}
             <div className="flex items-center gap-2 rounded-lg border border-dashed border-gray-200 px-3 py-3 text-sm text-gray-500">
               <ShieldCheck size={16} className="text-amber-600" />
               {openRisks} open risk records {liveContext ? 'in the live workspace' : 'in the sample workspace'}
@@ -120,7 +174,7 @@ export function VEA() {
 
         <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
           <h2 className="font-semibold text-gray-900">Decisions & follow-through</h2>
-          <p className="mt-1 text-sm text-gray-500">A future shared queue for AI recommendations and human hand-offs.</p>
+          <p className="mt-1 text-sm text-gray-500">A shared queue for AI recommendations and human hand-offs.</p>
           <div className="mt-4 space-y-3">
             <div className="flex items-start gap-3 rounded-lg bg-gray-50 p-3">
               <span className="rounded-lg bg-amber-100 p-2 text-amber-700"><ShoppingCart size={16} /></span>
@@ -165,7 +219,7 @@ export function VEA() {
       <section>
         <div className="mb-3">
           <h2 className="text-lg font-semibold text-gray-900">Ask your executive assistant</h2>
-          <p className="mt-1 text-sm text-gray-500">The existing BuildFlow AI demo is retained here while the live VEA service is connected.</p>
+          <p className="mt-1 text-sm text-gray-500">The existing BuildFlow AI demo is retained while the authenticated VEA agent runtime is built. No live model calls or agent actions are enabled yet.</p>
         </div>
         <AIAssistant />
       </section>
