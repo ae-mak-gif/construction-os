@@ -9,7 +9,7 @@ export const constructionModules: ConstructionModule[] = [
     summary: 'Plan the work, sequence activities and understand whether delivery is on schedule.',
     capabilities: ['Work breakdown structures', 'Gantt-style programme and milestones', 'Task dependencies and critical path', 'Baseline versus actual progress', 'Labour and equipment resource planning'],
     currentFoundation: ['Projects', 'Tasks', 'Calendar events'],
-    remainingBuild: ['Schedule activity register and progress tracking', 'Baselines and revisions', 'Dependencies, critical path and resource loading'],
+    remainingBuild: ['Schedule activity register and progress tracking', 'Baseline comparison and programme revisions', 'Gantt view, critical path and resource loading'],
     proposedTier: 'Professional', openPage: 'project-schedule' },
   { id: 'site-operations', name: 'Site Operations & Daily Reporting', category: 'Project delivery',
     summary: 'Give site teams a structured daily record of what happened, what changed and what needs attention.',
