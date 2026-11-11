@@ -11,7 +11,7 @@ import { Finance } from '@/pages/Finance';
 import { HR, Workshop, EquipmentPage, RiskQuality, Reports } from '@/pages/Management';
 import { Communications } from '@/pages/Communications';
 import { ClientPortal } from '@/pages/ClientPortal';
-import { AIAssistant } from '@/pages/AIAssistant';
+import { VEA } from '@/pages/VEA';
 import { Settings } from '@/pages/Settings';
 import { projects } from '@/data/mockData';
 import { Loader2, Building2 } from 'lucide-react';
@@ -35,7 +35,7 @@ const pageTitles: Record<PageKey, string> = {
   'mgmt-reports': 'Reports',
   'communications': 'Communications',
   'client-portal': 'Client Portal',
-  'ai-assistant': 'AI Assistant',
+  'vea': 'Virtual Executive Assistant',
   'settings': 'Settings',
 };
 
@@ -125,7 +125,7 @@ function AppContent() {
           {page === 'mgmt-risk' && <RiskQuality />}
           {page === 'mgmt-reports' && <Reports />}
           {page === 'communications' && <Communications />}
-          {page === 'ai-assistant' && <AIAssistant />}
+          {page === 'vea' && <VEA />}
           {page === 'settings' && <Settings />}
         </main>
       </div>
