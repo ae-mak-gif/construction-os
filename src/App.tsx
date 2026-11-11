@@ -19,6 +19,7 @@ import { ConstructionModules } from '@/pages/ConstructionModules';
 import { SiteDiaries } from '@/pages/SiteDiaries';
 import { ProjectSchedule } from '@/pages/ProjectSchedule';
 import { CostControl } from '@/pages/CostControl';
+import { ConstructionRegisters } from '@/pages/ConstructionRegisters';
 import { projects } from '@/data/mockData';
 import type { Project } from '@/data/mockData';
 import { Loader2, Building2 } from 'lucide-react';
@@ -34,6 +35,7 @@ const pageTitles: Record<PageKey, string> = {
   'site-diaries': 'Daily Site Diaries',
   'project-schedule': 'Project Programme',
   'cost-control': 'Project Cost Control',
+  'project-registers': 'Project Registers',
   'ops-boq': 'BOQ & Estimates',
   'ops-procurement': 'Procurement',
   'ops-suppliers': 'Suppliers',
@@ -155,6 +157,7 @@ function AppContent() {
           {page === 'site-diaries' && <SiteDiaries />}
           {page === 'project-schedule' && <ProjectSchedule />}
           {page === 'cost-control' && <CostControl />}
+          {page === 'project-registers' && <ConstructionRegisters />}
           {page === 'ops-boq' && <BOQEstimates />}
           {page === 'ops-procurement' && <Procurement />}
           {page === 'ops-suppliers' && <Suppliers />}
