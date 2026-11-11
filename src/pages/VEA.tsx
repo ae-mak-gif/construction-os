@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { AIAssistant } from '@/pages/AIAssistant';
+import { VEAChat } from '@/components/vea/VEAChat';
 import { useAuth } from '@/context/AuthContext';
 import { projects, tasks, risks, purchaseRequests } from '@/data/mockData';
 import {
@@ -15,11 +16,11 @@ type LiveContext = {
 };
 
 const specialistAgents = [
-  { name: 'Executive Orchestrator', detail: 'Routes requests and coordinates specialist work', icon: Bot, status: 'Core layer' },
+  { name: 'Executive Orchestrator', detail: 'Routes requests and coordinates specialist work', icon: Bot, status: 'Read-only agent preview' },
   { name: 'Executive Admin', detail: 'Inbox, calendar, meeting preparation and executive support', icon: CalendarDays, status: 'Planned' },
-  { name: 'Business & Finance', detail: 'Cash flow, invoices, budgets and commercial signals', icon: ShieldCheck, status: 'Planned' },
-  { name: 'Project Intelligence', detail: 'Progress, programme, delays and project exposure', icon: FolderKanban, status: 'Planned' },
-  { name: 'Procurement', detail: 'Purchase requests, supplier and materials visibility', icon: ShoppingCart, status: 'Planned' },
+  { name: 'Business & Finance', detail: 'Cash flow, invoices, budgets and commercial signals', icon: ShieldCheck, status: 'First agent set' },
+  { name: 'Project Intelligence', detail: 'Progress, programme, delays and project exposure', icon: FolderKanban, status: 'First agent set' },
+  { name: 'Procurement', detail: 'Purchase requests, supplier and materials visibility', icon: ShoppingCart, status: 'First agent set' },
   { name: 'People & Workforce', detail: 'Capacity, assignments and workforce coordination', icon: Users, status: 'Planned' },
   { name: 'Research & Documents', detail: 'Research, document intelligence and executive briefings', icon: FileText, status: 'Planned' },
   { name: 'Delegation & Accountability', detail: 'Follow-ups, commitments and ownership', icon: ListChecks, status: 'Planned' },
@@ -216,13 +217,13 @@ export function VEA() {
         </div>
       </section>
 
-      <section>
-        <div className="mb-3">
-          <h2 className="text-lg font-semibold text-gray-900">Ask your executive assistant</h2>
-          <p className="mt-1 text-sm text-gray-500">The existing BuildFlow AI demo is retained while the authenticated VEA agent runtime is built. No live model calls or agent actions are enabled yet.</p>
-        </div>
+      <VEAChat />
+
+      <details className="rounded-xl border border-gray-200 bg-white p-4">
+        <summary className="cursor-pointer text-sm font-semibold text-gray-700">Original BuildFlow AI Assistant · demo mode</summary>
+        <p className="mb-3 mt-2 text-xs text-gray-500">The original assistant is preserved for reference. Its responses remain predefined demo content and are not live AI.</p>
         <AIAssistant />
-      </section>
+      </details>
     </div>
   );
 }
