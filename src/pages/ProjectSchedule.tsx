@@ -44,10 +44,6 @@ export function ProjectSchedule() {
   const completed = selectedActivities.filter((activity) => activity.status === 'completed').length;
   const delayed = selectedActivities.filter((activity) => activity.status === 'delayed').length;
   const milestones = selectedActivities.filter((activity) => activity.is_milestone).length;
-  const averageProgress = selectedActivities.length
-    ? Math.round(selectedActivities.reduce((sum, activity) => sum + Number(activity.progress_percent ?? 0), 0) / selectedActivities.length)
-    : 0;
-
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!projectId || !name.trim()) return;
