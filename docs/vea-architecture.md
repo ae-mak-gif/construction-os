@@ -34,6 +34,10 @@ Agents must not call Supabase with elevated credentials from the browser. Any pr
 
 The first VEA migrations add organization-scoped conversations, messages, agent runs, approvals, and audit events. All five tables have RLS enabled. Conversation and message visibility is limited to the creator, assigned human assistant, or an authorised organisation administrator; approvals are limited to their requester, assignee, or administrator; audit events are administrator-only. Composite foreign keys enforce same-organisation references. Browser users cannot update or delete approvals, agent-run outcomes, or audit records. Trusted server-side services will own those operations.
 
+## First authenticated BuildFlow tool
+
+`POST /api/vea/context` is the first read-only VEA context endpoint. It verifies the caller's Supabase session, checks active membership in the requested organisation, then reads only scoped project, task, risk, procurement, invoice, budget and project-cost summaries using the caller's publishable-key session. It does not use a service-role key, perform writes, or call a model. The VEA dashboard uses live organisation data when the endpoint succeeds; sample portfolio data remains explicitly labelled when live context is unavailable.
+
 ## Existing AI Assistant migration
 
 The current `src/pages/AIAssistant.tsx` is a demo implementation backed by `src/data/mockData`; it does not call a model or a server endpoint. Preserve the useful question prompts and demo behavior while replacing its internal response function with a server-side VEA conversation API in a later implementation step. Do not label mock responses as live AI.
@@ -50,4 +54,4 @@ The current `src/pages/AIAssistant.tsx` is a demo implementation backed by `src/
 
 ## Current implementation limits
 
-The current app is a Vite SPA with no established server-side AI route, no connected model provider, and no Supabase Edge Functions in the development project. The first VEA UI is therefore explicitly marked as preview/sample data and the existing chat remains labelled as demo mode. The original VEA branch has an earlier successful preview build. The refreshed branch is based on the latest BuildFlow development head and requires its own preview validation. Do not install an agent framework or expose model/API credentials in client code until the server runtime, model routing, and environment variables are selected and tested.
+The current app is a Vite SPA with one authenticated Vercel serverless read-only context endpoint, but no connected model provider or Supabase Edge Functions in the development project. The first VEA UI is therefore explicitly marked as preview/sample data and the existing chat remains labelled as demo mode. The original VEA branch has an earlier successful preview build. The refreshed branch is based on the latest BuildFlow development head and requires its own preview validation. Do not install an agent framework or expose model/API credentials in client code until the server runtime, model routing, and environment variables are selected and tested.
