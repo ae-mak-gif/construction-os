@@ -75,27 +75,52 @@ export default async function handler(req, res) {
     return res.status(403).json({ error: 'You do not have active access to this organisation.' });
   }
 
-  const queries = await Promise.all([
-    client.from('projects').select('id,name,project_code,status,health_status,progress_percent,expected_completion_date,contract_value,project_manager_id').eq('organization_id', organizationId).order('updated_at', { ascending: false }).limit(100),
-    client.from('tasks').select('id,title,project_id,status,priority,assigned_to,due_date').eq('organization_id', organizationId).order('due_date', { ascending: true }).limit(200),
-    client.from('risks').select('id,title,project_id,category,likelihood,impact,status,due_date').eq('organization_id', organizationId).order('updated_at', { ascending: false }).limit(100),
-    client.from('purchase_requests').select('id,request_number,project_id,description,status,required_date,estimated_amount').eq('organization_id', organizationId).order('created_at', { ascending: false }).limit(100),
-    client.from('purchase_orders').select('id,po_number,project_id,status,total_amount,expected_delivery_date').eq('organization_id', organizationId).order('created_at', { ascending: false }).limit(100),
-    client.from('invoices').select('id,invoice_number,project_id,status,issue_date,due_date,total_amount').eq('organization_id', organizationId).order('created_at', { ascending: false }).limit(100),
-    client.from('project_budgets').select('id,project_id,cost_code,description,budget_amount,committed_amount,actual_amount,forecast_amount,currency_code').eq('organization_id', organizationId).limit(200),
-    client.from('project_costs').select('id,project_id,cost_type,description,amount,cost_date,reference_type').eq('organization_id', organizationId).order('cost_date', { ascending: false }).limit(200),
-  ]);
+  const permissionKeys = ['agents.view', 'projects.view', 'tasks.view', 'risks.view', 'procurement.view', 'finance.view'];
+  const permissionResults = await Promise.all(permissionKeys.map((permissionKey) =>
+    client.rpc('has_org_permission', {
+      target_organization_id: organizationId,
+      target_permission_key: permissionKey,
+    })
+  ));
 
-  const failed = queries.find((result) => result.error);
-  if (failed) {
-    return res.status(502).json({ error: 'Some organisation records could not be retrieved. Check the BuildFlow data permissions.' });
+  if (permissionResults.some((result) => result.error)) {
+    return res.status(502).json({ error: 'Organisation permissions could not be verified.' });
   }
 
-  const [projects, tasks, risks, purchaseRequests, purchaseOrders, invoices, budgets, costs] = queries.map((result) => result.data ?? []);
+  const permissions = Object.fromEntries(
+    permissionKeys.map((permissionKey, index) => [permissionKey, permissionResults[index].data === true])
+  );
+
+  if (!permissions['agents.view']) {
+    return res.status(403).json({ error: 'Your organisation role does not allow access to the VEA workspace.' });
+  }
+
+  const readIfAllowed = (allowed, query) => allowed
+    ? query
+    : Promise.resolve({ data: [], error: null });
+
+  const scopedQueries = await Promise.all([
+    readIfAllowed(permissions['projects.view'], client.from('projects').select('id,name,project_code,status,health_status,progress_percent,expected_completion_date,contract_value,project_manager_id').eq('organization_id', organizationId).order('updated_at', { ascending: false }).limit(100)),
+    readIfAllowed(permissions['tasks.view'], client.from('tasks').select('id,title,project_id,status,priority,assigned_to,due_date').eq('organization_id', organizationId).order('due_date', { ascending: true }).limit(200)),
+    readIfAllowed(permissions['risks.view'], client.from('risks').select('id,title,project_id,category,likelihood,impact,status,due_date').eq('organization_id', organizationId).order('updated_at', { ascending: false }).limit(100)),
+    readIfAllowed(permissions['procurement.view'], client.from('purchase_requests').select('id,request_number,project_id,description,status,required_date,estimated_amount').eq('organization_id', organizationId).order('created_at', { ascending: false }).limit(100)),
+    readIfAllowed(permissions['procurement.view'], client.from('purchase_orders').select('id,po_number,project_id,status,total_amount,expected_delivery_date').eq('organization_id', organizationId).order('created_at', { ascending: false }).limit(100)),
+    readIfAllowed(permissions['finance.view'], client.from('invoices').select('id,invoice_number,project_id,status,issue_date,due_date,total_amount').eq('organization_id', organizationId).order('created_at', { ascending: false }).limit(100)),
+    readIfAllowed(permissions['finance.view'], client.from('project_budgets').select('id,project_id,cost_code,description,budget_amount,committed_amount,actual_amount,forecast_amount,currency_code').eq('organization_id', organizationId).limit(200)),
+    readIfAllowed(permissions['finance.view'], client.from('project_costs').select('id,project_id,cost_type,description,amount,cost_date,reference_type').eq('organization_id', organizationId).order('cost_date', { ascending: false }).limit(200)),
+  ]);
+
+  const failed = scopedQueries.find((result) => result.error);
+  if (failed) {
+    return res.status(502).json({ error: 'Some permitted organisation records could not be retrieved. Check the BuildFlow data permissions.' });
+  }
+
+  const [projects, tasks, risks, purchaseRequests, purchaseOrders, invoices, budgets, costs] = scopedQueries.map((result) => result.data ?? []);
   return res.status(200).json({
     data: {
       generated_at: new Date().toISOString(),
       organization_id: organizationId,
+      permissions,
       projects, tasks, risks,
       purchase_requests: purchaseRequests,
       purchase_orders: purchaseOrders,
