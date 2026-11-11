@@ -6,8 +6,8 @@ export const ORGANIZATION_TABLES = [
   'enquiries','equipment','equipment_assignments','estimate_items','estimates','expenses',
   'finance_transactions','inspections','inventory_items','inventory_transactions','invoices',
   'messages','notifications','organization_members','payments','projects','purchase_order_items',
-  'purchase_orders','purchase_requests','project_approvals','project_costs','project_documents',
-  'project_updates','quality_issues','risks','staff','suppliers','tasks','work_orders',
+  'purchase_orders','purchase_requests','project_approvals','project_budgets','project_costs','project_documents',
+  'project_updates','quality_issues','risks','safety_incidents','schedule_activities','site_diaries','subcontractors','project_rfis','staff','suppliers','tasks','contract_variations','work_orders',
 ] as const;
 
 export type BuildFlowTable = typeof ORGANIZATION_TABLES[number];
