@@ -44,7 +44,8 @@ const pageTitles: Record<PageKey, string> = {
 
 function AppContent() {
   const { session, loading, error } = useAuth();
-  const { loading: dataLoading, records } = useBuildFlowData();
+  const { loading: dataLoading, records, errors: dataErrors, refresh } = useBuildFlowData();
+  const dataErrorCount = Object.keys(dataErrors).length;
   const [page, setPage] = useState<PageKey>('dashboard');
   const [projectId, setProjectId] = useState<string | null>(null);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
@@ -115,6 +116,27 @@ function AppContent() {
       <div className="flex-1 flex flex-col min-w-0">
         <TopBar title={pageTitles[page]} onMenuClick={() => setMobileSidebarOpen(true)} />
         <main className="flex-1 p-4 lg:p-6 overflow-x-hidden">
+          {dataErrorCount > 0 && (
+            <div
+              role="alert"
+              aria-live="polite"
+              className="mb-4 flex flex-col gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-900 sm:flex-row sm:items-center sm:justify-between"
+            >
+              <div>
+                <p className="text-sm font-semibold">Some live data could not be loaded</p>
+                <p className="mt-1 text-sm text-amber-800">
+                  {dataErrorCount} data area(s) reported a loading error. Sample rows may be shown where live records are unavailable; sample rows are not saved records.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => { void refresh(); }}
+                className="shrink-0 rounded-lg border border-amber-300 bg-white px-3 py-2 text-sm font-medium text-amber-900 hover:bg-amber-100"
+              >
+                Retry data loading
+              </button>
+            </div>
+          )}
           {page === 'dashboard' && <Dashboard onNavigate={handleNavigate} />}
           {page === 'crm-enquiries' && <Enquiries />}
           {page === 'crm-clients' && <Clients />}
