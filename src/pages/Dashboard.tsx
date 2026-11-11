@@ -20,15 +20,17 @@ import { ProgressBar } from '@/components/ui/ProgressBar';
 import { BarChart } from '@/components/ui/BarChart';
 import { DonutChart } from '@/components/ui/DonutChart';
 import {
-  projects,
-  tasks,
-  recentActivity,
+  projects as mockProjects,
+  tasks as mockTasks,
+  recentActivity as mockRecentActivity,
   revenueCostData,
-  purchaseRequests,
-  invoices,
+  purchaseRequests as mockPurchaseRequests,
+  invoices as mockInvoices,
 } from '@/data/mockData';
 import { formatCurrency, formatDateShort } from '@/utils/format';
 import type { PageKey } from '@/components/layout/Sidebar';
+import { useBuildFlowData } from '@/context/BuildFlowDataContext';
+import type { Project, Task, Invoice, PurchaseRequest, Activity } from '@/data/mockData';
 
 const activityIcons: Record<string, React.ReactNode> = {
   project: <FolderKanban size={14} />,
@@ -49,6 +51,21 @@ const activityColors: Record<string, string> = {
 };
 
 export function Dashboard({ onNavigate }: { onNavigate: (page: PageKey) => void }) {
+  const { records } = useBuildFlowData();
+  const clientsById = new Map((records.clients ?? []).map((row) => [row.id, row]));
+  const staffById = new Map((records.staff ?? []).map((row) => [row.id, row]));
+  const projects: Project[] = records.projects?.length ? records.projects.map((row) => ({
+    id: row.id, name: String(row.name ?? 'Untitled project'), client: String(clientsById.get(String(row.client_id))?.name ?? 'Client'),
+    clientCompany: String(clientsById.get(String(row.client_id))?.name ?? 'Client'), manager: String(staffById.get(String(row.project_manager_id))?.first_name ?? 'Unassigned'),
+    progress: Number(row.progress_percent ?? 0), budget: Number(row.contract_value ?? 0), actualCost: (records.project_costs ?? []).filter((cost) => cost.project_id === row.id).reduce((sum, cost) => sum + Number(cost.amount ?? 0), 0),
+    deadline: String(row.expected_completion_date ?? ''), startDate: String(row.start_date ?? ''), health: row.health_status === 'at_risk' ? 'at-risk' : row.health_status === 'critical' ? 'delayed' : row.health_status === 'completed' ? 'completed' : 'on-track',
+    status: row.status === 'completed' ? 'Completed' : row.status === 'planning' ? 'Planning' : 'Active', location: String(row.location ?? ''), description: String(row.description ?? ''), contractValue: Number(row.contract_value ?? 0),
+  } as Project)) : mockProjects;
+  const projectById = new Map(projects.map((row) => [row.id, row]));
+  const tasks: Task[] = records.tasks?.length ? records.tasks.map((row) => ({ id: row.id, title: String(row.title ?? ''), project: projectById.get(String(row.project_id))?.name ?? 'Unassigned project', assignee: String(staffById.get(String(row.assigned_to))?.first_name ?? 'Unassigned'), dueDate: String(row.due_date ?? ''), priority: String(row.priority ?? 'medium').toLowerCase() === 'high' || String(row.priority).toLowerCase() === 'urgent' ? 'High' : String(row.priority).toLowerCase() === 'low' ? 'Low' : 'Medium', status: row.status === 'completed' ? 'Done' : row.status === 'in_progress' ? 'In Progress' : row.status === 'blocked' ? 'Review' : 'To Do' } as Task)) : mockTasks;
+  const invoices: Invoice[] = records.invoices?.length ? records.invoices.map((row) => ({ id: String(row.invoice_number ?? row.id), client: String(clientsById.get(String(row.client_id))?.name ?? 'Client'), project: projectById.get(String(row.project_id))?.name ?? 'Unassigned project', amount: Number(row.total_amount ?? 0), issuedDate: String(row.issue_date ?? ''), dueDate: String(row.due_date ?? ''), status: row.status === 'paid' ? 'Paid' : row.status === 'overdue' ? 'Overdue' : row.status === 'partially_paid' ? 'Partial' : 'Outstanding', paidAmount: (records.payments ?? []).filter((payment) => payment.invoice_id === row.id).reduce((sum, payment) => sum + Number(payment.amount ?? 0), 0) } as Invoice)) : mockInvoices;
+  const purchaseRequests: PurchaseRequest[] = records.purchase_requests?.length ? records.purchase_requests.map((row) => ({ id: String(row.request_number ?? row.id), item: String(row.description ?? ''), project: projectById.get(String(row.project_id))?.name ?? 'Unassigned project', qty: 1, unit: 'item', estCost: Number(row.estimated_amount ?? 0), requestedBy: 'Team member', date: String(row.created_at ?? '').slice(0, 10), status: row.status === 'approved' ? 'Approved' : row.status === 'ordered' ? 'PO Issued' : row.status === 'delivered' ? 'Delivered' : row.status === 'rejected' ? 'Rejected' : 'Requested', supplier: 'Pending' } as PurchaseRequest)) : mockPurchaseRequests;
+  const recentActivity: Activity[] = records.activities?.length ? records.activities.slice(0, 8).map((row) => ({ id: row.id, type: 'project', message: String(row.title ?? row.description ?? ''), time: String(row.created_at ?? ''), user: 'Team member' } as Activity)) : mockRecentActivity;
   const activeProjects = projects.filter((p) => p.status === 'Active').length;
   const atRiskProjects = projects.filter((p) => p.health === 'at-risk' || p.health === 'delayed').length;
   const outstandingPayments = invoices
@@ -86,7 +103,7 @@ export function Dashboard({ onNavigate }: { onNavigate: (page: PageKey) => void 
         <Card className="lg:col-span-2">
           <CardHeader title="Revenue vs Cost" subtitle="Last 7 months" />
           <CardBody>
-            <BarChart data={revenueCostData} label1="Revenue" label2="Cost" />
+            <BarChart data={revenueCostData.map(({ month, revenue, cost }) => ({ label: month, value1: revenue, value2: cost }))} label1="Revenue" label2="Cost" />
           </CardBody>
         </Card>
         <Card>

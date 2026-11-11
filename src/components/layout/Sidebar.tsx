@@ -1,10 +1,12 @@
 import {
   LayoutDashboard,
+  Layers3,
   Users,
   UserCheck,
   FolderKanban,
   ListTodo,
   ClipboardList,
+  CalendarDays,
   ShoppingCart,
   Truck,
   Boxes,
@@ -25,11 +27,16 @@ import { useState } from 'react';
 
 export type PageKey =
   | 'dashboard'
+  | 'construction-modules'
   | 'crm-enquiries'
   | 'crm-clients'
   | 'projects'
   | 'project-detail'
   | 'ops-tasks'
+  | 'site-diaries'
+  | 'project-schedule'
+  | 'cost-control'
+  | 'project-registers'
   | 'ops-boq'
   | 'ops-procurement'
   | 'ops-suppliers'
@@ -72,6 +79,11 @@ const navGroups: NavGroup[] = [
     ],
   },
   {
+    label: 'Construction Modules',
+    icon: <Layers3 size={18} />,
+    items: [{ key: 'construction-modules', label: 'Module Catalogue', icon: <Layers3 size={18} /> }],
+  },
+  {
     label: 'Projects',
     icon: <FolderKanban size={18} />,
     items: [{ key: 'projects', label: 'All Projects', icon: <FolderKanban size={18} /> }],
@@ -81,6 +93,10 @@ const navGroups: NavGroup[] = [
     icon: <ListTodo size={18} />,
     items: [
       { key: 'ops-tasks', label: 'Tasks & Calendar', icon: <ListTodo size={18} /> },
+      { key: 'site-diaries', label: 'Daily Site Diaries', icon: <ClipboardList size={18} /> },
+      { key: 'project-schedule', label: 'Project Programme', icon: <CalendarDays size={18} /> },
+      { key: 'cost-control', label: 'Cost Control', icon: <DollarSign size={18} /> },
+      { key: 'project-registers', label: 'Project Registers', icon: <ClipboardList size={18} /> },
       { key: 'ops-boq', label: 'BOQ & Estimates', icon: <ClipboardList size={18} /> },
       { key: 'ops-procurement', label: 'Procurement', icon: <ShoppingCart size={18} /> },
       { key: 'ops-suppliers', label: 'Suppliers', icon: <Truck size={18} /> },

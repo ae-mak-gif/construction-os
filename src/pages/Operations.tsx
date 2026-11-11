@@ -1,40 +1,44 @@
 import { useState } from 'react';
 import {
-  Search,
   Plus,
   ChevronLeft,
   ChevronRight,
   AlertTriangle,
-  Package,
   Check,
   X,
   ArrowRight,
-  Star,
 } from 'lucide-react';
 import { Card, CardHeader, CardBody, StatCard } from '@/components/ui/Card';
 import { Table, Th, Td, Tr } from '@/components/ui/Table';
 import { StatusBadge, Badge } from '@/components/ui/Badge';
 import {
-  tasks,
+  tasks as mockTasks,
   calendarEvents,
-  boqItems,
-  purchaseRequests,
-  suppliers,
-  inventory,
+  boqItems as mockBoqItems,
+  purchaseRequests as mockPurchaseRequests,
+  suppliers as mockSuppliers,
+  inventory as mockInventory,
+  type Task,
+  type PurchaseRequest,
 } from '@/data/mockData';
 import { formatFullCurrency, formatDateShort } from '@/utils/format';
+import { useBuildFlowData } from '@/context/BuildFlowDataContext';
 
 // ── Tasks & Calendar ──────────────────────────────────────────
 export function TasksCalendar() {
+  const { create, update, records } = useBuildFlowData();
+  const projectById = new Map((records.projects ?? []).map((row) => [row.id, row]));
+  const liveTasks: Task[] = records.tasks?.length ? records.tasks.map((row) => ({ id: row.id, title: String(row.title ?? ''), project: String(projectById.get(String(row.project_id))?.name ?? 'Unassigned project'), assignee: 'Unassigned', dueDate: String(row.due_date ?? ''), priority: row.priority === 'high' || row.priority === 'urgent' ? 'High' : row.priority === 'low' ? 'Low' : 'Medium', status: row.status === 'completed' ? 'Done' : row.status === 'in_progress' ? 'In Progress' : row.status === 'blocked' ? 'Review' : 'To Do' } as Task)) : mockTasks;
+  const liveCalendarEvents = records.calendar_events?.length ? records.calendar_events.map((row) => ({ id: row.id, title: String(row.title ?? ''), date: String(row.start_at ?? '').slice(0, 10), time: String(row.start_at ?? '').slice(11, 16), type: row.event_type === 'inspection' ? 'inspection' : row.event_type === 'deadline' ? 'deadline' : row.event_type === 'client-meeting' ? 'client-meeting' : row.event_type === 'site-meeting' ? 'site-meeting' : 'project-meeting', project: String(projectById.get(String(row.project_id))?.name ?? 'General') } as (typeof calendarEvents)[number])) : calendarEvents;
   const [tab, setTab] = useState<'tasks' | 'calendar'>('tasks');
   const [statusFilter, setStatusFilter] = useState<string>('All');
-  const [taskItems, setTaskItems] = useState(tasks);
+  const [taskItems, setTaskItems] = useState(liveTasks);
   const [showTaskModal, setShowTaskModal] = useState(false);
   const [taskTitle, setTaskTitle] = useState('');
   const [taskProject, setTaskProject] = useState('');
   const [taskAssignee, setTaskAssignee] = useState('');
   const [taskDueDate, setTaskDueDate] = useState('');
-  const [taskPriority, setTaskPriority] = useState('Medium');
+  const [taskPriority, setTaskPriority] = useState<Task['priority']>('Medium');
   const [currentMonth, setCurrentMonth] = useState(new Date(2026, 8, 1));
 
   const filteredTasks =
@@ -48,10 +52,10 @@ export function TasksCalendar() {
   const inProgressCount = taskItems.filter((t) => t.status === 'In Progress').length;
   const doneCount = taskItems.filter((t) => t.status === 'Done').length;
 
-  const createTask = () => {
+  const createTask = async () => {
     if (!taskTitle.trim()) return;
 
-    const newTask = {
+    const newTask: Task = {
       id: `T${String(taskItems.length + 1).padStart(3, '0')}`,
       title: taskTitle.trim(),
       project: taskProject || 'Riverside Office Development',
@@ -61,7 +65,17 @@ export function TasksCalendar() {
       status: 'To Do',
     };
 
-    setTaskItems([newTask as any, ...taskItems]);
+    try {
+      const linkedProject = (records.projects ?? []).find((p) => String(p.name) === newTask.project);
+      const linkedStaff = (records.staff ?? []).find((member) => `${member.first_name ?? ''} ${member.last_name ?? ''}`.trim() === newTask.assignee);
+      const saved = await create('tasks', { title: newTask.title, project_id: linkedProject?.id ?? null, assigned_to: linkedStaff?.id ?? null, status: 'todo', priority: newTask.priority.toLowerCase(), due_date: newTask.dueDate });
+      newTask.id = saved.id;
+    } catch (error) {
+      console.error('Unable to save task:', error);
+      window.alert(error instanceof Error ? error.message : 'Unable to save this task.');
+      return;
+    }
+    setTaskItems([newTask, ...taskItems]);
     setTaskTitle('');
     setTaskProject('');
     setTaskAssignee('');
@@ -70,8 +84,13 @@ export function TasksCalendar() {
     setShowTaskModal(false);
   };
 
-  const advanceTask = (id: string) => {
-    const stages = ['To Do', 'In Progress', 'Review', 'Done'];
+  const advanceTask = async (id: string) => {
+    const stages: Task['status'][] = ['To Do', 'In Progress', 'Review', 'Done'];
+    const selectedTask = taskItems.find((task) => task.id === id);
+    if (selectedTask && /^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(selectedTask.id)) {
+      const next = stages[stages.indexOf(selectedTask.status) + 1];
+      if (next) void update('tasks', id, { status: next === 'Done' ? 'completed' : next === 'Review' ? 'blocked' : next.toLowerCase().replace(' ', '_') }).catch((error) => window.alert(error.message));
+    }
     setTaskItems(
       taskItems.map((task) => {
         if (task.id !== id) return task;
@@ -212,6 +231,7 @@ export function TasksCalendar() {
         <CalendarView
           currentMonth={currentMonth}
           setCurrentMonth={setCurrentMonth}
+          events={liveCalendarEvents}
         />
       )}
 
@@ -265,7 +285,7 @@ export function TasksCalendar() {
 
               <select
                 value={taskPriority}
-                onChange={(e) => setTaskPriority(e.target.value)}
+                onChange={(e) => setTaskPriority(e.target.value as Task['priority'])}
                 className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none"
               >
                 <option>Low</option>
@@ -300,9 +320,11 @@ export function TasksCalendar() {
 function CalendarView({
   currentMonth,
   setCurrentMonth,
+  events,
 }: {
   currentMonth: Date;
   setCurrentMonth: (d: Date) => void;
+  events: (typeof calendarEvents);
 }) {
   const year = currentMonth.getFullYear();
   const month = currentMonth.getMonth();
@@ -323,7 +345,7 @@ function CalendarView({
     `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
 
   const eventsForDay = (d: number) =>
-    calendarEvents.filter((e) => e.date === dateStr(d));
+    events.filter((e) => e.date === dateStr(d));
 
   const eventTypeColors: Record<string, string> = {
     'project-meeting': 'bg-blue-50 text-blue-700 border-blue-200',
@@ -441,12 +463,15 @@ function CalendarView({
 
 // ── BOQ & Estimates ───────────────────────────────────────────
 export function BOQEstimates() {
+  const { records, create, remove } = useBuildFlowData();
+  const projectById = new Map((records.projects ?? []).map((row) => [row.id, row]));
+  const liveBoqItems = records.boq_items?.length ? records.boq_items.map((row) => ({ id: row.id, item: String(row.item_code ?? row.description ?? ''), description: String(row.description ?? ''), qty: Number(row.quantity ?? 1), unit: String(row.unit ?? ''), unitCost: Number(row.unit_rate ?? 0), category: String(row.category ?? 'Materials'), project: String(projectById.get(String(row.project_id))?.name ?? 'Unassigned project') } as (typeof mockBoqItems)[number])) : mockBoqItems;
   const [projectFilter, setProjectFilter] = useState('All');
-  const [items, setItems] = useState(boqItems);
+  const [items, setItems] = useState(liveBoqItems);
 
   const projects = [
     'All',
-    ...Array.from(new Set(boqItems.map((b) => b.project))),
+    ...Array.from(new Set(items.map((b) => b.project))),
   ];
 
   const filtered =
@@ -459,35 +484,31 @@ export function BOQEstimates() {
   const markup = subtotal * 0.15;
   const total = subtotal + contingency + markup;
 
-  const categoryColors: Record<string, string> = {
+  const categoryColors: Record<string, React.ComponentProps<typeof Badge>['variant']> = {
     Materials: 'blue',
     Labour: 'green',
     Equipment: 'orange',
     Subcontractors: 'purple',
   };
 
-  const removeItem = (id: string) =>
+  const removeItem = (id: string) => {
     setItems(items.filter((i) => i.id !== id));
+    if (/^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(id)) void remove('boq_items', id).catch((error) => window.alert(error.message));
+  };
 
-  const addItem = () => {
+  const addItem = async () => {
     const newId = `B${String(items.length + 1).padStart(3, '0')}`;
 
-    setItems([
-      ...items,
-      {
-        id: newId,
-        item: 'New Item',
-        description: 'Enter description',
-        qty: 1,
-        unit: 'pcs',
-        unitCost: 0,
-        category: 'Materials',
-        project:
-          projectFilter === 'All'
-            ? 'Riverside Office Development'
-            : projectFilter,
-      },
-    ]);
+    const projectName = projectFilter === 'All' ? 'Riverside Office Development' : projectFilter;
+    const linkedProject = (records.projects ?? []).find((row) => row.name === projectName);
+    const item = { id: newId, item: 'New Item', description: 'Enter description', qty: 1, unit: 'pcs', unitCost: 0, category: 'Materials' as const, project: projectName };
+    if (linkedProject) {
+      try {
+        const saved = await create('boq_items', { project_id: linkedProject.id, item_code: newId, description: item.description, quantity: 1, unit: 'pcs', unit_rate: 0, total_amount: 0, category: 'Materials', status: 'planned' });
+        item.id = saved.id;
+      } catch (error) { window.alert(error instanceof Error ? error.message : 'Unable to save BOQ item.'); return; }
+    }
+    setItems((current) => [...current, item]);
   };
 
   return (
@@ -541,7 +562,7 @@ export function BOQEstimates() {
                   <Td className="font-medium text-gray-700">{i.item}</Td>
                   <Td className="text-gray-500 text-xs">{i.description}</Td>
                   <Td>
-                    <Badge variant={categoryColors[i.category] as any}>
+                    <Badge variant={categoryColors[i.category] ?? 'gray'}>
                       {i.category}
                     </Badge>
                   </Td>
@@ -609,8 +630,11 @@ export function BOQEstimates() {
 
 // ── Procurement ──────────────────────────────────────────────
 export function Procurement() {
+  const { create, records } = useBuildFlowData();
+  const projectById = new Map((records.projects ?? []).map((row) => [row.id, row]));
+  const liveRequests = records.purchase_requests?.length ? records.purchase_requests.map((row) => ({ id: String(row.request_number ?? row.id), item: String(row.description ?? ''), project: String(projectById.get(String(row.project_id))?.name ?? 'Unassigned project'), qty: 1, unit: 'item', estCost: Number(row.estimated_amount ?? 0), requestedBy: 'Team member', date: String(row.created_at ?? '').slice(0, 10), status: row.status === 'approved' ? 'Approved' : row.status === 'ordered' ? 'PO Issued' : row.status === 'delivered' ? 'Delivered' : row.status === 'rejected' ? 'Rejected' : 'Requested', supplier: 'Pending' } as PurchaseRequest)) : mockPurchaseRequests;
   const [statusFilter, setStatusFilter] = useState('All');
-  const [requests, setRequests] = useState(purchaseRequests);
+  const [requests, setRequests] = useState(liveRequests);
   const [showModal, setShowModal] = useState(false);
 
   const [item, setItem] = useState('');
@@ -643,10 +667,10 @@ export function Procurement() {
     'Project',
   ];
 
-  const createRequest = () => {
+  const createRequest = async () => {
     if (!item.trim()) return;
 
-    const newRequest = {
+    const newRequest: PurchaseRequest = {
       id: `PR${String(requests.length + 1).padStart(3, '0')}`,
       item: item.trim(),
       project: project || 'Riverside Office Development',
@@ -659,7 +683,16 @@ export function Procurement() {
       status: 'Requested',
     };
 
-    setRequests([newRequest as any, ...requests]);
+    try {
+      const linkedProject = (records.projects ?? []).find((p) => String(p.name) === newRequest.project);
+      const saved = await create('purchase_requests', { project_id: linkedProject?.id ?? null, description: newRequest.item, status: 'pending', estimated_amount: newRequest.estCost, required_date: new Date().toISOString().slice(0, 10), notes: `Quantity: ${newRequest.qty} ${newRequest.unit}` });
+      newRequest.id = saved.id;
+    } catch (error) {
+      console.error('Unable to save purchase request:', error);
+      window.alert(error instanceof Error ? error.message : 'Unable to save this purchase request.');
+      return;
+    }
+    setRequests([newRequest, ...requests]);
 
     setItem('');
     setProject('');
@@ -865,6 +898,8 @@ export function Procurement() {
   );
 }
 export function Suppliers() {
+  const { records } = useBuildFlowData();
+  const supplierRows = records.suppliers?.length ? records.suppliers.map((row) => ({ id: row.id, name: String(row.name ?? ''), category: 'Supplier', contact: String(row.contact_name ?? ''), phone: String(row.phone ?? ''), email: String(row.email ?? ''), rating: 0, totalOrders: 0, outstandingBalance: 0, status: row.status === 'inactive' ? 'Inactive' : 'Active' } as (typeof mockSuppliers)[number])) : mockSuppliers;
   return (
     <div className="space-y-6">
       <div>
@@ -887,21 +922,15 @@ export function Suppliers() {
                 </tr>
               </thead>
               <tbody>
-                {suppliers.map((supplier: any) => (
+                {supplierRows.map((supplier) => (
                   <Tr key={supplier.id}>
                     <Td>
                       <div className="font-medium text-gray-900">
-                        {supplier.name ||
-                          supplier.company_name ||
-                          supplier.supplier_name ||
-                          'Unnamed Supplier'}
+                        {supplier.name}
                       </div>
                     </Td>
                     <Td>
-                      {supplier.email ||
-                        supplier.phone ||
-                        supplier.contact_name ||
-                        '—'}
+                      {supplier.email || supplier.phone || supplier.contact || '—'}
                     </Td>
                     <Td>
                       <Badge>
@@ -920,6 +949,8 @@ export function Suppliers() {
 }
 
 export function Inventory() {
+  const { records } = useBuildFlowData();
+  const inventoryRows = records.inventory_items?.length ? records.inventory_items.map((row) => ({ id: row.id, material: String(row.name ?? ''), category: String(row.category ?? ''), stock: Number(row.quantity_on_hand ?? 0), allocated: 0, reorderLevel: Number(row.reorder_level ?? 0), unit: String(row.unit ?? ''), unitCost: Number(row.unit_cost ?? 0) } as (typeof mockInventory)[number])) : mockInventory;
   return (
     <div className="space-y-6">
       <div>
@@ -943,36 +974,22 @@ export function Inventory() {
                 </tr>
               </thead>
               <tbody>
-                {inventory.map((item: any) => (
+                {inventoryRows.map((item) => (
                   <Tr key={item.id}>
                     <Td>
                       <div className="font-medium text-gray-900">
-                        {item.name ||
-                          item.item_name ||
-                          item.description ||
-                          'Unnamed Item'}
+                        {item.material}
                       </div>
                     </Td>
                     <Td>
-                      {item.quantity ??
-                        item.stock_quantity ??
-                        item.current_stock ??
-                        0}
+                      {item.stock}
                     </Td>
                     <Td>
-                      {item.unit || '—'}
+                      {item.unit}
                     </Td>
                     <Td>
                       <Badge>
-                        {item.status ||
-                          (Number(
-                            item.quantity ??
-                              item.stock_quantity ??
-                              item.current_stock ??
-                              0
-                          ) > 0
-                            ? 'In Stock'
-                            : 'Out of Stock')}
+                        {item.stock > 0 ? 'In Stock' : 'Out of Stock'}
                       </Badge>
                     </Td>
                   </Tr>

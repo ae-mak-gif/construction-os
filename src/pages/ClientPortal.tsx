@@ -1,10 +1,7 @@
 import { useState } from 'react';
 import {
   Building2,
-  Calendar,
-  FileText,
   DollarSign,
-  Image as ImageIcon,
   CheckCircle2,
   Clock,
   MessageSquare,
@@ -40,7 +37,7 @@ export function ClientPortal({ onExit }: { onExit: () => void }) {
                 <Building2 size={24} />
               </div>
               <div>
-                <h1 className="text-lg font-bold">ABC Construction — Client Portal</h1>
+                <h1 className="text-lg font-bold">BuildFlow — Client Portal Preview</h1>
                 <p className="text-xs text-navy-300">Welcome back, {selectedProject.client}</p>
               </div>
             </div>
@@ -55,6 +52,9 @@ export function ClientPortal({ onExit }: { onExit: () => void }) {
       </div>
 
       <div className="max-w-6xl mx-auto px-4 lg:px-6 py-6 space-y-6">
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800">
+          Client Portal preview — this area is still using sample records. Live client access will be enabled only after client-specific identity and project-level permissions are in place.
+        </div>
         {/* Project selector */}
         <div className="flex items-center gap-2 overflow-x-auto pb-1">
           {projects.map((p) => (

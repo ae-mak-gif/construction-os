@@ -2,16 +2,32 @@ import { useState } from 'react';
 import { MessageSquare, Mail, Smartphone, Send, Search } from 'lucide-react';
 import { Card, CardHeader, CardBody } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
-import { messages } from '@/data/mockData';
+import { messages, type Message } from '@/data/mockData';
+import { useBuildFlowData } from '@/context/BuildFlowDataContext';
 
 export function Communications() {
-  const [channel, setChannel] = useState<'All' | 'WhatsApp' | 'SMS' | 'Email'>('All');
+  const { create, records } = useBuildFlowData();
+  const liveMessages: Message[] = records.messages?.length ? records.messages.map((row) => {
+    const content = String(row.content ?? '');
+    const recipientLine = content.match(/^To:\s*(.+)$/m)?.[1] ?? 'BuildFlow';
+    const body = content.replace(/^To:.*\\n\\n/, '');
+    const channel = row.message_type === 'sms' ? 'SMS' : row.message_type === 'email' ? 'Email' : 'WhatsApp';
+    return { id: row.id, channel, from: 'BuildFlow', to: recipientLine, subject: String(row.subject ?? ''), preview: body, time: String(row.created_at ?? '').slice(11, 16), unread: false } as Message;
+  }) : messages;
+  const [messageItems, setMessageItems] = useState(liveMessages);
+  const [recipient, setRecipient] = useState('');
+  const [subject, setSubject] = useState('');
+  const [messageBody, setMessageBody] = useState('');
+  type MessageChannel = 'WhatsApp' | 'SMS' | 'Email';
+  type ChannelFilter = 'All' | MessageChannel;
+  const channelOptions: ChannelFilter[] = ['All', 'WhatsApp', 'SMS', 'Email'];
+  const [channel, setChannel] = useState<ChannelFilter>('All');
   const [search, setSearch] = useState('');
-  const [selected, setSelected] = useState(messages[0]);
+  const [selected, setSelected] = useState(liveMessages[0]);
   const [composeOpen, setComposeOpen] = useState(false);
   const [composeChannel, setComposeChannel] = useState<'WhatsApp' | 'SMS' | 'Email'>('WhatsApp');
 
-  const filtered = messages.filter(
+  const filtered = messageItems.filter(
     (m) =>
       (channel === 'All' || m.channel === channel) &&
       (m.from.toLowerCase().includes(search.toLowerCase()) ||
@@ -19,13 +35,13 @@ export function Communications() {
         m.preview.toLowerCase().includes(search.toLowerCase()))
   );
 
-  const channelIcons: Record<string, React.ReactNode> = {
+  const channelIcons: Record<MessageChannel, React.ReactNode> = {
     WhatsApp: <MessageSquare size={14} />,
     SMS: <Smartphone size={14} />,
     Email: <Mail size={14} />,
   };
 
-  const channelColors: Record<string, string> = {
+  const channelColors: Record<MessageChannel, React.ComponentProps<typeof Badge>['variant']> = {
     WhatsApp: 'green',
     SMS: 'blue',
     Email: 'orange',
@@ -37,16 +53,16 @@ export function Communications() {
       <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg px-4 py-2.5">
         <div className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
         <p className="text-sm text-amber-700 font-medium">Demo Mode</p>
-        <p className="text-xs text-amber-600">— Messaging is simulated. No real messages are sent.</p>
+        <p className="text-xs text-amber-600">— Messages are saved to the outbox; external delivery integrations are not connected.</p>
       </div>
 
       {/* Channel filter + compose buttons */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
-          {['All', 'WhatsApp', 'SMS', 'Email'].map((c) => (
+          {channelOptions.map((c) => (
             <button
               key={c}
-              onClick={() => setChannel(c as any)}
+              onClick={() => setChannel(c)}
               className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
                 channel === c ? 'bg-brand-600 text-white' : 'bg-white border border-gray-200 text-gray-500 hover:bg-gray-50'
               }`}
@@ -124,7 +140,7 @@ export function Communications() {
           {selected && (
             <>
               <CardHeader title={selected.subject} subtitle={`From ${selected.from} via ${selected.channel}`} action={
-                <Badge variant={channelColors[selected.channel] as any}>{selected.channel}</Badge>
+                <Badge variant={channelColors[selected.channel]}>{selected.channel}</Badge>
               } />
               <CardBody>
                 <div className="space-y-4">
@@ -165,14 +181,26 @@ export function Communications() {
             <div className="p-5 space-y-3">
               <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
                 <div className="w-2 h-2 rounded-full bg-amber-500" />
-                <p className="text-xs text-amber-700 font-medium">Demo Mode — This message will not actually be sent.</p>
+                <p className="text-xs text-amber-700 font-medium">Saved as a draft/outbox item. External delivery is not connected yet.</p>
               </div>
-              <input placeholder="To: recipient name or number" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-brand-400" />
-              <input placeholder="Subject" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-brand-400" />
-              <textarea placeholder="Type your message..." rows={4} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-brand-400 resize-none" />
+              <input value={recipient} onChange={(event) => setRecipient(event.target.value)} placeholder="To: recipient name or number" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-brand-400" />
+              <input value={subject} onChange={(event) => setSubject(event.target.value)} placeholder="Subject" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-brand-400" />
+              <textarea value={messageBody} onChange={(event) => setMessageBody(event.target.value)} placeholder="Type your message..." rows={4} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-brand-400 resize-none" />
               <div className="flex items-center justify-end gap-2">
                 <button onClick={() => setComposeOpen(false)} className="text-sm font-medium text-gray-500 px-4 py-2 rounded-lg border border-gray-200 hover:bg-gray-50">Cancel</button>
-                <button onClick={() => setComposeOpen(false)} className="flex items-center gap-1.5 bg-brand-600 text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-brand-700">
+                <button onClick={async () => {
+                  if (!recipient.trim() || !messageBody.trim()) return;
+                  try {
+                    const saved = await create('messages', { subject: subject.trim() || `${composeChannel} message`, content: `To: ${recipient.trim()}\\n\\n${messageBody.trim()}`, message_type: composeChannel.toLowerCase(), status: 'draft' });
+                    const item = { id: saved.id, channel: composeChannel, from: 'BuildFlow', to: recipient.trim(), subject: subject.trim() || `${composeChannel} message`, preview: messageBody.trim(), time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), unread: false } as (typeof messages)[number];
+                    setMessageItems((current) => [item, ...current]);
+                    setSelected(item);
+                    setRecipient(''); setSubject(''); setMessageBody(''); setComposeOpen(false);
+                  } catch (error) {
+                    console.error('Unable to save communication:', error);
+                    window.alert(error instanceof Error ? error.message : 'Unable to save this message.');
+                  }
+                }} className="flex items-center gap-1.5 bg-brand-600 text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-brand-700">
                   <Send size={14} /> Send {composeChannel}
                 </button>
               </div>

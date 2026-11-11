@@ -12,6 +12,14 @@ import {
   type Client,
 } from '@/data/mockData';
 import { formatCurrency, formatDate } from '@/utils/format';
+import { useBuildFlowData } from '@/context/BuildFlowDataContext';
+
+const isUuid = (value: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+
+function preserveDemoRows<T extends { id: string }>(liveRows: T[], demoRows: T[]): T[] {
+  const liveIds = new Set(liveRows.map((row) => row.id));
+  return [...liveRows, ...demoRows.filter((row) => !liveIds.has(row.id))];
+}
 
 const stages: EnquiryStage[] = [
   'New',
@@ -23,8 +31,23 @@ const stages: EnquiryStage[] = [
 ];
 
 export function Enquiries() {
-  const [enquiries, setEnquiries] = useState<Enquiry[]>(initialEnquiries);
-  const [clients, setClients] = useState<Client[]>(initialClients);
+  const { create, update, remove, records } = useBuildFlowData();
+  const clientRows = records.clients ?? [];
+  const contactById = new Map((records.contacts ?? []).map((row) => [row.id, row]));
+  const clientById = new Map(clientRows.map((row) => [row.id, row]));
+  const liveClients: Client[] = clientRows.map((row) => {
+    const contact = (records.contacts ?? []).find((item) => item.client_id === row.id && item.is_primary) ?? (records.contacts ?? []).find((item) => item.client_id === row.id);
+    return { id: row.id, name: contact ? [contact.first_name, contact.last_name].filter(Boolean).join(' ') : String(row.name ?? ''), company: String(row.name ?? ''), email: String(contact?.email ?? row.email ?? ''), phone: String(contact?.phone ?? row.phone ?? ''), activeProjects: (records.projects ?? []).filter((project) => project.client_id === row.id && project.status === 'active').length, accountBalance: 0, status: row.status === 'prospect' ? 'Prospect' : row.status === 'inactive' ? 'Inactive' : 'Active', since: String(row.created_at ?? '').slice(0, 7) } as Client;
+  });
+  const liveEnquiries: Enquiry[] = (records.enquiries ?? []).map((row) => {
+    const client = clientById.get(String(row.client_id)); const contact = contactById.get(String(row.contact_id));
+    const stage = row.status === 'proposal' ? 'Quoted' : row.status === 'won' ? 'Won' : row.status === 'lost' ? 'Lost' : row.status === 'qualified' ? 'Qualified' : row.status === 'contacted' || row.status === 'on_hold' ? 'Contacted' : 'New';
+    return { id: row.id, client: contact ? [contact.first_name, contact.last_name].filter(Boolean).join(' ') : String(client?.name ?? 'Prospect'), company: String(client?.name ?? ''), project: String(row.title ?? ''), value: Number(row.estimated_value ?? 0), stage, date: String(row.created_at ?? '').slice(0, 10), source: String(row.source ?? ''), phone: String(contact?.phone ?? ''), email: String(contact?.email ?? '') } as Enquiry;
+  });
+  const [enquiries, setEnquiries] = useState<Enquiry[]>(preserveDemoRows(liveEnquiries, initialEnquiries));
+  // Derive the visible list from immutable demo fixtures plus the latest live snapshot.
+  // This prevents an early state initialisation from hiding demo rows after hydration.
+  const clients = preserveDemoRows(liveClients, initialClients);
   const [search, setSearch] = useState('');
   const [stageFilter, setStageFilter] =
     useState<EnquiryStage | 'All'>('All');
@@ -54,7 +77,7 @@ export function Enquiries() {
     count: enquiries.filter((e) => e.stage === s).length,
   }));
 
-  function createEnquiry() {
+  async function createEnquiry() {
     if (!form.client || !form.company || !form.project || !form.value) return;
 
     const newEnquiry: Enquiry = {
@@ -70,6 +93,23 @@ export function Enquiries() {
       email: form.email,
     };
 
+    let clientId: string | null = null;
+    let contactId: string | null = null;
+    try {
+      const clientRow = await create('clients', { name: form.company, client_type: 'company', status: 'prospect' });
+      clientId = clientRow.id;
+      const nameParts = form.client.trim().split(/\s+/);
+      const contactRow = await create('contacts', { client_id: clientRow.id, first_name: nameParts[0] || form.client, last_name: nameParts.slice(1).join(' ') || null, email: form.email || null, phone: form.phone || null, is_primary: true });
+      contactId = contactRow.id;
+      const enquiryRow = await create('enquiries', { client_id: clientRow.id, contact_id: contactRow.id, title: form.project, description: `Prospect: ${form.client} · ${form.company}`, source: form.source, status: 'new', estimated_value: Number(form.value) });
+      newEnquiry.id = enquiryRow.id;
+    } catch (error) {
+      if (contactId) await remove('contacts', contactId).catch(() => undefined);
+      if (clientId) await remove('clients', clientId).catch(() => undefined);
+      console.error('Unable to save enquiry to BuildFlow:', error);
+      window.alert(error instanceof Error ? error.message : 'Unable to save this enquiry. Please try again.');
+      return;
+    }
     setEnquiries((prev) => [newEnquiry, ...prev]);
 
     setForm({
@@ -98,6 +138,10 @@ export function Enquiries() {
       stage: nextStage,
     };
 
+    if (isUuid(selected.id)) {
+      const status = nextStage === 'Quoted' ? 'proposal' : nextStage.toLowerCase();
+      void update('enquiries', selected.id, { status }).catch((error) => window.alert(error.message));
+    }
     setEnquiries((prev) =>
       prev.map((e) => (e.id === selected.id ? updated : e))
     );
@@ -105,32 +149,38 @@ export function Enquiries() {
     setSelected(updated);
   }
 
-  function convertToClient() {
+  async function convertToClient() {
     if (!selected) return;
 
-    const exists = clients.some(
-      (c) =>
-        c.name.toLowerCase() === selected.client.toLowerCase() ||
-        c.company.toLowerCase() === selected.company.toLowerCase()
+    const persistedClient = (records.clients ?? []).find(
+      (client) => String(client.name).toLowerCase() === selected.company.toLowerCase()
     );
 
-    if (!exists) {
-      const newClient: Client = {
-        id: `C${String(clients.length + 1).padStart(3, '0')}`,
-        name: selected.client,
-        company: selected.company,
-        email: selected.email,
-        phone: selected.phone,
-        activeProjects: 0,
-        accountBalance: 0,
-        status: 'Active',
-        since: new Date().toLocaleDateString('en-US', {
-          month: 'short',
-          year: 'numeric',
-        }),
-      };
+    if (!persistedClient) {
+      let clientId: string | null = null;
+      let contactId: string | null = null;
+      try {
+        const clientRow = await create('clients', { name: selected.company, client_type: 'company', status: 'active' });
+        clientId = clientRow.id;
+        const parts = selected.client.trim().split(/\s+/);
+        const contactRow = await create('contacts', { client_id: clientRow.id, first_name: parts[0] || selected.client, last_name: parts.slice(1).join(' ') || null, email: selected.email || null, phone: selected.phone || null, is_primary: true });
+        contactId = contactRow.id;
+        // The shared data context adds the saved row to records; the client list
+        // derives from that live snapshot plus the immutable demo fixtures.
+      } catch (error) {
+        if (contactId) await remove('contacts', contactId).catch(() => undefined);
+        if (clientId) await remove('clients', clientId).catch(() => undefined);
+        console.error('Unable to convert enquiry:', error);
+        window.alert(error instanceof Error ? error.message : 'Unable to convert this enquiry.');
+        return;
+      }
+    }
 
-      setClients((prev) => [newClient, ...prev]);
+    if (persistedClient && persistedClient.status !== 'active') {
+      void update('clients', persistedClient.id, { status: 'active' }).catch((error) => window.alert(error.message));
+    }
+    if (isUuid(selected.id)) {
+      void update('enquiries', selected.id, { status: 'won' }).catch((error) => window.alert(error.message));
     }
 
     const updated = {
@@ -438,9 +488,15 @@ export function Enquiries() {
 }
 
 export function Clients() {
+  const { create, remove, records } = useBuildFlowData();
+  const liveClients: Client[] = (records.clients ?? []).map((row) => {
+    const contact = (records.contacts ?? []).find((item) => item.client_id === row.id && item.is_primary) ?? (records.contacts ?? []).find((item) => item.client_id === row.id);
+    return { id: row.id, name: contact ? [contact.first_name, contact.last_name].filter(Boolean).join(' ') : String(row.name ?? ''), company: String(row.name ?? ''), email: String(contact?.email ?? row.email ?? ''), phone: String(contact?.phone ?? row.phone ?? ''), activeProjects: (records.projects ?? []).filter((project) => project.client_id === row.id && project.status === 'active').length, accountBalance: 0, status: row.status === 'prospect' ? 'Prospect' : row.status === 'inactive' ? 'Inactive' : 'Active', since: String(row.created_at ?? '').slice(0, 7) } as Client;
+  });
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<Client | null>(null);
-  const [clients, setClients] = useState<Client[]>(initialClients);
+  // Always derive from immutable demo fixtures and the latest live snapshot.
+  const clients = preserveDemoRows(liveClients, initialClients);
 
   const [showNew, setShowNew] = useState(false);
 
@@ -457,26 +513,24 @@ export function Clients() {
       c.company.toLowerCase().includes(search.toLowerCase())
   );
 
-  function createClient() {
+  async function createClient() {
     if (!form.name || !form.company) return;
 
-    const newClient: Client = {
-      id: `C${String(clients.length + 1).padStart(3, '0')}`,
-      name: form.name,
-      company: form.company,
-      email: form.email,
-      phone: form.phone,
-      activeProjects: 0,
-      accountBalance: 0,
-      status: 'Active',
-      since: new Date().toLocaleDateString('en-US', {
-        month: 'short',
-        year: 'numeric',
-      }),
-    };
-
-    setClients((prev) => [newClient, ...prev]);
-
+    let clientId: string | null = null;
+    let contactId: string | null = null;
+    try {
+      const clientRow = await create('clients', { name: form.company, client_type: 'company', email: form.email || null, phone: form.phone || null, status: 'active' });
+      clientId = clientRow.id;
+      const parts = form.name.trim().split(/\s+/);
+      const contactRow = await create('contacts', { client_id: clientRow.id, first_name: parts[0] || form.name, last_name: parts.slice(1).join(' ') || null, email: form.email || null, phone: form.phone || null, is_primary: true });
+      contactId = contactRow.id;
+    } catch (error) {
+      if (contactId) await remove('contacts', contactId).catch(() => undefined);
+      if (clientId) await remove('clients', clientId).catch(() => undefined);
+      console.error('Unable to save client to BuildFlow:', error);
+      window.alert(error instanceof Error ? error.message : 'Unable to save this client. Please try again.');
+      return;
+    }
     setForm({
       name: '',
       company: '',

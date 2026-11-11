@@ -24,7 +24,7 @@ import { HealthBadge, StatusBadge, Badge } from '@/components/ui/Badge';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import { DonutChart } from '@/components/ui/DonutChart';
 import {
-  projects,
+  projects as mockProjects,
   tasks,
   boqItems,
   purchaseRequests,
@@ -41,16 +41,27 @@ import {
   formatDate,
   formatDateShort,
 } from '@/utils/format';
+import { useBuildFlowData } from '@/context/BuildFlowDataContext';
 
 export function Projects({
   onOpenProject,
 }: {
   onOpenProject: (id: string) => void;
 }) {
+  const { records } = useBuildFlowData();
+  const clientById = new Map((records.clients ?? []).map((row) => [row.id, row]));
+  const staffById = new Map((records.staff ?? []).map((row) => [row.id, row]));
+  const projectRows: Project[] = records.projects?.length ? records.projects.map((row) => ({
+    id: row.id, name: String(row.name ?? ''), client: String(clientById.get(String(row.client_id))?.name ?? 'Client'), clientCompany: String(clientById.get(String(row.client_id))?.name ?? 'Client'),
+    manager: String(staffById.get(String(row.project_manager_id))?.first_name ?? 'Unassigned'), progress: Number(row.progress_percent ?? 0), budget: Number(row.contract_value ?? 0),
+    actualCost: (records.project_costs ?? []).filter((cost) => cost.project_id === row.id).reduce((sum, cost) => sum + Number(cost.amount ?? 0), 0), deadline: String(row.expected_completion_date ?? ''), startDate: String(row.start_date ?? ''),
+    health: row.health_status === 'at_risk' ? 'at-risk' : row.health_status === 'critical' ? 'delayed' : row.health_status === 'completed' ? 'completed' : 'on-track',
+    status: row.status === 'completed' ? 'Completed' : row.status === 'planning' ? 'Planning' : 'Active', location: String(row.location ?? ''), description: String(row.description ?? ''), contractValue: Number(row.contract_value ?? 0),
+  } as Project)) : mockProjects;
   const [search, setSearch] = useState('');
   const [view, setView] = useState<'grid' | 'table'>('grid');
 
-  const filtered = projects.filter(
+  const filtered = projectRows.filter(
     (p) =>
       p.name.toLowerCase().includes(search.toLowerCase()) ||
       p.client.toLowerCase().includes(search.toLowerCase()) ||
@@ -326,8 +337,15 @@ export function ProjectDetail({
   project: Project;
   onBack: () => void;
 }) {
+  const { update } = useBuildFlowData();
   const [tab, setTab] = useState<ProjectTab>('overview');
   const [projectProgress, setProjectProgress] = useState(project.progress);
+  const handleProgressChange = (progress: number) => {
+    setProjectProgress(progress);
+    if (/^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(project.id)) {
+      void update('projects', project.id, { progress_percent: progress }).catch((error) => window.alert(error.message));
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -380,7 +398,7 @@ export function ProjectDetail({
           ...project,
           progress: projectProgress,
         }}
-        onProgressChange={setProjectProgress}
+        onProgressChange={handleProgressChange}
       />
     </div>
   );
@@ -395,29 +413,33 @@ function ProjectTabContent({
   project: Project;
   onProgressChange?: (progress: number) => void;
 }) {
-  const projectTasks = tasks.filter(
-    (t) => t.project === project.name
-  );
-
-  const projectBOQ = boqItems.filter(
-    (b) => b.project === project.name
-  );
-
-  const projectProc = purchaseRequests.filter(
-    (p) => p.project === project.name
-  );
-
-  const projectRisks = risks.filter(
-    (r) => r.project === project.name
-  );
-
-  const projectUpdateItems = projectUpdates.filter(
-    (u) => u.projectId === project.id
-  );
-
-  const projectDocs = projectDocuments.filter(
-    (d) => d.projectId === project.id
-  );
+  const { records } = useBuildFlowData();
+  const staffById = new Map((records.staff ?? []).map((row) => [row.id, row]));
+  const projectTasks = records.tasks?.length
+    ? records.tasks.filter((row) => row.project_id === project.id).map((row) => ({ id: row.id, title: String(row.title ?? ''), project: project.name, assignee: String(staffById.get(String(row.assigned_to))?.first_name ?? 'Unassigned'), dueDate: String(row.due_date ?? ''), priority: row.priority === 'high' || row.priority === 'urgent' ? 'High' : row.priority === 'low' ? 'Low' : 'Medium', status: row.status === 'completed' ? 'Done' : row.status === 'in_progress' ? 'In Progress' : row.status === 'blocked' ? 'Review' : 'To Do' } as (typeof tasks)[number]))
+    : tasks.filter((row) => row.project === project.name);
+  const projectBOQ = records.boq_items?.length
+    ? records.boq_items.filter((row) => row.project_id === project.id).map((row) => ({ id: row.id, item: String(row.item_code ?? row.description ?? ''), description: String(row.description ?? ''), qty: Number(row.quantity ?? 1), unit: String(row.unit ?? ''), unitCost: Number(row.unit_rate ?? 0), category: String(row.category ?? 'Materials'), project: project.name } as (typeof boqItems)[number]))
+    : boqItems.filter((row) => row.project === project.name);
+  const projectProc = records.purchase_requests?.length
+    ? records.purchase_requests.filter((row) => row.project_id === project.id).map((row) => ({ id: String(row.request_number ?? row.id), item: String(row.description ?? ''), project: project.name, qty: 1, unit: 'item', estCost: Number(row.estimated_amount ?? 0), requestedBy: 'Team member', date: String(row.created_at ?? '').slice(0, 10), status: row.status === 'approved' ? 'Approved' : row.status === 'ordered' ? 'PO Issued' : row.status === 'delivered' ? 'Delivered' : row.status === 'rejected' ? 'Rejected' : 'Requested', supplier: 'Pending' } as (typeof purchaseRequests)[number]))
+    : purchaseRequests.filter((row) => row.project === project.name);
+  const projectRisks = records.risks?.length
+    ? records.risks.filter((row) => row.project_id === project.id).map((row) => ({ id: row.id, risk: String(row.title ?? ''), project: project.name, probability: row.likelihood === 'high' ? 'High' : row.likelihood === 'low' ? 'Low' : 'Medium', impact: row.impact === 'high' ? 'High' : row.impact === 'low' ? 'Low' : 'Medium', owner: String(staffById.get(String(row.owner_id))?.first_name ?? 'Unassigned'), status: row.status === 'closed' ? 'Closed' : row.status === 'mitigated' ? 'Mitigated' : 'Open', mitigation: String(row.mitigation_plan ?? '') } as (typeof risks)[number]))
+    : risks.filter((row) => row.project === project.name);
+  const projectUpdateItems = records.project_updates?.length
+    ? records.project_updates.filter((row) => row.project_id === project.id).map((row) => ({ id: row.id, projectId: project.id, date: String(row.created_at ?? ''), author: 'Team member', message: String(row.content ?? row.title ?? ''), type: 'progress' } as (typeof projectUpdates)[number]))
+    : projectUpdates.filter((row) => row.projectId === project.id);
+  const projectDocs = records.project_documents?.length
+    ? records.project_documents.filter((row) => row.project_id === project.id).map((row) => ({ id: row.id, projectId: project.id, name: String(row.name ?? ''), type: String(row.file_type ?? 'Report'), date: String(row.created_at ?? ''), size: '—' } as (typeof projectDocuments)[number]))
+    : projectDocuments.filter((row) => row.projectId === project.id);
+  const projectQualityIssues = records.quality_issues?.length
+    ? records.quality_issues.filter((row) => row.project_id === project.id).map((row) => ({ id: row.id, type: String(row.category ?? '').toLowerCase().includes('safety') ? 'Safety Observation' : String(row.category ?? '').toLowerCase().includes('snag') ? 'Snag' : String(row.category ?? '').toLowerCase().includes('defect') ? 'Defect' : 'Issue', description: String(row.description ?? row.title ?? ''), project: project.name, location: '', reportedBy: 'Team member', date: String(row.created_at ?? ''), status: row.status === 'resolved' ? 'Resolved' : row.status === 'in_progress' ? 'In Progress' : 'Open', action: String(row.corrective_action ?? '') } as (typeof qualityIssues)[number]))
+    : qualityIssues.filter((row) => row.project === project.name);
+  const projectInventory = records.inventory_items?.length ? records.inventory_items.map((row) => {
+    const allocated = (records.inventory_transactions ?? []).filter((tx) => tx.inventory_item_id === row.id && tx.project_id === project.id).reduce((sum, tx) => sum + Number(tx.quantity ?? 0), 0);
+    return { id: row.id, material: String(row.name ?? ''), category: String(row.category ?? ''), stock: Number(row.quantity_on_hand ?? 0), allocated, reorderLevel: Number(row.reorder_level ?? 0), unit: String(row.unit ?? ''), unitCost: Number(row.unit_cost ?? 0) } as (typeof inventory)[number];
+  }).filter((row) => row.allocated > 0) : inventory;
 
   switch (tab) {
     case 'overview':
@@ -566,7 +588,7 @@ function ProjectTabContent({
               </thead>
 
               <tbody>
-                {inventory.slice(0, 6).map((i) => (
+                {projectInventory.slice(0, 6).map((i) => (
                   <Tr key={i.id}>
                     <Td className="font-medium text-gray-700">
                       {i.material}
@@ -731,9 +753,7 @@ function ProjectTabContent({
                 </thead>
 
                 <tbody>
-                  {qualityIssues
-                    .filter((q) => q.project === project.name)
-                    .map((q) => (
+                  {projectQualityIssues.map((q) => (
                       <Tr key={q.id}>
                         <Td>
                           <Badge
@@ -1074,7 +1094,7 @@ function BOQTab({
   const markup = subtotal * 0.15;
   const total = subtotal + contingency + markup;
 
-  const categoryColors: Record<string, string> = {
+  const categoryColors: Record<string, React.ComponentProps<typeof Badge>['variant']> = {
     Materials: 'blue',
     Labour: 'green',
     Equipment: 'orange',
@@ -1115,7 +1135,7 @@ function BOQTab({
 
                 <Td>
                   <Badge
-                    variant={categoryColors[i.category] as any}
+                    variant={categoryColors[i.category] ?? 'gray'}
                   >
                     {i.category}
                   </Badge>
@@ -1186,6 +1206,12 @@ function BOQTab({
 }
 
 function CostsTab({ project }: { project: Project }) {
+  const { records } = useBuildFlowData();
+  const liveCosts = (records.project_costs ?? []).filter((row) => row.project_id === project.id);
+  const liveCostTotal = liveCosts.reduce((sum, row) => sum + Number(row.amount ?? 0), 0);
+  const costBreakdown = liveCostTotal > 0
+    ? Array.from(liveCosts.reduce((map, row) => { const label = String(row.cost_type ?? 'Other').replace(/_/g, ' '); map.set(label, (map.get(label) ?? 0) + Number(row.amount ?? 0)); return map; }, new Map<string, number>()).entries()).map(([label, amount]) => ({ label, amount, pct: Math.round((amount / liveCostTotal) * 100) }))
+    : [ { label: 'Materials', amount: project.actualCost * 0.45, pct: 45 }, { label: 'Labour', amount: project.actualCost * 0.25, pct: 25 }, { label: 'Subcontractors', amount: project.actualCost * 0.18, pct: 18 }, { label: 'Equipment', amount: project.actualCost * 0.08, pct: 8 }, { label: 'Overheads', amount: project.actualCost * 0.04, pct: 4 } ];
   const remaining = project.budget - project.actualCost;
 
   const variance =
@@ -1230,33 +1256,7 @@ function CostsTab({ project }: { project: Project }) {
 
         <CardBody>
           <div className="space-y-3">
-            {[
-              {
-                label: 'Materials',
-                amount: project.actualCost * 0.45,
-                pct: 45,
-              },
-              {
-                label: 'Labour',
-                amount: project.actualCost * 0.25,
-                pct: 25,
-              },
-              {
-                label: 'Subcontractors',
-                amount: project.actualCost * 0.18,
-                pct: 18,
-              },
-              {
-                label: 'Equipment',
-                amount: project.actualCost * 0.08,
-                pct: 8,
-              },
-              {
-                label: 'Overheads',
-                amount: project.actualCost * 0.04,
-                pct: 4,
-              },
-            ].map((c) => (
+            {costBreakdown.map((c) => (
               <div key={c.label}>
                 <div className="flex items-center justify-between text-sm mb-1">
                   <span className="text-gray-600">

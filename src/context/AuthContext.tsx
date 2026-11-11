@@ -1,6 +1,8 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import type { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
+
+/* eslint-disable react-refresh/only-export-components -- Context modules intentionally export their provider and hook. */
 
 export interface Profile {
   id: string;
@@ -46,22 +48,138 @@ function getInitials(
 ): string {
   if (name) {
     const parts = name.trim().split(/\s+/);
-
     if (parts.length >= 2) {
       return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
     }
-
     return parts[0].slice(0, 2).toUpperCase();
   }
-
-  if (email) {
-    return email.slice(0, 2).toUpperCase();
-  }
-
+  if (email) return email.slice(0, 2).toUpperCase();
   return 'BF';
 }
 
 export { getInitials };
+
+interface LoadedAuthContext {
+  profile: Profile | null;
+  membership: Membership | null;
+  error: string | null;
+}
+
+async function loadProfileAndMembership(currentUser: User): Promise<LoadedAuthContext> {
+  let profileData: Profile | null = null;
+  let membershipData: Membership | null = null;
+  const loadErrors: string[] = [];
+
+  const { data: prof, error: profError } = await supabase
+    .from('profiles')
+    .select('id, first_name, last_name, display_name, phone, avatar_url')
+    .eq('id', currentUser.id)
+    .maybeSingle();
+
+  if (profError) {
+    loadErrors.push(`Unable to load profile: ${profError.message}`);
+  } else if (prof) {
+    const derivedName = [prof.first_name, prof.last_name]
+      .filter(Boolean)
+      .join(' ')
+      .trim();
+    const displayName = prof.display_name?.trim() || derivedName || null;
+
+    profileData = {
+      id: prof.id,
+      email: currentUser.email ?? '',
+      full_name: displayName,
+      display_name: displayName,
+      avatar_url: prof.avatar_url ?? null,
+      phone: prof.phone ?? null,
+    };
+  } else {
+    profileData = {
+      id: currentUser.id,
+      email: currentUser.email ?? '',
+      full_name:
+        currentUser.user_metadata?.display_name ??
+        currentUser.user_metadata?.full_name ??
+        null,
+      display_name:
+        currentUser.user_metadata?.display_name ??
+        currentUser.user_metadata?.full_name ??
+        null,
+      avatar_url: null,
+      phone: null,
+    };
+  }
+
+  const { data: memberships, error: membershipError } = await supabase
+    .from('organization_members')
+    .select(`
+      id,
+      organization_id,
+      user_id,
+      role_id,
+      status,
+      organization:organizations(
+        id,
+        name,
+        slug
+      )
+    `)
+    .eq('user_id', currentUser.id)
+    .eq('status', 'active')
+    .limit(2);
+
+  if (membershipError) {
+    loadErrors.push(`Unable to load organization membership: ${membershipError.message}`);
+  } else if (!memberships || memberships.length === 0) {
+    loadErrors.push('Your account does not have an active organisation membership. Please contact your administrator.');
+  } else if (memberships.length > 1) {
+    loadErrors.push('Your account is linked to more than one organisation. Organisation selection must be configured before you can continue.');
+  } else {
+    const member = memberships[0];
+    const organizationData = Array.isArray(member.organization)
+      ? member.organization[0]
+      : member.organization;
+
+    if (!organizationData?.id) {
+      loadErrors.push('Your active organisation could not be resolved. Please contact your administrator.');
+    } else if (!member.role_id) {
+      loadErrors.push('Your organisation membership has no assigned role. Please contact your administrator.');
+    } else {
+      const { data: role, error: roleError } = await supabase
+        .from('roles')
+        .select('id, name')
+        .eq('id', member.role_id)
+        .eq('organization_id', member.organization_id)
+        .maybeSingle();
+
+      if (roleError) {
+        loadErrors.push(`Unable to load user role: ${roleError.message}`);
+      } else if (!role?.name) {
+        loadErrors.push('Your organisation role could not be resolved. Please contact your administrator.');
+      } else {
+        membershipData = {
+          id: member.id,
+          organization_id: member.organization_id,
+          user_id: member.user_id,
+          role_id: member.role_id,
+          role_name: role.name,
+          status: member.status ?? null,
+          organization: {
+            id: organizationData.id,
+            name: organizationData.name,
+            slug: organizationData.slug ?? null,
+          },
+        };
+      }
+    }
+  }
+
+  return {
+    profile: profileData,
+    membership: membershipData,
+    error: loadErrors.length ? loadErrors.join(' ') : null,
+  };
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
@@ -70,229 +188,95 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [membership, setMembership] = useState<Membership | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
-  const loadProfileAndMembership = async (currentUser: User) => {
-    let profileData: Profile | null = null;
-    let membershipData: Membership | null = null;
-
-    // ---------------------------------------------------------
-    // LOAD PROFILE
-    // ---------------------------------------------------------
-    // The verified profiles table contains:
-    // id, full_name, phone, avatar_url, created_at, updated_at
-    //
-    // Email comes from the authenticated Supabase user.
-    // ---------------------------------------------------------
-
-    const { data: prof, error: profError } = await supabase
-      .from('profiles')
-      .select('id, full_name, phone, avatar_url')
-      .eq('id', currentUser.id)
-      .maybeSingle();
-
-    if (profError) {
-      setError(`Unable to load profile: ${profError.message}`);
-    } else if (prof) {
-      profileData = {
-        id: prof.id,
-        email: currentUser.email ?? '',
-        full_name: prof.full_name ?? null,
-        display_name: prof.full_name ?? null,
-        avatar_url: prof.avatar_url ?? null,
-        phone: prof.phone ?? null,
-      };
-    } else {
-      // Graceful fallback if a profile record does not exist.
-      profileData = {
-        id: currentUser.id,
-        email: currentUser.email ?? '',
-        full_name: currentUser.user_metadata?.full_name ?? null,
-        display_name: currentUser.user_metadata?.full_name ?? null,
-        avatar_url: null,
-        phone: null,
-      };
-    }
-
-    // ---------------------------------------------------------
-    // LOAD ORGANIZATION MEMBERSHIP
-    // ---------------------------------------------------------
-    // Verified schema:
-    //
-    // organization_members:
-    // id
-    // organization_id
-    // user_id
-    // role_id
-    // status
-    //
-    // roles:
-    // id
-    // organization_id
-    // name
-    //
-    // Therefore we DO NOT request organization_members.role_name.
-    // ---------------------------------------------------------
-
-    const { data: memb, error: membError } = await supabase
-      .from('organization_members')
-      .select(`
-        id,
-        organization_id,
-        user_id,
-        role_id,
-        status,
-        organization:organizations(
-          id,
-          name,
-          slug
-        )
-      `)
-      .eq('user_id', currentUser.id)
-      .maybeSingle();
-
-    if (membError) {
-      setError(
-        `Unable to load organization membership: ${membError.message}`
-      );
-    } else if (memb) {
-      const organizationData = Array.isArray(memb.organization)
-        ? memb.organization[0]
-        : memb.organization;
-
-      // -------------------------------------------------------
-      // LOAD ROLE USING role_id
-      // -------------------------------------------------------
-
-      let roleName = 'User';
-
-      if (memb.role_id) {
-        const { data: role, error: roleError } = await supabase
-          .from('roles')
-          .select('id, name')
-          .eq('id', memb.role_id)
-          .maybeSingle();
-
-        if (roleError) {
-          setError(`Unable to load user role: ${roleError.message}`);
-        } else if (role?.name) {
-          roleName = role.name;
-        }
-      }
-
-      membershipData = {
-        id: memb.id,
-        organization_id: memb.organization_id,
-        user_id: memb.user_id,
-        role_id: memb.role_id,
-        role_name: roleName,
-        status: memb.status ?? null,
-        organization:
-          organizationData ?? {
-            id: memb.organization_id,
-            name: 'Unknown',
-            slug: null,
-          },
-      };
-    }
-
-    setProfile(profileData);
-    setMembership(membershipData);
-  };
+  const requestSequence = useRef(0);
 
   useEffect(() => {
     let mounted = true;
+    let authEventReceived = false;
 
-    // ---------------------------------------------------------
-    // INITIAL SESSION
-    // ---------------------------------------------------------
-
-    supabase.auth.getSession().then(({ data: { session: currentSession } }) => {
-      if (!mounted) return;
-
+    const applySession = async (currentSession: Session | null) => {
+      const requestId = ++requestSequence.current;
       setSession(currentSession);
       setUser(currentSession?.user ?? null);
-
-      if (currentSession?.user) {
-        loadProfileAndMembership(currentSession.user).finally(() => {
-          if (mounted) {
-            setLoading(false);
-          }
-        });
-      } else {
-        setLoading(false);
-      }
-    });
-
-    // ---------------------------------------------------------
-    // AUTH STATE CHANGES
-    // ---------------------------------------------------------
-
-    const {
-      data: authListener,
-    } = supabase.auth.onAuthStateChange((_event, currentSession) => {
-      if (!mounted) return;
-
-      setSession(currentSession);
-      setUser(currentSession?.user ?? null);
+      setProfile(null);
+      setMembership(null);
       setError(null);
 
-      if (currentSession?.user) {
-        setLoading(true);
+      if (!currentSession?.user) {
+        setLoading(false);
+        return;
+      }
 
-        loadProfileAndMembership(currentSession.user).finally(() => {
-          if (mounted) {
-            setLoading(false);
-          }
-        });
-      } else {
+      setLoading(true);
+      try {
+        const loaded = await loadProfileAndMembership(currentSession.user);
+        if (!mounted || requestId !== requestSequence.current) return;
+        setProfile(loaded.profile);
+        setMembership(loaded.membership);
+        setError(loaded.error);
+      } catch (loadError) {
+        if (!mounted || requestId !== requestSequence.current) return;
         setProfile(null);
         setMembership(null);
-        setLoading(false);
+        setError(
+          loadError instanceof Error
+            ? `Unable to restore your BuildFlow account: ${loadError.message}`
+            : 'Unable to restore your BuildFlow account. Please try again.'
+        );
+      } finally {
+        if (mounted && requestId === requestSequence.current) {
+          setLoading(false);
+        }
       }
+    };
+
+    const { data: authListener } = supabase.auth.onAuthStateChange((_event, currentSession) => {
+      authEventReceived = true;
+      void applySession(currentSession);
     });
+
+    void supabase.auth.getSession()
+      .then(({ data: { session: initialSession }, error: sessionError }) => {
+        if (!mounted || authEventReceived) return;
+        if (sessionError) {
+          setError(`Unable to restore your sign-in session: ${sessionError.message}`);
+          setLoading(false);
+          return;
+        }
+        void applySession(initialSession);
+      })
+      .catch((sessionError: unknown) => {
+        if (!mounted || authEventReceived) return;
+        setError(
+          sessionError instanceof Error
+            ? `Unable to restore your sign-in session: ${sessionError.message}`
+            : 'Unable to restore your sign-in session. Please try again.'
+        );
+        setLoading(false);
+      });
 
     return () => {
       mounted = false;
+      requestSequence.current += 1;
       authListener.subscription.unsubscribe();
     };
   }, []);
 
-  // -----------------------------------------------------------
-  // SIGN IN
-  // -----------------------------------------------------------
-
   const signIn = async (email: string, password: string) => {
     setError(null);
-
-    const { error: signInError } =
-      await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-
-    if (signInError) {
-      return {
-        error: signInError.message,
-      };
-    }
-
-    return {
-      error: null,
-    };
+    const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+    return { error: signInError?.message ?? null };
   };
-
-  // -----------------------------------------------------------
-  // SIGN OUT
-  // -----------------------------------------------------------
 
   const signOut = async () => {
     await supabase.auth.signOut();
-
+    requestSequence.current += 1;
     setSession(null);
     setUser(null);
     setProfile(null);
     setMembership(null);
     setError(null);
+    setLoading(false);
   };
 
   return (
@@ -315,10 +299,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
 export function useAuth() {
   const ctx = useContext(AuthContext);
-
-  if (!ctx) {
-    throw new Error('useAuth must be used within AuthProvider');
-  }
-
+  if (!ctx) throw new Error('useAuth must be used within AuthProvider');
   return ctx;
 }

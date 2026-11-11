@@ -1,14 +1,16 @@
 import { useState } from 'react';
-import { Search, Plus, Wrench, HardHat, Users, ShieldAlert, FileBarChart, Star, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { Search, Plus, Wrench, HardHat, Users, ShieldAlert, FileBarChart, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { Card, CardHeader, CardBody, StatCard } from '@/components/ui/Card';
 import { Table, Th, Td, Tr } from '@/components/ui/Table';
-import { StatusBadge, Badge, HealthBadge } from '@/components/ui/Badge';
-import { ProgressBar } from '@/components/ui/ProgressBar';
-import { staff, workOrders, equipment, risks, qualityIssues } from '@/data/mockData';
-import { formatFullCurrency, formatDate, formatDateShort } from '@/utils/format';
+import { StatusBadge, Badge } from '@/components/ui/Badge';
+import { staff as mockStaff, workOrders as mockWorkOrders, equipment as mockEquipment, risks as mockRisks, qualityIssues as mockQualityIssues, type Staff, type WorkOrder, type Equipment, type Risk, type QualityIssue } from '@/data/mockData';
+import { useBuildFlowData } from '@/context/BuildFlowDataContext';
+import { formatDate, formatDateShort } from '@/utils/format';
 
 // ── HR & Staff ───────────────────────────────────────────────
 export function HR() {
+  const { records } = useBuildFlowData();
+  const staff: Staff[] = records.staff?.length ? records.staff.map((row) => ({ id: row.id, name: [row.first_name, row.last_name].filter(Boolean).join(' '), role: String(row.job_title ?? 'Team member'), department: String(row.department ?? 'General'), phone: String(row.phone ?? ''), email: String(row.email ?? ''), status: row.employment_status === 'on_leave' ? 'On Leave' : row.employment_status === 'terminated' ? 'Suspended' : 'Active', assignedProject: 'Multiple' } as Staff)) : mockStaff;
   const [search, setSearch] = useState('');
   const filtered = staff.filter(
     (s) => s.name.toLowerCase().includes(search.toLowerCase()) || s.role.toLowerCase().includes(search.toLowerCase()) || s.department.toLowerCase().includes(search.toLowerCase())
@@ -82,6 +84,8 @@ export function HR() {
 
 // ── Workshop ─────────────────────────────────────────────────
 export function Workshop() {
+  const { records } = useBuildFlowData();
+  const workOrders: WorkOrder[] = records.work_orders?.length ? records.work_orders.map((row) => ({ id: row.id, title: String(row.title ?? ''), department: 'Workshop', assignedTo: 'Assigned team', priority: row.priority === 'high' || row.priority === 'urgent' ? 'High' : row.priority === 'low' ? 'Low' : 'Medium', status: row.status === 'completed' ? 'Completed' : row.status === 'in_progress' ? 'In Progress' : 'Pending', dueDate: String(row.scheduled_date ?? '') } as WorkOrder)) : mockWorkOrders;
   const deptStatus = [
     { dept: 'Carpentry', orders: 2, status: 'Busy', color: 'amber' as const },
     { dept: 'Mechanical', orders: 3, status: 'Active', color: 'blue' as const },
@@ -147,6 +151,9 @@ export function Workshop() {
 
 // ── Equipment ────────────────────────────────────────────────
 export function EquipmentPage() {
+  const { records } = useBuildFlowData();
+  const projectById = new Map((records.projects ?? []).map((row) => [row.id, row]));
+  const equipment: Equipment[] = records.equipment?.length ? records.equipment.map((row) => ({ id: row.id, name: String(row.name ?? ''), type: String(row.category ?? 'Equipment'), project: (records.equipment_assignments ?? []).find((assignment) => assignment.equipment_id === row.id)?.project_id ? String(projectById.get(String((records.equipment_assignments ?? []).find((assignment) => assignment.equipment_id === row.id)?.project_id))?.name ?? 'Unassigned') : 'Available', condition: row.status === 'maintenance' ? 'Needs Repair' : 'Good', lastService: '', nextService: '', status: row.status === 'assigned' ? 'In Use' : row.status === 'maintenance' ? 'Under Maintenance' : 'Available' } as Equipment)) : mockEquipment;
   const inUse = equipment.filter((e) => e.status === 'In Use').length;
   const available = equipment.filter((e) => e.status === 'Available').length;
   const maintenance = equipment.filter((e) => e.status === 'Under Maintenance').length;
@@ -201,10 +208,15 @@ export function EquipmentPage() {
 
 // ── Risk & Quality ───────────────────────────────────────────
 export function RiskQuality() {
-  const [tab, setTab] = useState<'risks' | 'issues' | 'safety'>('risks');
+  const { records } = useBuildFlowData();
+  const projectById = new Map((records.projects ?? []).map((row) => [row.id, row]));
+  const staffById = new Map((records.staff ?? []).map((row) => [row.id, row]));
+  const risks: Risk[] = records.risks?.length ? records.risks.map((row) => ({ id: row.id, risk: String(row.title ?? ''), project: String(projectById.get(String(row.project_id))?.name ?? 'General'), probability: String(row.likelihood ?? 'medium').toLowerCase() === 'high' ? 'High' : String(row.likelihood ?? '').toLowerCase() === 'low' ? 'Low' : 'Medium', impact: String(row.impact ?? 'medium').toLowerCase() === 'high' ? 'High' : String(row.impact ?? '').toLowerCase() === 'low' ? 'Low' : 'Medium', owner: String(staffById.get(String(row.owner_id))?.first_name ?? 'Unassigned'), status: row.status === 'closed' ? 'Closed' : row.status === 'mitigated' ? 'Mitigated' : 'Open', mitigation: String(row.mitigation_plan ?? '') } as Risk)) : mockRisks;
+  const qualityIssues: QualityIssue[] = records.quality_issues?.length ? records.quality_issues.map((row) => ({ id: row.id, type: String(row.category ?? 'Issue').toLowerCase().includes('safety') ? 'Safety Observation' : String(row.category ?? '').toLowerCase().includes('snag') ? 'Snag' : String(row.category ?? '').toLowerCase().includes('defect') ? 'Defect' : 'Issue', description: String(row.description ?? row.title ?? ''), project: String(projectById.get(String(row.project_id))?.name ?? 'General'), location: '', reportedBy: 'Team member', date: String(row.created_at ?? '').slice(0, 10), status: row.status === 'resolved' ? 'Resolved' : row.status === 'in_progress' ? 'In Progress' : 'Open', action: String(row.corrective_action ?? '') } as QualityIssue)) : mockQualityIssues;
+  type RiskTab = 'risks' | 'issues' | 'safety';
+  const [tab, setTab] = useState<RiskTab>('risks');
 
   const openRisks = risks.filter((r) => r.status === 'Open').length;
-  const openIssues = qualityIssues.filter((q) => q.status === 'Open' || q.status === 'In Progress').length;
   const safetyItems = qualityIssues.filter((q) => q.type === 'Safety Observation');
 
   return (
@@ -217,14 +229,14 @@ export function RiskQuality() {
       </div>
 
       <div className="flex items-center gap-1 border-b border-gray-200">
-        {[
+        {([
           { key: 'risks', label: 'Risk Register' },
           { key: 'issues', label: 'Issues & Snags' },
           { key: 'safety', label: 'Safety Observations' },
-        ].map((t) => (
+        ] satisfies { key: RiskTab; label: string }[]).map((t) => (
           <button
             key={t.key}
-            onClick={() => setTab(t.key as any)}
+            onClick={() => setTab(t.key)}
             className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
               tab === t.key ? 'border-brand-500 text-brand-600' : 'border-transparent text-gray-400 hover:text-gray-600'
             }`}
