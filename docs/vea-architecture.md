@@ -42,12 +42,12 @@ The current `src/pages/AIAssistant.tsx` is a demo implementation backed by `src/
 
 1. Establish isolated VEA branch and architecture notes.
 2. Add and verify the organisation-scoped data foundation in `buildflow-dev` (completed; five RLS-protected tables and participant-scoped policies).
-3. Build the VEA command-centre UI while preserving existing BuildFlow navigation and data (initial Executive Office shell added; existing AI demo is embedded rather than duplicated).
-4. Implement authenticated server-side orchestration and the first read-only agents (Executive, Project, Finance, Procurement).
+3. Build the VEA command-centre UI while preserving existing BuildFlow navigation and data (initial Executive Office shell added; existing AI demo is embedded rather than duplicated; dashboard now calls a live read-only context endpoint).
+4. Implement authenticated server-side orchestration and the first read-only agents (Executive, Project, Finance, Procurement). The first read-only context endpoint is deployed to buildflow-dev as Supabase Edge Function `vea-context`, with JWT verification enabled and user-scoped queries using the caller's JWT (no service-role key). It returns organisation-scoped summary data from projects, tasks, risks, purchase requests, invoices and calendar events.
 5. Add approvals, audit logging, and action-specific tool permissions before enabling any writes.
 6. Add n8n workflows and external integrations after the core permission model is tested.
 7. Map feature entitlements and human support hours to the four BuildFlow SaaS tiers.
 
 ## Current implementation limits
 
-The current app is a Vite SPA with no established server-side AI route, no connected model provider, and no Supabase Edge Functions in the development project. The first VEA UI is therefore explicitly marked as preview/sample data and the existing chat remains labelled as demo mode. The feature branch has a successful Vercel preview build. Do not install an agent framework or expose model/API credentials in client code until the server runtime, model routing, and environment variables are selected and tested.
+The current app is a Vite SPA with no connected model provider. The VEA dashboard uses an authenticated, read-only Supabase Edge Function; no service-role key is used for business-data retrieval. The existing chat remains labelled as demo mode until a model provider is configured. The latest Vercel preview build completed successfully. Do not expose model/API credentials in client code, and do not enable agent writes until server-side model routing, tool permissions, approval checks and audit coverage are implemented and tested.
