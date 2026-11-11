@@ -112,7 +112,7 @@ export function ProjectSchedule() {
             const progress = Number(activity.progress_percent ?? 0);
             return <article key={activity.id} className="rounded-xl border border-gray-200 p-4">
               <div className="flex flex-wrap items-start justify-between gap-3">
-                <div className="min-w-0"><p className="text-xs text-gray-400">{String(project?.name ?? 'Project')} {activity.activity_code ? `· ${String(activity.activity_code)}` : ''}</p><h3 className="mt-1 text-sm font-semibold text-gray-800">{String(activity.name ?? '')}</h3>{activity.description && <p className="mt-1 text-xs leading-5 text-gray-500">{String(activity.description)}</p>}</div>
+                <div className="min-w-0"><p className="text-xs text-gray-400">{String(project?.name ?? 'Project')} {activity.activity_code ? `· ${String(activity.activity_code)}` : ''}</p><h3 className="mt-1 text-sm font-semibold text-gray-800">{String(activity.name ?? '')}</h3>{Boolean(activity.description) && <p className="mt-1 text-xs leading-5 text-gray-500">{String(activity.description)}</p>}</div>
                 <select aria-label={`Status for ${String(activity.name)}`} value={status} onChange={(event) => void changeStatus(activity.id, event.target.value as ScheduleStatus)} className={`rounded-full border-0 px-3 py-1.5 text-xs font-semibold ${statusStyles[status] ?? statusStyles.not_started}`}>{Object.entries(statusLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>
               </div>
               <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_auto] sm:items-center">
