@@ -42,7 +42,7 @@ export type PageKey =
   | 'mgmt-reports'
   | 'communications'
   | 'client-portal'
-  | 'ai-assistant'
+  | 'vea'
   | 'settings';
 
 interface NavItem {
@@ -114,9 +114,9 @@ const navGroups: NavGroup[] = [
     items: [{ key: 'client-portal', label: 'Client Portal', icon: <ExternalLink size={18} /> }],
   },
   {
-    label: 'AI Assistant',
+    label: 'Executive Office',
     icon: <Bot size={18} />,
-    items: [{ key: 'ai-assistant', label: 'AI Assistant', icon: <Bot size={18} /> }],
+    items: [{ key: 'vea', label: 'Virtual Executive Assistant', icon: <Bot size={18} /> }],
   },
   {
     label: 'Settings',
