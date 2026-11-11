@@ -129,28 +129,28 @@ export default async function handler(req, res) {
   const queries = await Promise.all([
     read(include('projects') && permissions['projects.view'], client.from('projects')
       .select('id,name,project_code,status,health_status,progress_percent,expected_completion_date,contract_value,project_manager_id')
-      .eq('organization_id', organizationId).order('updated_at', { ascending: false }).limit(40)),
+      .eq('organization_id', organizationId).order('updated_at', { ascending: false }).limit(25)),
     read(include('tasks') && permissions['tasks.view'], client.from('tasks')
       .select('id,title,project_id,status,priority,due_date')
-      .eq('organization_id', organizationId).order('due_date', { ascending: true }).limit(60)),
+      .eq('organization_id', organizationId).order('due_date', { ascending: true }).limit(30)),
     read(include('risks') && permissions['risks.view'], client.from('risks')
       .select('id,title,project_id,category,likelihood,impact,status,due_date')
-      .eq('organization_id', organizationId).order('updated_at', { ascending: false }).limit(40)),
+      .eq('organization_id', organizationId).order('updated_at', { ascending: false }).limit(20)),
     read(include('procurement') && permissions['procurement.view'], client.from('purchase_requests')
       .select('id,request_number,project_id,description,status,required_date,estimated_amount')
       .eq('organization_id', organizationId).order('created_at', { ascending: false }).limit(40)),
     read(include('procurement') && permissions['procurement.view'], client.from('purchase_orders')
       .select('id,po_number,project_id,status,total_amount,expected_delivery_date')
-      .eq('organization_id', organizationId).order('created_at', { ascending: false }).limit(40)),
+      .eq('organization_id', organizationId).order('created_at', { ascending: false }).limit(20)),
     read(include('finance') && permissions['finance.view'], client.from('invoices')
       .select('id,invoice_number,project_id,status,issue_date,due_date,total_amount')
-      .eq('organization_id', organizationId).order('created_at', { ascending: false }).limit(40)),
+      .eq('organization_id', organizationId).order('created_at', { ascending: false }).limit(20)),
     read(include('finance') && permissions['finance.view'], client.from('project_budgets')
       .select('id,project_id,cost_code,description,budget_amount,committed_amount,actual_amount,forecast_amount,currency_code')
-      .eq('organization_id', organizationId).limit(60)),
+      .eq('organization_id', organizationId).limit(25)),
     read(include('finance') && permissions['finance.view'], client.from('project_costs')
       .select('id,project_id,cost_type,description,amount,cost_date,reference_type')
-      .eq('organization_id', organizationId).order('cost_date', { ascending: false }).limit(60))
+      .eq('organization_id', organizationId).order('cost_date', { ascending: false }).limit(25))
   ]);
 
   if (queries.some((result) => result.error)) {
@@ -200,7 +200,7 @@ export default async function handler(req, res) {
           ...history,
           { role: 'user', content: message }
         ],
-        max_tokens: 1000
+        max_tokens: 800
       }),
       signal: AbortSignal.timeout(30000)
     });
