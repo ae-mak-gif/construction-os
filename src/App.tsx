@@ -16,6 +16,7 @@ import { ClientPortal } from '@/pages/ClientPortal';
 import { AIAssistant } from '@/pages/AIAssistant';
 import { Settings } from '@/pages/Settings';
 import { ConstructionModules } from '@/pages/ConstructionModules';
+import { SiteDiaries } from '@/pages/SiteDiaries';
 import { projects } from '@/data/mockData';
 import type { Project } from '@/data/mockData';
 import { Loader2, Building2 } from 'lucide-react';
@@ -28,6 +29,7 @@ const pageTitles: Record<PageKey, string> = {
   'projects': 'Projects',
   'project-detail': 'Project Overview',
   'ops-tasks': 'Tasks & Calendar',
+  'site-diaries': 'Daily Site Diaries',
   'ops-boq': 'BOQ & Estimates',
   'ops-procurement': 'Procurement',
   'ops-suppliers': 'Suppliers',
@@ -146,6 +148,7 @@ function AppContent() {
           {page === 'projects' && <Projects onOpenProject={openProject} />}
           {page === 'project-detail' && currentProject && <ProjectDetail project={currentProject} onBack={() => handleNavigate('projects')} />}
           {page === 'ops-tasks' && <TasksCalendar />}
+          {page === 'site-diaries' && <SiteDiaries />}
           {page === 'ops-boq' && <BOQEstimates />}
           {page === 'ops-procurement' && <Procurement />}
           {page === 'ops-suppliers' && <Suppliers />}
