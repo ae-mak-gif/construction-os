@@ -1,7 +1,6 @@
 import { useMemo, useState, type FormEvent } from 'react';
 import { CalendarDays, Clock3, ListChecks, Plus, TrendingUp } from 'lucide-react';
 import { Card, CardBody, CardHeader, StatCard } from '@/components/ui/Card';
-import { Badge } from '@/components/ui/Badge';
 import { useBuildFlowData } from '@/context/BuildFlowDataContext';
 
 type ScheduleStatus = 'not_started' | 'in_progress' | 'completed' | 'on_hold' | 'delayed';
