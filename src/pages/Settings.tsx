@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import {
   MessageSquare,
@@ -58,7 +58,7 @@ function RoleManagement() {
   const [roleName, setRoleName] = useState('');
   const [roleDescription, setRoleDescription] = useState('');
 
-  async function send(payload: Record<string, unknown>) {
+  const send = useCallback(async (payload: Record<string, unknown>) => {
     if (!session?.access_token || !membership?.organization_id) throw new Error('Your active organisation session is unavailable.');
     const response = await fetch('/api/organization/roles', {
       method: 'POST',
@@ -68,9 +68,9 @@ function RoleManagement() {
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || 'Role management request failed.');
     return result.data;
-  }
+  }, [session?.access_token, membership?.organization_id]);
 
-  async function loadRoles() {
+  const loadRoles = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
@@ -82,12 +82,12 @@ function RoleManagement() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [send]);
 
   useEffect(() => {
     if (session?.access_token && membership?.organization_id) void loadRoles();
     else setLoading(false);
-  }, [session?.access_token, membership?.organization_id]);
+  }, [loadRoles, session?.access_token, membership?.organization_id]);
 
   async function createRole(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
