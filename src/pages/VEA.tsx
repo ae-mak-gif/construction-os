@@ -24,7 +24,7 @@ const specialistAgents = [
 
 export function VEA() {
   const { profile, membership } = useAuth();
-  const firstName = profile?.full_name?.trim().split(/\\s+/)[0] || 'there';
+  const firstName = profile?.full_name?.trim().split(/\s+/)[0] || 'there';
   const activeProjects = projects.filter((project) => project.status === 'Active').length;
   const watchProjects = projects.filter((project) => project.health === 'at-risk' || project.health === 'delayed');
   const overdueTasks = tasks.filter((task) => task.status === 'Overdue').length;
