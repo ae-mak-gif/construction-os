@@ -39,7 +39,8 @@ Deno.serve(async (request: Request) => {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 
-  const { data: authData, error: authError } = await supabase.auth.getUser();
+  const token = authorization.slice("Bearer ".length).trim();
+  const { data: authData, error: authError } = await supabase.auth.getUser(token);
   if (authError || !authData.user) {
     return json({ error: "Your session is invalid or has expired." }, 401);
   }
