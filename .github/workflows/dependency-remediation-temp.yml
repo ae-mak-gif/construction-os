@@ -1,0 +1,48 @@
+name: BuildFlow Dependency Remediation (temporary)
+
+on:
+  push:
+    branches:
+      - fix/auth-profile-schema-alignment
+
+permissions:
+  contents: read
+
+jobs:
+  remediate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Apply non-breaking security updates
+        run: npm audit fix
+        continue-on-error: true
+
+      - name: Capture post-remediation audit
+        if: always()
+        run: npm audit --json > audit-after.json || true
+
+      - name: Upload reviewed dependency files
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: buildflow-dependency-remediation
+          path: |
+            package.json
+            package-lock.json
+            audit-after.json
+          if-no-files-found: error
+          retention-days: 1
