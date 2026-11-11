@@ -12,7 +12,7 @@ function todayLocal() {
 
 export function SiteDiaries() {
   const { records, create } = useBuildFlowData();
-  const projects = records.projects ?? [];
+  const projects = useMemo(() => records.projects ?? [], [records.projects]);
   const diaries = records.site_diaries ?? [];
   const [projectId, setProjectId] = useState('');
   const [diaryDate, setDiaryDate] = useState(todayLocal());
