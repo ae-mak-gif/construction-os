@@ -6,6 +6,8 @@ import {
   Bot,
   FolderKanban,
   ListChecks,
+  CalendarDays,
+  FileText,
   LockKeyhole,
   ShieldCheck,
   ShoppingCart,
@@ -15,11 +17,14 @@ import {
 
 const specialistAgents = [
   { name: 'Executive Orchestrator', detail: 'Routes requests and coordinates specialist work', icon: Bot, status: 'Core layer' },
+  { name: 'Executive Admin', detail: 'Inbox, calendar, meeting preparation and executive support', icon: CalendarDays, status: 'Planned' },
+  { name: 'Business & Finance', detail: 'Cash flow, invoices, budgets and commercial signals', icon: ShieldCheck, status: 'Planned' },
   { name: 'Project Intelligence', detail: 'Progress, programme, delays and project exposure', icon: FolderKanban, status: 'Planned' },
-  { name: 'Finance Intelligence', detail: 'Cash flow, invoices, budgets and cost signals', icon: ShieldCheck, status: 'Planned' },
   { name: 'Procurement', detail: 'Purchase requests, supplier and materials visibility', icon: ShoppingCart, status: 'Planned' },
   { name: 'People & Workforce', detail: 'Capacity, assignments and workforce coordination', icon: Users, status: 'Planned' },
+  { name: 'Research & Documents', detail: 'Research, document intelligence and executive briefings', icon: FileText, status: 'Planned' },
   { name: 'Delegation & Accountability', detail: 'Follow-ups, commitments and ownership', icon: ListChecks, status: 'Planned' },
+  { name: 'Risk & Compliance', detail: 'HSE, contractual, regulatory and business exposure', icon: ShieldCheck, status: 'Planned' },
 ];
 
 export function VEA() {
