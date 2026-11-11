@@ -32,6 +32,7 @@ export type PageKey =
   | 'projects'
   | 'project-detail'
   | 'ops-tasks'
+  | 'site-diaries'
   | 'ops-boq'
   | 'ops-procurement'
   | 'ops-suppliers'
@@ -88,6 +89,7 @@ const navGroups: NavGroup[] = [
     icon: <ListTodo size={18} />,
     items: [
       { key: 'ops-tasks', label: 'Tasks & Calendar', icon: <ListTodo size={18} /> },
+      { key: 'site-diaries', label: 'Daily Site Diaries', icon: <ClipboardList size={18} /> },
       { key: 'ops-boq', label: 'BOQ & Estimates', icon: <ClipboardList size={18} /> },
       { key: 'ops-procurement', label: 'Procurement', icon: <ShoppingCart size={18} /> },
       { key: 'ops-suppliers', label: 'Suppliers', icon: <Truck size={18} /> },
