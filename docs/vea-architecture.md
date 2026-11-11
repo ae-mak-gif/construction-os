@@ -50,6 +50,9 @@ The source-controlled catalogue is `src/lib/vea-agents.ts`. It defines eight spe
 
 The registry is a capability contract, not a live agent runtime. The current release only advertises capabilities and status; no model-driven routing or specialist execution is claimed. All agents inherit a read-only policy. The first delivery wave is Executive, Project, Finance and Procurement. The remaining four follow after the first wave is tested.
 
+
+The initial tool allow-list is defined in `src/lib/vea-tools.ts`. It names only bounded read operations for executive context, projects, tasks, risks, invoices, purchase requests and upcoming calendar events. Each entry is explicitly marked `not_connected`; this prevents the catalogue from being mistaken for a working tool runtime. Server-side implementations must derive the caller identity from the verified JWT, use the caller's RLS-scoped session, and validate the requested agent/tool pair against these registries. No arbitrary SQL, arbitrary URL fetch, or generic database mutation tool is permitted.
+
 ## Orchestration contract
 
 1. Authenticate the caller using the Supabase JWT; reject missing, invalid or expired sessions.
