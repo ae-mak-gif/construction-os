@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type FormEvent } from 'react';
 import { CalendarDays, ClipboardList, CloudSun, Plus, Users, AlertTriangle } from 'lucide-react';
 import { Card, CardBody, CardHeader, StatCard } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
@@ -31,7 +31,7 @@ export function SiteDiaries() {
   const projectNames = useMemo(() => new Map(projects.map((project) => [project.id, String(project.name ?? 'Project')])), [projects]);
   const orderedDiaries = [...diaries].sort((a, b) => String(b.diary_date ?? '').localeCompare(String(a.diary_date ?? '')));
 
-  const submit = async (event: React.FormEvent<HTMLFormElement>) => {
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!projectId || !workPerformed.trim()) return;
     setSaving(true);
@@ -140,9 +140,9 @@ export function SiteDiaries() {
               <Badge variant="blue">{Number(entry.labour_count ?? 0)} workers</Badge>
             </div>
             <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-gray-700">{String(entry.work_performed ?? '')}</p>
-            {(entry.delays_disruptions || entry.safety_observations) && <div className="mt-3 grid gap-2 md:grid-cols-2">
-              {entry.delays_disruptions && <div className="rounded-lg bg-amber-50 p-3"><p className="flex items-center gap-1 text-xs font-semibold text-amber-800"><AlertTriangle size={13} /> Delays / disruptions</p><p className="mt-1 text-xs leading-5 text-amber-900">{String(entry.delays_disruptions)}</p></div>}
-              {entry.safety_observations && <div className="rounded-lg bg-gray-50 p-3"><p className="text-xs font-semibold text-gray-700">Safety observations</p><p className="mt-1 text-xs leading-5 text-gray-600">{String(entry.safety_observations)}</p></div>}
+            {(Boolean(entry.delays_disruptions) || Boolean(entry.safety_observations)) && <div className="mt-3 grid gap-2 md:grid-cols-2">
+              {Boolean(entry.delays_disruptions) && <div className="rounded-lg bg-amber-50 p-3"><p className="flex items-center gap-1 text-xs font-semibold text-amber-800"><AlertTriangle size={13} /> Delays / disruptions</p><p className="mt-1 text-xs leading-5 text-amber-900">{String(entry.delays_disruptions)}</p></div>}
+              {Boolean(entry.safety_observations) && <div className="rounded-lg bg-gray-50 p-3"><p className="text-xs font-semibold text-gray-700">Safety observations</p><p className="mt-1 text-xs leading-5 text-gray-600">{String(entry.safety_observations)}</p></div>}
             </div>}
           </article>)}
         </div>}
