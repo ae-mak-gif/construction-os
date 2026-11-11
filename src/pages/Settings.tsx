@@ -332,7 +332,7 @@ function ProjectAccessManagement() {
       setMembers(memberRows);
       setAssignments(assignmentRows);
       setSelectedProject((current) => current || projectRows?.[0]?.id || '');
-      setSelectedUser((current) => current || (memberRows || []).find((member: any) => member.status === 'active')?.user_id || '');
+      setSelectedUser((current) => current || (memberRows || []).find((member) => member.status === 'active')?.user_id || '');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Project access settings could not be loaded.');
     } finally { setLoading(false); }
