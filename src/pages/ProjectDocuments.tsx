@@ -108,14 +108,20 @@ export function ProjectDocuments() {
     const path = String(doc.organization_id) + '/' + String(doc.project_id) + '/' + id + '/' + Date.now() + '_' + safeName;
     setUploading((current) => ({ ...current, [id]: true }));
     setError(''); setNotice('');
-    const { error: uploadError } = await supabase.storage.from('project-documents').upload(path, file, { cacheControl: '3600', upsert: false, contentType: file.type });
-    if (uploadError) { setError(uploadError.message); setUploading((current) => ({ ...current, [id]: false })); return; }
     try {
+      // Reserve the exact object path in the tenant-scoped document row first.
+      // Storage SELECT is granted only when the object path matches this metadata.
       await update('project_documents', id, { file_path: path, file_type: file.type, file_url: null });
+      const { error: uploadError } = await supabase.storage.from('project-documents').upload(path, file, {
+        cacheControl: '3600', upsert: false, contentType: file.type,
+      });
+      if (uploadError) {
+        await update('project_documents', id, { file_path: null, file_type: null });
+        throw new Error(uploadError.message);
+      }
       setNotice('File uploaded to private project storage.');
     } catch (saveError) {
-      await supabase.storage.from('project-documents').remove([path]);
-      setError(saveError instanceof Error ? saveError.message : 'File metadata could not be saved.');
+      setError(saveError instanceof Error ? saveError.message : 'File upload could not be completed.');
     } finally { setUploading((current) => ({ ...current, [id]: false })); }
   };
 
