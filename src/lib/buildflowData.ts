@@ -42,7 +42,7 @@ export async function createOrganizationRecord<T extends Record<string, unknown>
   if ('created_by' in payload || ['calendar_events','project_updates','expenses','invoices','estimates','purchase_orders','work_orders','quality_issues','inspections','project_costs','finance_transactions','communication_logs'].includes(table)) payload.created_by = userId;
   if ('actor_user_id' in payload) payload.actor_user_id = userId;
   if (table === 'messages') payload.sender_user_id = userId;
-  if (table === 'purchase_requests') payload.requested_by = userId;
+  if (table === 'purchase_requests' || table === 'project_approvals') payload.requested_by = userId;
   if (table === 'project_documents') payload.uploaded_by = userId;
   if (table === 'payments') payload.received_by = userId;
   const { data, error } = await supabase.from(table).insert(payload).select('*').single();
