@@ -2,6 +2,7 @@ import { useMemo, useState, type FormEvent } from 'react';
 import { FileCheck2, FilePlus2, GitBranch, ShieldCheck } from 'lucide-react';
 import { Card, CardBody, CardHeader } from '@/components/ui/Card';
 import { useBuildFlowData } from '@/context/BuildFlowDataContext';
+import { supabase } from '@/lib/supabase';
 
 const statuses = ['draft', 'for_review', 'approved', 'superseded', 'archived'] as const;
 const categories = ['general', 'drawing', 'specification', 'method_statement', 'shop_drawing', 'technical_submission', 'contract', 'report', 'other'];
@@ -21,6 +22,7 @@ export function ProjectDocuments() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const [uploading, setUploading] = useState<Record<string, boolean>>({});
 
   const visibleDocuments = documents.filter((doc) => !filterProject || doc.project_id === filterProject);
   const projectName = (id: string) => String(projects.find((project) => project.id === id)?.name ?? 'Project');
@@ -95,6 +97,39 @@ export function ProjectDocuments() {
     } catch (saveError) { setError(saveError instanceof Error ? saveError.message : 'Could not create the new revision.'); }
   };
 
+  const uploadDocumentFile = async (doc: Record<string, unknown>, file: File | null) => {
+    if (!file) return;
+    const allowedTypes = ['application/pdf','image/png','image/jpeg','image/webp','application/msword','application/vnd.openxmlformats-officedocument.wordprocessingml.document','application/vnd.ms-excel','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet','application/vnd.ms-powerpoint','application/vnd.openxmlformats-officedocument.presentationml.presentation'];
+    if (file.size > 25 * 1024 * 1024) { setError('Files must be 25 MB or smaller.'); return; }
+    if (!allowedTypes.includes(file.type)) { setError('This file type is not allowed. Upload PDF, image or Office documents.'); return; }
+    if (doc.file_path) { setError('This revision already has a file. Create a new revision before attaching a replacement.'); return; }
+    const id = String(doc.id);
+    const safeName = file.name.replace(/[^A-Za-z0-9._-]/g, '_');
+    const path = String(doc.organization_id) + '/' + String(doc.project_id) + '/' + id + '/' + Date.now() + '_' + safeName;
+    setUploading((current) => ({ ...current, [id]: true }));
+    setError(''); setNotice('');
+    const { error: uploadError } = await supabase.storage.from('project-documents').upload(path, file, { cacheControl: '3600', upsert: false, contentType: file.type });
+    if (uploadError) { setError(uploadError.message); setUploading((current) => ({ ...current, [id]: false })); return; }
+    try {
+      await update('project_documents', id, { file_path: path, file_type: file.type, file_url: null });
+      setNotice('File uploaded to private project storage.');
+    } catch (saveError) {
+      await supabase.storage.from('project-documents').remove([path]);
+      setError(saveError instanceof Error ? saveError.message : 'File metadata could not be saved.');
+    } finally { setUploading((current) => ({ ...current, [id]: false })); }
+  };
+
+  const downloadDocumentFile = async (doc: Record<string, unknown>) => {
+    const filePath = String(doc.file_path ?? '');
+    if (!filePath) return;
+    const tab = window.open('', '_blank');
+    if (!tab) { setError('Allow pop-ups to open the secure download.'); return; }
+    setError('');
+    const { data, error: signedUrlError } = await supabase.storage.from('project-documents').createSignedUrl(filePath, 60);
+    if (signedUrlError || !data?.signedUrl) { tab.close(); setError(signedUrlError?.message ?? 'Could not create a secure download link.'); return; }
+    tab.location.href = data.signedUrl;
+  };
+
   const requestReview = async (doc: Record<string, unknown>) => {
     setError(''); setNotice('');
     try {
@@ -113,10 +148,7 @@ export function ProjectDocuments() {
     <div className="rounded-2xl bg-gradient-to-r from-navy-900 to-navy-800 p-6 text-white">
       <div className="flex items-center gap-2 text-brand-300 text-xs font-semibold uppercase tracking-wider"><FileCheck2 size={15} /> Project information control</div>
       <h2 className="mt-3 text-2xl font-bold tracking-tight">Document register & revisions</h2>
-      <p className="mt-2 max-w-2xl text-sm leading-6 text-navy-200">Register drawings, specifications, submissions and project records. Track revisions, review status and client-sharing intent.</p>
-    </div>
-    <div role="note" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-      File uploads and downloads are not enabled yet. This register stores document metadata only; it does not create public file links or expose private attachments.
+      <p className="mt-2 max-w-2xl text-sm leading-6 text-navy-200">Register drawings, specifications, submissions and project records. Track revisions, review status and securely stored attachments.</p>
     </div>
     {error && <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
     {notice && <div role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">{notice}</div>}
@@ -145,14 +177,26 @@ export function ProjectDocuments() {
                 <div className="flex flex-wrap items-center gap-2"><h3 className="font-semibold text-gray-900">{String(doc.name)}</h3><span className="rounded bg-gray-100 px-2 py-1 text-xs font-medium text-gray-600">Rev {String(doc.revision ?? 'A')}</span><span className="rounded bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700">{String(doc.document_status ?? 'draft').replace(/_/g, ' ')}</span></div>
                 <p className="mt-1 text-xs text-gray-500">{projectName(String(doc.project_id))} · {String(doc.document_number ?? 'No document number')} · {String(doc.document_category ?? 'general').replace(/_/g, ' ')}</p>
                 {Boolean(doc.description) && <p className="mt-2 text-sm text-gray-600">{String(doc.description)}</p>}
-                <p className="mt-2 text-xs text-gray-400">{doc.issued_at ? `Issue date: ${String(doc.issued_at)} · ` : ''}{doc.is_client_shared ? 'Marked for client sharing' : 'Internal only'}</p>
+                <p className="mt-2 text-xs text-gray-400">{doc.issued_at ? `Issue date: ${String(doc.issued_at)} · ` : ''}{doc.is_client_shared ? 'Marked for client release (not yet portal-visible)' : 'Internal only'}</p>
               </div>
               <div className="flex flex-wrap gap-2">
                 <select aria-label={`Status for ${String(doc.name)}`} value={String(doc.document_status ?? 'draft')} onChange={(event) => void changeStatus(doc.id, event.target.value)} className="rounded-lg border border-gray-200 bg-white px-2 py-2 text-xs">{statuses.map((status) => <option key={status} value={status}>{status.replace(/_/g, ' ')}</option>)}</select>
                 <button type="button" onClick={() => void requestReview(doc)} className="inline-flex items-center gap-1 rounded-lg border border-gray-200 px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50"><ShieldCheck size={14} /> Request review</button>
                 <button type="button" onClick={() => void createRevision(doc)} disabled={doc.document_status === 'superseded' || doc.document_status === 'archived'} className="inline-flex items-center gap-1 rounded-lg border border-gray-200 px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40"><GitBranch size={14} /> New revision</button>
-                <button type="button" onClick={() => void toggleClientShare(doc.id, !doc.is_client_shared)} className="rounded-lg border border-gray-200 px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50">{doc.is_client_shared ? 'Unmark client share' : 'Mark client share'}</button>
+                <button type="button" onClick={() => void toggleClientShare(doc.id, !doc.is_client_shared)} className="rounded-lg border border-gray-200 px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50">{doc.is_client_shared ? 'Unmark release' : 'Mark for client release'}</button>
               </div>
+            </div>
+            <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-gray-100 pt-3">
+              {doc.file_path ? <>
+                <span className="text-xs font-medium text-emerald-700">Private file attached</span>
+                <button type="button" onClick={() => void downloadDocumentFile(doc)} className="rounded-lg border border-gray-200 px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50">Secure download (60 sec link)</button>
+              </> : <>
+                <label className="inline-flex cursor-pointer items-center rounded-lg border border-gray-200 px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50">
+                  {uploading[doc.id] ? 'Uploading…' : 'Attach file'}
+                  <input type="file" className="sr-only" disabled={Boolean(uploading[doc.id])} accept=".pdf,.png,.jpg,.jpeg,.webp,.doc,.docx,.xls,.xlsx,.ppt,.pptx" onChange={(event) => { void uploadDocumentFile(doc, event.target.files?.[0] ?? null); event.currentTarget.value = ''; }} />
+                </label>
+                <span className="text-xs text-gray-400">PDF, images or Office · max 25 MB</span>
+              </>}
             </div>
           </div>)}
         </div>}
