@@ -225,14 +225,14 @@ export function VEA() {
               <span className="rounded-full bg-gray-100 px-3 py-1 text-xs text-gray-600">Agent execution not yet enabled</span>
             </div>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
-              {specialistAgents.map((agent) => {
-                const Icon = agent.icon;
+              {veaAgents.map((agent) => {
+                const Icon = agentIcons[agent.icon];
                 return (
                   <div key={agent.name} className="flex items-start gap-3 rounded-lg border border-gray-100 p-3">
                     <span className="rounded-lg bg-gray-100 p-2 text-gray-700"><Icon size={17} /></span>
                     <div className="min-w-0">
                       <p className="text-sm font-medium text-gray-800">{agent.name}</p>
-                      <p className="mt-1 text-xs leading-5 text-gray-500">{agent.detail}</p>
+                      <p className="mt-1 text-xs leading-5 text-gray-500">{agent.description}</p>
                       <p className="mt-2 text-[10px] font-semibold uppercase tracking-wide text-gray-400">{agentStatusLabel(agent.status)} · Read-only</p>
                     </div>
                   </div>
