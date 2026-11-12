@@ -2,108 +2,72 @@
 
 ## Product decision
 
-VEA is the executive experience built on top of BuildFlow AI. It is not a second assistant and it does not replace the existing BuildFlow operational modules. The existing AI Assistant is retained as the initial entry point and its capabilities are progressively migrated into the VEA orchestration layer.
+VEA is the executive experience built on top of BuildFlow AI. It is not a second assistant and it does not replace the existing BuildFlow operational modules. The VEA command centre now hosts the live conversational workspace; the legacy standalone AI Assistant remains unchanged for other routes.
 
 ## Runtime and deployment boundaries
 
-- Frontend: existing Vite + React + TypeScript application in this repository.
-- Source control: feature branch `feature/buildflow-vea-integration`; production `main` is not changed by this work.
-- Authentication and tenant data: existing Supabase Auth, `organizations`, `organization_members`, and RLS membership helper.
-- Development database: dedicated Supabase project `buildflow-dev` (`amqknbijdjpcapwkeyyh`). Apply VEA migrations here first. Do not apply to the production BuildFlow project until separately reviewed.
-- Hosting: existing Vercel project linked to this repository. Preview deployments are currently constrained by the Vercel Hobby daily deployment cap; batch changes and deploy only a tested checkpoint.
-- Automation: n8n is an integration/workflow runner, not the authorization boundary or source of truth for agent permissions.
+- Frontend: existing Vite + React + TypeScript application.
+- Source control: `feature/buildflow-vea-integration`; production `main` is not changed by this work.
+- Development database: dedicated Supabase project `amqknbijdjpcapwkeyyh`. Production Supabase remains isolated.
+- Vercel Preview variables `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` are now branch-scoped to the VEA feature branch and point to development.
+- AI Gateway authentication uses Vercel deployment OIDC. No long-lived provider key is exposed in the browser or committed to source.
+- Model: `openai/gpt-4.1-mini`, selected from the live AI Gateway catalogue for tool-use support and low per-token pricing.
+- Hosting: keep deployments batched into coherent checkpoints to protect the Hobby deployment quota.
 
-## Logical architecture
+## Security and data flow
 
-1. VEA interface: My Day, Executive Inbox, Business Pulse, Decisions & Approvals, Delegations, Intelligence, and Human Assistant workspace.
-2. Executive Orchestrator: interprets requests, chooses the relevant specialist, enforces the action policy, and combines results.
-3. Specialist agents: Executive Admin, Business & Finance, Project Intelligence, Procurement, People & Workforce, Research & Documents, Delegation & Accountability, and Risk & Compliance.
-4. BuildFlow tools: narrowly scoped read/write operations over existing BuildFlow modules.
-5. Human support: human executive assistants receive assigned work and escalations through a restricted workspace.
-6. Audit and approval services: every agent run and consequential action is traceable.
+1. The browser sends a user message and Supabase access token to the same-origin Vercel `/api/vea-chat` function.
+2. The Vercel function enforces same-origin POST requests and forwards the verified session token plus the deployment-scoped `x-vercel-oidc-token` to the development Supabase Edge Function.
+3. The `vea-chat` Edge Function verifies the Supabase user with `auth.getUser` and calls the existing `vea-context` function using the caller's JWT.
+4. `vea-context` requires exactly one active organisation membership and reads BuildFlow data through the caller's RLS-scoped session.
+5. The chat function uses the Supabase service-role client only for VEA system records after identity and organisation scope have been verified. It never uses service role to retrieve operational business data.
+6. The Edge Function calls AI Gateway with the Vercel OIDC token. The token and all server credentials remain server-side.
+7. Conversations, user/agent messages, agent runs, token usage and audit events are persisted with organisation scope.
+8. A per-user short-window rate limit is enforced server-side.
 
-## Agent action policy
+## First-wave agents and tools
 
-- Tier A — autonomous: read-only retrieval, summaries, monitoring, draft preparation, and briefings.
-- Tier B — approval required: sending external communications, changing calendar commitments, assigning work, and updating business records.
-- Tier C — human/CEO decision: payments, contracts, material financial commitments, employment decisions, and legal/commercial judgement.
+The Executive Orchestrator routes to four first-wave specialist agents:
 
-Agents must not call Supabase with elevated credentials from the browser. Any privileged tool must execute server-side, derive the user from a verified session, resolve the user's active organization membership, check action-specific permission, and write an audit event. A request for approval is not itself permission to execute the action.
+- Executive Orchestrator — cross-functional briefings and prioritisation.
+- Project Intelligence — project status, tasks, delivery dates, risks and calendar.
+- Finance Intelligence — invoice status and due dates.
+- Procurement Intelligence — purchase-request visibility.
 
-## Data foundation
+The model receives only the data slice allowed for the selected agent. The read-only tool catalogue is server-enforced and includes executive context, projects, tasks, risks, invoices, purchase requests and upcoming calendar records. Tool keys are recorded with every agent run.
 
-The first VEA migrations add organization-scoped conversations, messages, agent runs, approvals, and audit events. All five tables have RLS enabled. Conversation and message visibility is limited to the creator, assigned human assistant, or an authorised organisation administrator; approvals are limited to their requester, assignee, or administrator; audit events are administrator-only. Composite foreign keys enforce same-organisation references. Browser users cannot update or delete approvals, agent-run outcomes, or audit records. Trusted server-side services will own those operations.
+The People & Workforce, Research & Documents, Delegation & Accountability, and Risk & Compliance capabilities remain planned; the runtime must not claim those specialist datasets are connected.
 
+## Action policy
 
-## Specialist-agent registry and routing contract
+- All connected tools are read-only.
+- No arbitrary SQL, arbitrary URL fetch, or generic database mutation tool exists.
+- No model-selected tool names or permissions are trusted.
+- No payments, transfers, procurement commitments, contracts, employment decisions, legal commitments, external communications, approvals, or business-record writes are enabled.
+- Human approval and action execution remain separate future workflows. Approval alone will never grant execution permission.
 
-The source-controlled catalogue is `src/lib/vea-agents.ts`. It defines eight specialist capabilities and the first routing hints:
+## Persistence and audit
 
-- Executive Orchestrator — cross-functional briefings, prioritisation and delegation coordination.
-- Project Intelligence — project health, programme, milestones, tasks and delivery risks.
-- Finance Intelligence — budgets, invoices, cash flow and cost variance.
-- Procurement Intelligence — purchase requests, purchase orders, supplier records and materials visibility.
-- People & Workforce — workforce capacity and resource allocation; it must not make HR decisions.
-- Research & Documents — authorised document retrieval, evidence extraction and summaries.
-- Delegation & Accountability — commitments, ownership and follow-up visibility.
-- Risk & Compliance — project, safety, quality and compliance risk visibility.
+- `vea_conversations` stores the organisation-scoped conversation and title.
+- `vea_messages` stores both user and agent messages.
+- `vea_agent_runs` records selected specialist, model, tool keys, status, timestamps and token usage.
+- `vea_audit_events` records successful and failed agent runs.
+- The browser cannot update or delete trusted agent-run outcomes or audit records.
 
-The registry is a capability contract, not a live agent runtime. The current release only advertises capabilities and status; no model-driven routing or specialist execution is claimed. All agents inherit a read-only policy. The first delivery wave is Executive, Project, Finance and Procurement. The remaining four follow after the first wave is tested.
+## Verification still required
 
+The code and development Edge Function must pass the following end-to-end checks in the Vercel Preview deployment:
 
-The initial tool allow-list is defined in `src/lib/vea-tools.ts`. It names only bounded read operations for executive context, projects, tasks, risks, invoices, purchase requests and upcoming calendar events. Each entry is explicitly marked `not_connected`; this prevents the catalogue from being mistaken for a working tool runtime. Server-side implementations must derive the caller identity from the verified JWT, use the caller's RLS-scoped session, and validate the requested agent/tool pair against these registries. No arbitrary SQL, arbitrary URL fetch, or generic database mutation tool is permitted.
+- unauthenticated and invalid JWT requests are rejected;
+- no active or multiple active organisation memberships are rejected;
+- a conversation ID owned by another user or organisation is rejected;
+- same-origin enforcement and OIDC forwarding work on the deployed Vercel function;
+- the four first-wave routes return answers grounded in their allowed data slices;
+- messages, agent runs, token usage and audit events are persisted;
+- rate limits and AI Gateway credit/budget failures are handled;
+- no business write or approval action is exposed;
+- existing BuildFlow modules, data and production remain unchanged.
 
-## Orchestration contract
+## Next delivery wave
 
-1. Authenticate the caller using the Supabase JWT; reject missing, invalid or expired sessions.
-2. Resolve exactly one active organisation membership. If a user has multiple active memberships, require explicit organisation selection rather than guessing.
-3. Route only to an allow-listed agent key from the source-controlled registry. Model output must never invent tools or permissions.
-4. Load only the minimum context needed for that agent, using the caller's JWT and existing RLS policies.
-5. Start with read-only tools: summaries, search, analysis, monitoring and draft preparation.
-6. Record each conversation, message and agent run with organisation scope and actor identity.
-7. Do not execute writes, approvals, payments, procurement commitments, contract actions or HR decisions in the initial runtime.
-8. When a future action requires approval, create a proposal for a human; approval is not execution authority. Re-check the approver's permission and the underlying action permission at execution time.
-9. Record tool invocation, outcome, model identifier and token usage in the audit trail. Do not store secrets or unnecessary sensitive content in logs.
-
-## First-wave acceptance tests
-
-- An unauthenticated request is rejected.
-- A user without active organisation membership is rejected.
-- A user with multiple active memberships is asked to select an organisation.
-- A user cannot retrieve another organisation's VEA conversations, messages, runs or business records.
-- Only registered agent keys can be selected.
-- Model output cannot expand the tool allow-list or turn on write permissions.
-- The four first-wave agents cannot perform writes or approval actions.
-- Existing BuildFlow modules, records, demo data and navigation remain unaffected.
-
-## Existing AI Assistant migration
-
-The current `src/pages/AIAssistant.tsx` is a demo implementation backed by `src/data/mockData`; it does not call a model or a server endpoint. Preserve the useful question prompts and demo behavior while replacing its internal response function with a server-side VEA conversation API in a later implementation step. Do not label mock responses as live AI.
-
-## Delivery sequence
-
-1. Establish isolated VEA branch and architecture notes.
-2. Add and verify the organisation-scoped data foundation in `buildflow-dev` (completed; five RLS-protected tables and participant-scoped policies).
-3. Build the VEA command-centre UI while preserving existing BuildFlow navigation and data (initial Executive Office shell added; existing AI demo is embedded rather than duplicated; dashboard now calls a live read-only context endpoint).
-4. Implement authenticated server-side orchestration and the first read-only agents (Executive, Project, Finance, Procurement). The first read-only context endpoint is deployed to buildflow-dev as Supabase Edge Function `vea-context`, with JWT verification enabled and user-scoped queries using the caller's JWT (no service-role key). It returns organisation-scoped summary data from projects, tasks, risks, purchase requests, invoices and calendar events.
-5. Add approvals, audit logging, and action-specific tool permissions before enabling any writes.
-6. Add n8n workflows and external integrations after the core permission model is tested.
-7. Map feature entitlements and human support hours to the four BuildFlow SaaS tiers.
-
-
-## Runtime readiness and environment isolation
-
-The VEA feature branch must have its own Preview environment variables pointing to the dedicated BuildFlow development Supabase project. The existing development overrides are currently branch-scoped to `fix/auth-profile-schema-alignment`; they do not automatically apply to `feature/buildflow-vea-integration`. Before testing a VEA preview, add these two Preview variables for the VEA branch using the development project values:
-
-- `VITE_SUPABASE_URL`
-- `VITE_SUPABASE_PUBLISHABLE_KEY`
-
-Do not copy Production Supabase credentials into Preview. Production-only variables must remain scoped to Production.
-
-The Vercel project currently has no `AI_GATEWAY_API_KEY` configured. The model provider/runtime is therefore not ready to be enabled. Add the key only after the Vercel AI Gateway account/key is provisioned, and scope it to Preview first. Never expose it through a `VITE_` variable or client-side code.
-
-The specialist registry and tool allow-list are source-controlled contracts only. A live conversational runtime still requires: (1) the Preview environment isolation above, (2) an AI Gateway credential and verified model ID, (3) a server-side endpoint that validates the Supabase user JWT and active organisation, (4) server-enforced tool/agent allow-lists, and (5) persistence and audit tests. Do not describe VEA agents as live until these checks pass.
-
-## Current implementation limits
-
-The current app is a Vite SPA with no connected model provider. The VEA dashboard uses an authenticated, read-only Supabase Edge Function; no service-role key is used for business-data retrieval. The existing chat remains labelled as demo mode until a model provider is configured. A previous Vercel preview build completed successfully; subsequent source changes have not yet been rebuilt because the project reached its daily deployment cap. Do not expose model/API credentials in client code, and do not enable agent writes until server-side model routing, tool permissions, approval checks and audit coverage are implemented and tested.
+After the first-wave runtime is verified: implement the remaining four specialists, then approval proposals and human hand-off, then narrowly scoped write actions with re-checks, action-specific permissions, idempotency and audit. Only after that should n8n and external integrations be connected.

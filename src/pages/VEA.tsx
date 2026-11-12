@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
-import { AIAssistant } from '@/pages/AIAssistant';
 import { useAuth } from '@/context/AuthContext';
 import { loadVEAContext, type VEAContext } from '@/lib/vea';
 import { veaAgents } from '@/lib/vea-agents';
+import { VEAChat } from '@/components/vea/VEAChat';
 import {
   AlertTriangle,
   ArrowUpRight,
@@ -34,8 +34,8 @@ const agentIcons = {
 } as const;
 
 function agentStatusLabel(status: string) {
-  if (status === 'foundation') return 'Foundation';
-  if (status === 'next') return 'Next';
+  if (status === 'foundation') return 'Connected foundation';
+  if (status === 'next') return 'Next delivery wave';
   return 'Planned';
 }
 
@@ -100,7 +100,7 @@ export function VEA() {
 
   return (
     <div className="space-y-6">
-      <section className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-navy-900 via-navy-800 to-brand-900 p-6 lg:p-8 text-white">
+      <section className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-navy-900 via-navy-800 to-brand-900 p-6 text-white lg:p-8">
         <div className="absolute -right-12 -top-16 h-56 w-56 rounded-full border border-white/10" />
         <div className="absolute -right-2 -top-6 h-36 w-36 rounded-full border border-white/10" />
         <div className="relative max-w-3xl">
@@ -220,9 +220,9 @@ export function VEA() {
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
               <div>
                 <h2 className="font-semibold text-gray-900">Your specialist team</h2>
-                <p className="mt-1 text-sm text-gray-500">The Executive Orchestrator will route work across eight specialist capabilities. Execution remains disabled until the secure model and tool layer is connected.</p>
+                <p className="mt-1 text-sm text-gray-500">Four first-wave specialists are connected to bounded, read-only BuildFlow context. The remaining specialist capabilities are planned.</p>
               </div>
-              <span className="rounded-full bg-gray-100 px-3 py-1 text-xs text-gray-600">Agent execution not yet enabled</span>
+              <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-800">Read-only runtime</span>
             </div>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
               {veaAgents.map((agent) => {
@@ -247,9 +247,9 @@ export function VEA() {
       <section>
         <div className="mb-3">
           <h2 className="text-lg font-semibold text-gray-900">Ask your executive assistant</h2>
-          <p className="mt-1 text-sm text-gray-500">The original assistant remains available in clearly labelled demo mode while the live conversational model is built.</p>
+          <p className="mt-1 text-sm text-gray-500">The Executive Orchestrator routes your question to the appropriate first-wave specialist. Conversations and agent runs are recorded for continuity and audit.</p>
         </div>
-        <AIAssistant />
+        <VEAChat />
       </section>
     </div>
   );
