@@ -1,0 +1,4 @@
+-- Historical Development migration marker.
+-- The final server-owned VEA completion RPC definitions and grants are
+-- fully represented by 20261112083822_restrict_vea_turn_completion_to_service_role.sql.
+-- This marker corresponds to an earlier out-of-band Development migration.
