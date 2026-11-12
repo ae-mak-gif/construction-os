@@ -41,4 +41,10 @@ export const constructionModules: ConstructionModule[] = [
     currentFoundation: ['Risk register', 'Inspections', 'Quality and safety observations'],
     remainingBuild: ['Permit-to-work workflows', 'Corrective-action ownership and closure evidence', 'Environmental event and compliance registers', 'Inspection templates and safety analytics'],
     proposedTier: 'Starter', openPage: 'project-registers' },
+  { id: 'documents', name: 'Document & Drawing Control', category: 'Project information',
+    summary: 'Maintain a traceable register for drawings, specifications, submissions and controlled revisions.',
+    capabilities: ['Document register and numbering', 'Revision sequencing and superseded records', 'Review request tracking', 'Internal versus client-share designation', 'Private file storage and signed downloads'],
+    currentFoundation: ['Project document metadata', 'Revision records', 'Project approval requests', 'Tenant/project consistency constraints'],
+    remainingBuild: ['Private Storage bucket and upload validation', 'Signed download and preview workflow', 'Drawing comparison and mark-up', 'Approval role routing and decision history'],
+    proposedTier: 'Professional', openPage: 'project-documents' },
 ];
