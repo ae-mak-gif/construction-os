@@ -22,12 +22,20 @@ export function ProjectSchedule() {
   const activities = records.schedule_activities ?? [];
   const dependencies = records.schedule_activity_dependencies ?? [];
   const baselines = records.schedule_baselines ?? [];
+  const dependencies = records.schedule_activity_dependencies ?? [];
+  const baselines = records.schedule_baselines ?? [];
   const [projectId, setProjectId] = useState('');
   const [name, setName] = useState('');
   const [code, setCode] = useState('');
   const [plannedStart, setPlannedStart] = useState('');
   const [plannedFinish, setPlannedFinish] = useState('');
   const [description, setDescription] = useState('');
+  const [predecessorId, setPredecessorId] = useState('');
+  const [successorId, setSuccessorId] = useState('');
+  const [dependencyType, setDependencyType] = useState('finish_to_start');
+  const [lagDays, setLagDays] = useState('0');
+  const [baselineName, setBaselineName] = useState('Approved baseline');
+  const [baselineNotes, setBaselineNotes] = useState('');
   const [isMilestone, setIsMilestone] = useState(false);
   const [predecessorId, setPredecessorId] = useState('');
   const [successorId, setSuccessorId] = useState('');
@@ -43,6 +51,8 @@ export function ProjectSchedule() {
   const selectedBaselines = baselines.filter((item) => !projectId || item.project_id === projectId);
   const completed = selectedActivities.filter((activity) => activity.status === 'completed').length;
   const delayed = selectedActivities.filter((activity) => activity.status === 'delayed').length;
+  const selectedDependencies = dependencies.filter((dependency) => !projectId || dependency.project_id === projectId);
+  const selectedBaselines = baselines.filter((baseline) => !projectId || baseline.project_id === projectId);
   const milestones = selectedActivities.filter((activity) => activity.is_milestone).length;
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -102,6 +112,44 @@ export function ProjectSchedule() {
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : 'Could not save the schedule baseline.');
     } finally { setSaving(false); }
+  };
+
+  const addDependency = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!projectId || !predecessorId || !successorId || predecessorId === successorId) return;
+    setError('');
+    try {
+      await create('schedule_activity_dependencies', {
+        project_id: projectId,
+        predecessor_activity_id: predecessorId,
+        successor_activity_id: successorId,
+        dependency_type: dependencyType,
+        lag_days: Number(lagDays) || 0,
+      });
+      setPredecessorId(''); setSuccessorId(''); setLagDays('0');
+    } catch (saveError) { setError(saveError instanceof Error ? saveError.message : 'Could not save the activity dependency.'); }
+  };
+
+  const saveBaseline = async () => {
+    if (!projectId || selectedActivities.length === 0 || !baselineName.trim()) {
+      setError('Select a project with activities and enter a baseline name.');
+      return;
+    }
+    setError('');
+    try {
+      const snapshot = selectedActivities.map((activity) => ({
+        id: activity.id, activity_code: activity.activity_code ?? null, name: activity.name,
+        planned_start: activity.planned_start ?? null, planned_finish: activity.planned_finish ?? null,
+        duration_days: activity.duration_days ?? null, sequence_order: activity.sequence_order ?? 0,
+        progress_percent: activity.progress_percent ?? 0, status: activity.status ?? 'not_started',
+      }));
+      await create('schedule_baselines', {
+        project_id: projectId, baseline_name: baselineName.trim(),
+        baseline_date: new Date().toISOString().slice(0, 10), snapshot,
+        notes: baselineNotes.trim() || null,
+      });
+      setBaselineNotes('');
+    } catch (saveError) { setError(saveError instanceof Error ? saveError.message : 'Could not save the schedule baseline.'); }
   };
 
   const changeProgress = async (id: string, value: number) => {
@@ -202,6 +250,30 @@ export function ProjectSchedule() {
         </CardBody>
       </Card>
     </div>
+    <Card>
+      <CardHeader title="Activity dependencies" subtitle="Record which activity must happen before another. This is the foundation for critical-path calculations." />
+      <CardBody>
+        <form onSubmit={addDependency} className="grid gap-3 md:grid-cols-5">
+          <label className="text-sm font-medium text-gray-700 md:col-span-2">Predecessor<select required value={predecessorId} onChange={(event) => setPredecessorId(event.target.value)} className="mt-1.5 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm"><option value="">Select activity</option>{selectedActivities.map((activity) => <option key={activity.id} value={activity.id}>{String(activity.name)}</option>)}</select></label>
+          <label className="text-sm font-medium text-gray-700 md:col-span-2">Successor<select required value={successorId} onChange={(event) => setSuccessorId(event.target.value)} className="mt-1.5 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm"><option value="">Select activity</option>{selectedActivities.map((activity) => <option key={activity.id} value={activity.id} disabled={activity.id === predecessorId}>{String(activity.name)}</option>)}</select></label>
+          <label className="text-sm font-medium text-gray-700">Relationship<select value={dependencyType} onChange={(event) => setDependencyType(event.target.value)} className="mt-1.5 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm"><option value="finish_to_start">Finish → Start</option><option value="start_to_start">Start → Start</option><option value="finish_to_finish">Finish → Finish</option><option value="start_to_finish">Start → Finish</option></select></label>
+          <label className="text-sm font-medium text-gray-700">Lag (days)<input type="number" value={lagDays} onChange={(event) => setLagDays(event.target.value)} className="mt-1.5 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm" /></label>
+          <div className="flex items-end"><button type="submit" disabled={!projectId || !predecessorId || !successorId || predecessorId === successorId} className="w-full rounded-lg bg-brand-600 px-3 py-2.5 text-sm font-semibold text-white disabled:opacity-50">Add dependency</button></div>
+        </form>
+        <div className="mt-4 space-y-2">{selectedDependencies.length === 0 ? <p className="text-sm text-gray-500">No activity dependencies recorded.</p> : selectedDependencies.map((dependency) => {
+          const predecessor = activities.find((activity) => activity.id === dependency.predecessor_activity_id);
+          const successor = activities.find((activity) => activity.id === dependency.successor_activity_id);
+          return <div key={dependency.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-gray-50 px-3 py-2 text-sm"><span className="text-gray-700">{String(predecessor?.name ?? 'Activity')} <span className="text-gray-400">→</span> {String(successor?.name ?? 'Activity')}</span><span className="text-xs text-gray-500">{String(dependency.dependency_type).replaceAll('_', ' ')} · {String(dependency.lag_days)}d lag</span></div>;
+        })}</div>
+      </CardBody>
+    </Card>
+    <Card>
+      <CardHeader title="Schedule baselines" subtitle="Save a dated snapshot of the current programme to compare planned delivery against later progress." action={<button type="button" onClick={() => void saveBaseline()} disabled={!projectId || selectedActivities.length === 0} className="rounded-lg bg-navy-900 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">Save current baseline</button>} />
+      <CardBody>
+        <div className="mb-3 grid gap-3 md:grid-cols-2"><label className="text-sm font-medium text-gray-700">Baseline name<input value={baselineName} onChange={(event) => setBaselineName(event.target.value)} className="mt-1.5 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm" /></label><label className="text-sm font-medium text-gray-700">Notes<input value={baselineNotes} onChange={(event) => setBaselineNotes(event.target.value)} placeholder="Approval reference or assumptions" className="mt-1.5 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm" /></label></div>
+        {selectedBaselines.length === 0 ? <p className="text-sm text-gray-500">No programme baselines saved for this selection.</p> : <div className="space-y-2">{selectedBaselines.map((baseline) => <div key={baseline.id} className="rounded-lg border border-gray-200 p-3"><p className="text-sm font-semibold text-gray-800">{String(baseline.baseline_name)}</p><p className="mt-1 text-xs text-gray-500">{String(baseline.baseline_date)} · {Array.isArray(baseline.snapshot) ? baseline.snapshot.length : 0} activities</p>{Boolean(baseline.notes) && <p className="mt-1 text-xs text-gray-600">{String(baseline.notes)}</p>}</div>)}</div>}
+      </CardBody>
+    </Card>
     <Card>
       <CardHeader title="Add programme activity" subtitle="Activities are stored against the selected live project." />
       <CardBody>
