@@ -44,7 +44,7 @@ export const constructionModules: ConstructionModule[] = [
   { id: 'documents', name: 'Document & Drawing Control', category: 'Project information',
     summary: 'Maintain a traceable register for drawings, specifications, submissions and controlled revisions.',
     capabilities: ['Document register and numbering', 'Revision sequencing and superseded records', 'Review request tracking', 'Internal versus client-share designation', 'Private file storage and signed downloads'],
-    currentFoundation: ['Project document metadata', 'Revision records', 'Project approval requests', 'Tenant/project consistency constraints'],
-    remainingBuild: ['Private Storage bucket and upload validation', 'Signed download and preview workflow', 'Drawing comparison and mark-up', 'Approval role routing and decision history'],
+    currentFoundation: ['Project document metadata and revision records', 'Private tenant/project-scoped Storage bucket', '25 MB file validation and signed downloads', 'Project approval requests', 'Tenant/project consistency constraints'],
+    remainingBuild: ['Drawing comparison and mark-up', 'Approval role routing and decision history', 'Client portal document release integration'],
     proposedTier: 'Professional', openPage: 'project-documents' },
 ];
