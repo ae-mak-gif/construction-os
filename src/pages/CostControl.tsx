@@ -16,10 +16,11 @@ export function CostControl() {
   const [actualAmount, setActualAmount] = useState('0');
   const [forecastAmount, setForecastAmount] = useState('');
   const [currency, setCurrency] = useState('USD');
+  const [reportCurrency, setReportCurrency] = useState('USD');
   const [notes, setNotes] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
-  const projectBudgets = budgets.filter((row) => !projectId || row.project_id === projectId);
+  const projectBudgets = budgets.filter((row) => (!projectId || row.project_id === projectId) && String(row.currency_code ?? 'USD') === reportCurrency);
   const totalBudget = projectBudgets.reduce((sum, row) => sum + Number(row.budget_amount ?? 0), 0);
   const totalCommitted = projectBudgets.reduce((sum, row) => sum + Number(row.committed_amount ?? 0), 0);
   const totalActual = projectBudgets.reduce((sum, row) => sum + Number(row.actual_amount ?? 0), 0);
@@ -43,6 +44,7 @@ export function CostControl() {
         notes: notes.trim() || null,
         created_by: null,
       });
+      setReportCurrency(currency);
       setCostCode(''); setDescription(''); setBudgetAmount(''); setCommittedAmount('0'); setActualAmount('0'); setForecastAmount(''); setNotes('');
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : 'Could not save the cost code.');
@@ -64,7 +66,10 @@ export function CostControl() {
   };
 
   const projectName = (id: string) => String(projects.find((project) => project.id === id)?.name ?? 'Project');
-  const formatMoney = (amount: number) => formatCurrency(amount);
+  const formatMoney = (amount: number) => {
+    try { return new Intl.NumberFormat('en-US', { style: 'currency', currency: reportCurrency, maximumFractionDigits: 0 }).format(amount); }
+    catch { return `${reportCurrency} ${amount.toLocaleString()}`; }
+  };
 
   return <div className="space-y-6">
     <div className="rounded-2xl bg-gradient-to-r from-navy-900 to-navy-800 p-6 text-white">
@@ -79,7 +84,7 @@ export function CostControl() {
       <StatCard label="Forecast variance" value={formatMoney(variance)} icon={<TrendingDown size={20} />} accent={variance >= 0 ? 'green' : 'red'} trend={variance >= 0 ? 'Within budget' : 'Forecast overrun'} trendUp={variance >= 0} />
     </div>
     <Card>
-      <CardHeader title="Cost plan" subtitle="Budget and forecast by project and cost code" action={<select aria-label="Filter project budgets" value={projectId} onChange={(event) => setProjectId(event.target.value)} className="max-w-48 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm"><option value="">All projects</option>{projects.map((project) => <option key={project.id} value={project.id}>{String(project.name ?? 'Project')}</option>)}</select>} />
+      <CardHeader title="Cost plan" subtitle={`Budget and forecast by project and cost code · ${reportCurrency}`} action={<div className="flex flex-wrap gap-2"><select aria-label="Filter project budgets by currency" value={reportCurrency} onChange={(event) => setReportCurrency(event.target.value)} className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm"><option value="USD">USD</option><option value="ZWL">ZWL</option><option value="ZAR">ZAR</option><option value="BWP">BWP</option></select><select aria-label="Filter project budgets" value={projectId} onChange={(event) => setProjectId(event.target.value)} className="max-w-48 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm"><option value="">All projects</option>{projects.map((project) => <option key={project.id} value={project.id}>{String(project.name ?? 'Project')}</option>)}</select></div>} />
       <CardBody>
         {error && <div role="alert" className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
         {projectBudgets.length === 0 ? <p className="py-6 text-center text-sm text-gray-500">No cost codes recorded for this selection. Add the first cost line below.</p> :
