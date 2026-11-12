@@ -10,7 +10,7 @@ VEA is the executive experience built on top of BuildFlow AI. It is not a second
 - Source control: feature branch `feature/buildflow-vea-integration`; production `main` is not changed by this work.
 - Authentication and tenant data: existing Supabase Auth, `organizations`, `organization_members`, and RLS membership helper.
 - Development database: dedicated Supabase project `buildflow-dev` (`amqknbijdjpcapwkeyyh`). Apply VEA migrations here first. Do not apply to the production BuildFlow project until separately reviewed.
-- Hosting: existing Vercel project linked to this repository. Feature-branch commits should create preview deployments.
+- Hosting: existing Vercel project linked to this repository. Preview deployments are currently constrained by the Vercel Hobby daily deployment cap; batch changes and deploy only a tested checkpoint.
 - Automation: n8n is an integration/workflow runner, not the authorization boundary or source of truth for agent permissions.
 
 ## Logical architecture
@@ -90,6 +90,20 @@ The current `src/pages/AIAssistant.tsx` is a demo implementation backed by `src/
 6. Add n8n workflows and external integrations after the core permission model is tested.
 7. Map feature entitlements and human support hours to the four BuildFlow SaaS tiers.
 
+
+## Runtime readiness and environment isolation
+
+The VEA feature branch must have its own Preview environment variables pointing to the dedicated BuildFlow development Supabase project. The existing development overrides are currently branch-scoped to `fix/auth-profile-schema-alignment`; they do not automatically apply to `feature/buildflow-vea-integration`. Before testing a VEA preview, add these two Preview variables for the VEA branch using the development project values:
+
+- `VITE_SUPABASE_URL`
+- `VITE_SUPABASE_PUBLISHABLE_KEY`
+
+Do not copy Production Supabase credentials into Preview. Production-only variables must remain scoped to Production.
+
+The Vercel project currently has no `AI_GATEWAY_API_KEY` configured. The model provider/runtime is therefore not ready to be enabled. Add the key only after the Vercel AI Gateway account/key is provisioned, and scope it to Preview first. Never expose it through a `VITE_` variable or client-side code.
+
+The specialist registry and tool allow-list are source-controlled contracts only. A live conversational runtime still requires: (1) the Preview environment isolation above, (2) an AI Gateway credential and verified model ID, (3) a server-side endpoint that validates the Supabase user JWT and active organisation, (4) server-enforced tool/agent allow-lists, and (5) persistence and audit tests. Do not describe VEA agents as live until these checks pass.
+
 ## Current implementation limits
 
-The current app is a Vite SPA with no connected model provider. The VEA dashboard uses an authenticated, read-only Supabase Edge Function; no service-role key is used for business-data retrieval. The existing chat remains labelled as demo mode until a model provider is configured. The latest Vercel preview build completed successfully. Do not expose model/API credentials in client code, and do not enable agent writes until server-side model routing, tool permissions, approval checks and audit coverage are implemented and tested.
+The current app is a Vite SPA with no connected model provider. The VEA dashboard uses an authenticated, read-only Supabase Edge Function; no service-role key is used for business-data retrieval. The existing chat remains labelled as demo mode until a model provider is configured. A previous Vercel preview build completed successfully; subsequent source changes have not yet been rebuilt because the project reached its daily deployment cap. Do not expose model/API credentials in client code, and do not enable agent writes until server-side model routing, tool permissions, approval checks and audit coverage are implemented and tested.
