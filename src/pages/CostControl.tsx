@@ -2,7 +2,6 @@ import { useMemo, useState, type FormEvent } from 'react';
 import { BadgeDollarSign, Calculator, Plus, TrendingDown, TrendingUp } from 'lucide-react';
 import { Card, CardBody, CardHeader, StatCard } from '@/components/ui/Card';
 import { useBuildFlowData } from '@/context/BuildFlowDataContext';
-import { formatCurrency } from '@/utils/format';
 
 export function CostControl() {
   const { records, create, update } = useBuildFlowData();
