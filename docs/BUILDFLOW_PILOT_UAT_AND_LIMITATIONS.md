@@ -97,3 +97,10 @@ Pilot owner:
 Date:
 Decision: Go / No-go
 Conditions or exclusions:
+
+
+## Operational pilot dataset — 13 November 2026
+
+A controlled, synthetic but relationally connected Development dataset has now been seeded for the three UAT projects. See [BuildFlow Operational Pilot Dataset](./BUILDFLOW_PILOT_DATASET.md) for the scenario register, exact starting states, role-based execution and reset rules.
+
+The dataset is stored in the real application tables, not UI mock fallbacks. It is not customer data and does not constitute browser acceptance. UAT-02 starts with a draft PO; UAT-03 starts with a draft invoice, pending test payment and submitted variation. Complete each remaining transition through the Preview UI using the authorised account. The seed operation has three dataset-level audit markers; those are not a substitute for native per-action application audit logging.
