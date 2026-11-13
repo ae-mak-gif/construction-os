@@ -216,3 +216,15 @@ Before declaring the supervised-pilot release candidate complete, assemble and r
 ## Pilot decision
 
 BuildFlow is currently a **supervised Preview candidate**, not a generally available or paid-tier product. Stages 5 and 6 are the immediate work. Stages 7–10 are the agreed forward roadmap, not work completed. Keep PR #3 Draft and do not merge or deploy Production without explicit approval.
+
+
+## Operational pilot dataset checkpoint — 13 November 2026
+
+- [x] Controlled synthetic operational dataset seeded in Development for UAT-01 residential, UAT-02 commercial fit-out and UAT-03 road/drainage scenarios.
+- [x] Dataset records stored in application tables with linked project, BOQ, programme, site, procurement, inventory, budget, invoice, payment, variation and progress data where applicable.
+- [x] Seeded records carry explicit PILOT/UAT labels; PO and invoice are intentionally left in draft states for UI workflow acceptance.
+- [x] Three dataset-level audit markers verified.
+- [ ] Browser UAT of each workflow remains outstanding; seed success is not acceptance evidence.
+- [ ] Native application audit events for user-created and user-approved actions remain to be verified/implemented where absent.
+
+Dataset details and reset safeguards: [docs/BUILDFLOW_PILOT_DATASET.md](./BUILDFLOW_PILOT_DATASET.md).
