@@ -3,7 +3,7 @@
 **Release:** supervised Preview pilot  
 **Date prepared:** 13 November 2026  
 **Branch:** `fix/auth-client-access-stabilisation`  
-**Preview:** https://construction-bec1gcax0-aemakazhe-9121s-projects.vercel.app  
+**Preview:** https://construction-os-git-fix-auth-cl-a2f3ad-aemakazhe-9121s-projects.vercel.app  
 **Pilot project:** BuildFlow Pilot Project (`BF-PILOT-001`)  
 **Environment:** Development Supabase + Vercel Preview only
 
