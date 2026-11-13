@@ -216,14 +216,22 @@ async function loadProfileAndAccess(currentUser: User): Promise<LoadedAuthContex
 
   if (clientLinks?.length === 1) {
     const link = clientLinks[0];
-    const { data: client, error: clientError } = await supabase
-      .from('clients')
-      .select('id, name, status')
-      .eq('id', link.client_id)
-      .eq('organization_id', link.organization_id)
-      .maybeSingle();
+    const { data: clientIdentity, error: clientError } = await supabase.rpc('get_client_portal_identity');
+    const client = clientIdentity as {
+      client_id?: string;
+      organization_id?: string;
+      name?: string;
+      status?: string;
+    } | null;
 
-    if (clientError || !client || client.status !== 'active') {
+    if (
+      clientError
+      || !client
+      || client.client_id !== link.client_id
+      || client.organization_id !== link.organization_id
+      || client.status !== 'active'
+      || !client.name
+    ) {
       return {
         profile: await profilePromise,
         membership: null,
