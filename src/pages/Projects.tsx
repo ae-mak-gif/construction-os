@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Search,
+  Plus,
   ArrowLeft,
   MapPin,
   User,
@@ -21,19 +22,19 @@ import {
 import { Card, CardHeader, CardBody, StatCard } from '@/components/ui/Card';
 import { Table, Th, Td, Tr } from '@/components/ui/Table';
 import { HealthBadge, StatusBadge, Badge } from '@/components/ui/Badge';
+import { Modal } from '@/components/ui/Modal';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import { DonutChart } from '@/components/ui/DonutChart';
-import {
-  projects as mockProjects,
-  tasks,
-  boqItems,
-  purchaseRequests,
-  inventory,
-  risks,
-  qualityIssues,
-  projectUpdates,
-  projectDocuments,
-  type Project,
+import type {
+  Project,
+  Task,
+  BOQItem,
+  PurchaseRequest,
+  Risk,
+  QualityIssue,
+  ProjectUpdate,
+  ProjectDocument,
+  InventoryItem,
 } from '@/data/mockData';
 import {
   formatCurrency,
@@ -42,24 +43,108 @@ import {
   formatDateShort,
 } from '@/utils/format';
 import { useBuildFlowData } from '@/context/BuildFlowDataContext';
+import { useAuth } from '@/context/AuthContext';
+import { supabase } from '@/lib/supabase';
 
 export function Projects({
   onOpenProject,
 }: {
   onOpenProject: (id: string) => void;
 }) {
-  const { records } = useBuildFlowData();
-  const clientById = new Map((records.clients ?? []).map((row) => [row.id, row]));
-  const staffById = new Map((records.staff ?? []).map((row) => [row.id, row]));
-  const projectRows: Project[] = records.projects?.length ? records.projects.map((row) => ({
-    id: row.id, name: String(row.name ?? ''), client: String(clientById.get(String(row.client_id))?.name ?? 'Client'), clientCompany: String(clientById.get(String(row.client_id))?.name ?? 'Client'),
-    manager: String(staffById.get(String(row.project_manager_id))?.first_name ?? 'Unassigned'), progress: Number(row.progress_percent ?? 0), budget: Number(row.contract_value ?? 0),
-    actualCost: (records.project_costs ?? []).filter((cost) => cost.project_id === row.id).reduce((sum, cost) => sum + Number(cost.amount ?? 0), 0), deadline: String(row.expected_completion_date ?? ''), startDate: String(row.start_date ?? ''),
-    health: row.health_status === 'at_risk' ? 'at-risk' : row.health_status === 'critical' ? 'delayed' : row.health_status === 'completed' ? 'completed' : 'on-track',
-    status: row.status === 'completed' ? 'Completed' : row.status === 'planning' ? 'Planning' : 'Active', location: String(row.location ?? ''), description: String(row.description ?? ''), contractValue: Number(row.contract_value ?? 0),
-  } as Project)) : mockProjects;
+  const { records, refresh } = useBuildFlowData();
+  const { membership } = useAuth();
   const [search, setSearch] = useState('');
   const [view, setView] = useState<'grid' | 'table'>('grid');
+  const [canCreateProject, setCanCreateProject] = useState(false);
+  const [canManageProjectMembers, setCanManageProjectMembers] = useState(false);
+  const [memberDirectory, setMemberDirectory] = useState<Array<{ user_id: string; display_name: string; status: string }>>([]);
+  const [showCreate, setShowCreate] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState({
+    name: '', clientId: '', projectCode: '', description: '', location: '',
+    startDate: '', expectedCompletionDate: '', contractValue: '', projectManagerUserId: '',
+  });
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadProjectPermissions() {
+      if (!membership?.organization_id) return;
+      const [createPermission, memberPermission] = await Promise.all([
+        supabase.rpc('has_org_permission', {
+          target_organization_id: membership.organization_id,
+          target_permission_key: 'projects.create',
+        }),
+        supabase.rpc('has_org_permission', {
+          target_organization_id: membership.organization_id,
+          target_permission_key: 'project_members.manage',
+        }),
+      ]);
+      if (cancelled) return;
+      setCanCreateProject(Boolean(createPermission.data));
+      setCanManageProjectMembers(Boolean(memberPermission.data));
+      if (memberPermission.data) {
+        const { data } = await supabase.rpc('get_project_access_admin_data', {
+          target_organization_id: membership.organization_id,
+        });
+        if (!cancelled) {
+          const members = Array.isArray(data?.members) ? data.members : [];
+          setMemberDirectory(members.filter((member: { status?: string }) => member.status === 'active'));
+        }
+      } else {
+        setMemberDirectory([]);
+      }
+    }
+    void loadProjectPermissions();
+    return () => { cancelled = true; };
+  }, [membership?.organization_id]);
+
+  const clientById = new Map((records.clients ?? []).map((row) => [row.id, row]));
+  const managerNameById = new Map(memberDirectory.map((member) => [member.user_id, member.display_name]));
+  const projectRows: Project[] = (records.projects ?? []).map((row) => ({
+    id: row.id,
+    name: String(row.name ?? ''),
+    client: String(clientById.get(String(row.client_id))?.name ?? 'Client'),
+    clientCompany: String(clientById.get(String(row.client_id))?.name ?? 'Client'),
+    manager: managerNameById.get(String(row.project_manager_id ?? '')) ?? (row.project_manager_id ? 'Assigned' : 'Unassigned'),
+    progress: Number(row.progress_percent ?? 0),
+    budget: Number(row.contract_value ?? 0),
+    actualCost: (records.project_costs ?? []).filter((cost) => cost.project_id === row.id).reduce((sum, cost) => sum + Number(cost.amount ?? 0), 0),
+    deadline: String(row.expected_completion_date ?? ''),
+    startDate: String(row.start_date ?? ''),
+    health: row.health_status === 'at_risk' ? 'at-risk' : row.health_status === 'critical' ? 'delayed' : row.health_status === 'completed' ? 'completed' : 'on-track',
+    status: row.status === 'completed' ? 'Completed' : row.status === 'planning' ? 'Planning' : 'Active',
+    location: String(row.location ?? ''),
+    description: String(row.description ?? ''),
+    contractValue: Number(row.contract_value ?? 0),
+  } as Project));
+
+  async function createProject() {
+    if (!form.name.trim()) return;
+    setSaving(true);
+    try {
+      const { data, error } = await supabase.rpc('create_buildflow_project', {
+        p_name: form.name.trim(),
+        p_client_id: form.clientId || null,
+        p_project_code: form.projectCode.trim() || null,
+        p_description: form.description.trim() || null,
+        p_location: form.location.trim() || null,
+        p_start_date: form.startDate || null,
+        p_expected_completion_date: form.expectedCompletionDate || null,
+        p_contract_value: form.contractValue.trim() ? Number(form.contractValue) : null,
+        p_project_manager_user_id: form.projectManagerUserId || null,
+      });
+      if (error) throw error;
+      await refresh();
+      setShowCreate(false);
+      setForm({ name: '', clientId: '', projectCode: '', description: '', location: '', startDate: '', expectedCompletionDate: '', contractValue: '', projectManagerUserId: '' });
+      if (data?.project_id) onOpenProject(data.project_id);
+    } catch (error) {
+      console.error('Unable to create project:', error);
+      window.alert(error instanceof Error ? error.message : 'Unable to create this project.');
+    } finally {
+      setSaving(false);
+    }
+  }
 
   const filtered = projectRows.filter(
     (p) =>
@@ -86,6 +171,15 @@ export function Projects({
                 />
               </div>
 
+              {canCreateProject && (
+                <button
+                  type="button"
+                  onClick={() => setShowCreate(true)}
+                  className="flex items-center gap-1.5 bg-brand-600 text-white text-sm font-medium px-3 py-1.5 rounded-lg hover:bg-brand-700 transition-colors"
+                >
+                  <Plus size={15} /> New Project
+                </button>
+              )}
               <div className="flex items-center bg-gray-100 rounded-lg p-0.5">
                 <button
                   onClick={() => setView('grid')}
@@ -263,6 +357,67 @@ export function Projects({
           </CardBody>
         )}
       </Card>
+
+      <Modal open={showCreate} onClose={() => setShowCreate(false)} title="Create Project">
+        <form
+          className="space-y-4"
+          onSubmit={(event) => { event.preventDefault(); void createProject(); }}
+        >
+          <div>
+            <label className="text-xs font-medium text-gray-500">Project name *</label>
+            <input required value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-400" placeholder="e.g. Riverside Office Development" />
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs font-medium text-gray-500">Client</label>
+              <select value={form.clientId} onChange={(event) => setForm({ ...form, clientId: event.target.value })} className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm">
+                <option value="">No client selected</option>
+                {(records.clients ?? []).filter((client) => client.status !== 'inactive').map((client) => <option key={client.id} value={client.id}>{String(client.name ?? 'Client')}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs font-medium text-gray-500">Project code</label>
+              <input value={form.projectCode} onChange={(event) => setForm({ ...form, projectCode: event.target.value })} className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm" placeholder="e.g. BF-2026-001" />
+            </div>
+          </div>
+          <div>
+            <label className="text-xs font-medium text-gray-500">Location</label>
+            <input value={form.location} onChange={(event) => setForm({ ...form, location: event.target.value })} className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm" placeholder="Project location" />
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs font-medium text-gray-500">Start date</label>
+              <input type="date" value={form.startDate} onChange={(event) => setForm({ ...form, startDate: event.target.value })} className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm" />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-gray-500">Expected completion</label>
+              <input type="date" value={form.expectedCompletionDate} onChange={(event) => setForm({ ...form, expectedCompletionDate: event.target.value })} className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm" />
+            </div>
+          </div>
+          <div>
+            <label className="text-xs font-medium text-gray-500">Contract value</label>
+            <input type="number" min="0" step="0.01" value={form.contractValue} onChange={(event) => setForm({ ...form, contractValue: event.target.value })} className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm" placeholder="0.00" />
+          </div>
+          {canManageProjectMembers && (
+            <div>
+              <label className="text-xs font-medium text-gray-500">Project manager</label>
+              <select value={form.projectManagerUserId} onChange={(event) => setForm({ ...form, projectManagerUserId: event.target.value })} className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm">
+                <option value="">Assign later</option>
+                {memberDirectory.map((member) => <option key={member.user_id} value={member.user_id}>{member.display_name}</option>)}
+              </select>
+              <p className="mt-1 text-xs text-gray-400">The selected user is added to the project team in the same transaction.</p>
+            </div>
+          )}
+          <div>
+            <label className="text-xs font-medium text-gray-500">Description</label>
+            <textarea value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} rows={3} className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-400" placeholder="Project scope and key objectives" />
+          </div>
+          <div className="flex justify-end gap-2 border-t border-gray-100 pt-3">
+            <button type="button" onClick={() => setShowCreate(false)} className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600">Cancel</button>
+            <button type="submit" disabled={saving} className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-60">{saving ? 'Creating…' : 'Create Project'}</button>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 }
@@ -415,31 +570,24 @@ function ProjectTabContent({
 }) {
   const { records } = useBuildFlowData();
   const staffById = new Map((records.staff ?? []).map((row) => [row.id, row]));
-  const projectTasks = records.tasks?.length
-    ? records.tasks.filter((row) => row.project_id === project.id).map((row) => ({ id: row.id, title: String(row.title ?? ''), project: project.name, assignee: String(staffById.get(String(row.assigned_to))?.first_name ?? 'Unassigned'), dueDate: String(row.due_date ?? ''), priority: row.priority === 'high' || row.priority === 'urgent' ? 'High' : row.priority === 'low' ? 'Low' : 'Medium', status: row.status === 'completed' ? 'Done' : row.status === 'in_progress' ? 'In Progress' : row.status === 'blocked' ? 'Review' : 'To Do' } as (typeof tasks)[number]))
-    : tasks.filter((row) => row.project === project.name);
-  const projectBOQ = records.boq_items?.length
-    ? records.boq_items.filter((row) => row.project_id === project.id).map((row) => ({ id: row.id, item: String(row.item_code ?? row.description ?? ''), description: String(row.description ?? ''), qty: Number(row.quantity ?? 1), unit: String(row.unit ?? ''), unitCost: Number(row.unit_rate ?? 0), category: String(row.category ?? 'Materials'), project: project.name } as (typeof boqItems)[number]))
-    : boqItems.filter((row) => row.project === project.name);
-  const projectProc = records.purchase_requests?.length
-    ? records.purchase_requests.filter((row) => row.project_id === project.id).map((row) => ({ id: String(row.request_number ?? row.id), item: String(row.description ?? ''), project: project.name, qty: 1, unit: 'item', estCost: Number(row.estimated_amount ?? 0), requestedBy: 'Team member', date: String(row.created_at ?? '').slice(0, 10), status: row.status === 'approved' ? 'Approved' : row.status === 'ordered' ? 'PO Issued' : row.status === 'delivered' ? 'Delivered' : row.status === 'rejected' ? 'Rejected' : 'Requested', supplier: 'Pending' } as (typeof purchaseRequests)[number]))
-    : purchaseRequests.filter((row) => row.project === project.name);
-  const projectRisks = records.risks?.length
-    ? records.risks.filter((row) => row.project_id === project.id).map((row) => ({ id: row.id, risk: String(row.title ?? ''), project: project.name, probability: row.likelihood === 'high' ? 'High' : row.likelihood === 'low' ? 'Low' : 'Medium', impact: row.impact === 'high' ? 'High' : row.impact === 'low' ? 'Low' : 'Medium', owner: String(staffById.get(String(row.owner_id))?.first_name ?? 'Unassigned'), status: row.status === 'closed' ? 'Closed' : row.status === 'mitigated' ? 'Mitigated' : 'Open', mitigation: String(row.mitigation_plan ?? '') } as (typeof risks)[number]))
-    : risks.filter((row) => row.project === project.name);
-  const projectUpdateItems = records.project_updates?.length
-    ? records.project_updates.filter((row) => row.project_id === project.id).map((row) => ({ id: row.id, projectId: project.id, date: String(row.created_at ?? ''), author: 'Team member', message: String(row.content ?? row.title ?? ''), type: 'progress' } as (typeof projectUpdates)[number]))
-    : projectUpdates.filter((row) => row.projectId === project.id);
-  const projectDocs = records.project_documents?.length
-    ? records.project_documents.filter((row) => row.project_id === project.id).map((row) => ({ id: row.id, projectId: project.id, name: String(row.name ?? ''), type: String(row.file_type ?? 'Report'), date: String(row.created_at ?? ''), size: '—' } as (typeof projectDocuments)[number]))
-    : projectDocuments.filter((row) => row.projectId === project.id);
-  const projectQualityIssues = records.quality_issues?.length
-    ? records.quality_issues.filter((row) => row.project_id === project.id).map((row) => ({ id: row.id, type: String(row.category ?? '').toLowerCase().includes('safety') ? 'Safety Observation' : String(row.category ?? '').toLowerCase().includes('snag') ? 'Snag' : String(row.category ?? '').toLowerCase().includes('defect') ? 'Defect' : 'Issue', description: String(row.description ?? row.title ?? ''), project: project.name, location: '', reportedBy: 'Team member', date: String(row.created_at ?? ''), status: row.status === 'resolved' ? 'Resolved' : row.status === 'in_progress' ? 'In Progress' : 'Open', action: String(row.corrective_action ?? '') } as (typeof qualityIssues)[number]))
-    : qualityIssues.filter((row) => row.project === project.name);
-  const projectInventory = records.inventory_items?.length ? records.inventory_items.map((row) => {
+  const projectTasks = (records.tasks ?? []).filter((row) => row.project_id === project.id).map((row) => ({ id: row.id, title: String(row.title ?? ''), project: project.name, assignee: String(staffById.get(String(row.assigned_to))?.first_name ?? 'Unassigned'), dueDate: String(row.due_date ?? ''), priority: row.priority === 'high' || row.priority === 'urgent' ? 'High' : row.priority === 'low' ? 'Low' : 'Medium', status: row.status === 'completed' ? 'Done' : row.status === 'in_progress' ? 'In Progress' : row.status === 'blocked' ? 'Review' : 'To Do' } as Task))
+    ;
+  const projectBOQ = (records.boq_items ?? []).filter((row) => row.project_id === project.id).map((row) => ({ id: row.id, item: String(row.item_code ?? row.description ?? ''), description: String(row.description ?? ''), qty: Number(row.quantity ?? 1), unit: String(row.unit ?? ''), unitCost: Number(row.unit_rate ?? 0), category: String(row.category ?? 'Materials'), project: project.name } as BOQItem))
+    ;
+  const projectProc = (records.purchase_requests ?? []).filter((row) => row.project_id === project.id).map((row) => ({ id: String(row.request_number ?? row.id), item: String(row.description ?? ''), project: project.name, qty: 1, unit: 'item', estCost: Number(row.estimated_amount ?? 0), requestedBy: 'Team member', date: String(row.created_at ?? '').slice(0, 10), status: row.status === 'approved' ? 'Approved' : row.status === 'ordered' ? 'PO Issued' : row.status === 'delivered' ? 'Delivered' : row.status === 'rejected' ? 'Rejected' : 'Requested', supplier: 'Pending' } as PurchaseRequest))
+    ;
+  const projectRisks = (records.risks ?? []).filter((row) => row.project_id === project.id).map((row) => ({ id: row.id, risk: String(row.title ?? ''), project: project.name, probability: row.likelihood === 'high' ? 'High' : row.likelihood === 'low' ? 'Low' : 'Medium', impact: row.impact === 'high' ? 'High' : row.impact === 'low' ? 'Low' : 'Medium', owner: String(staffById.get(String(row.owner_id))?.first_name ?? 'Unassigned'), status: row.status === 'closed' ? 'Closed' : row.status === 'mitigated' ? 'Mitigated' : 'Open', mitigation: String(row.mitigation_plan ?? '') } as Risk))
+    ;
+  const projectUpdateItems = (records.project_updates ?? []).filter((row) => row.project_id === project.id).map((row) => ({ id: row.id, projectId: project.id, date: String(row.created_at ?? ''), author: 'Team member', message: String(row.content ?? row.title ?? ''), type: 'progress' } as ProjectUpdate))
+    ;
+  const projectDocs = (records.project_documents ?? []).filter((row) => row.project_id === project.id).map((row) => ({ id: row.id, projectId: project.id, name: String(row.name ?? ''), type: String(row.file_type ?? 'Report'), date: String(row.created_at ?? ''), size: '—' } as ProjectDocument))
+    ;
+  const projectQualityIssues = (records.quality_issues ?? []).filter((row) => row.project_id === project.id).map((row) => ({ id: row.id, type: String(row.category ?? '').toLowerCase().includes('safety') ? 'Safety Observation' : String(row.category ?? '').toLowerCase().includes('snag') ? 'Snag' : String(row.category ?? '').toLowerCase().includes('defect') ? 'Defect' : 'Issue', description: String(row.description ?? row.title ?? ''), project: project.name, location: '', reportedBy: 'Team member', date: String(row.created_at ?? ''), status: row.status === 'resolved' ? 'Resolved' : row.status === 'in_progress' ? 'In Progress' : 'Open', action: String(row.corrective_action ?? '') } as QualityIssue))
+    ;
+  const projectInventory = (records.inventory_items ?? []).map((row) => {
     const allocated = (records.inventory_transactions ?? []).filter((tx) => tx.inventory_item_id === row.id && tx.project_id === project.id).reduce((sum, tx) => sum + Number(tx.quantity ?? 0), 0);
-    return { id: row.id, material: String(row.name ?? ''), category: String(row.category ?? ''), stock: Number(row.quantity_on_hand ?? 0), allocated, reorderLevel: Number(row.reorder_level ?? 0), unit: String(row.unit ?? ''), unitCost: Number(row.unit_cost ?? 0) } as (typeof inventory)[number];
-  }).filter((row) => row.allocated > 0) : inventory;
+    return { id: row.id, material: String(row.name ?? ''), category: String(row.category ?? ''), stock: Number(row.quantity_on_hand ?? 0), allocated, reorderLevel: Number(row.reorder_level ?? 0), unit: String(row.unit ?? ''), unitCost: Number(row.unit_cost ?? 0) } as InventoryItem;
+  }).filter((row) => row.allocated > 0);
 
   switch (tab) {
     case 'overview':
