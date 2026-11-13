@@ -86,7 +86,7 @@ export function Dashboard({ onNavigate }: { onNavigate: (page: PageKey) => void 
         <Card className="lg:col-span-2">
           <CardHeader title="Revenue vs Cost" subtitle="Last 7 months" />
           <CardBody>
-            <BarChart data={revenueCostData} label1="Revenue" label2="Cost" />
+            <BarChart data={revenueCostData.map(({ month, revenue, cost }) => ({ label: month, value1: revenue, value2: cost }))} label1="Revenue" label2="Cost" />
           </CardBody>
         </Card>
         <Card>

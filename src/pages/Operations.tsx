@@ -23,6 +23,7 @@ import {
   inventory,
 } from '@/data/mockData';
 import { formatFullCurrency, formatDateShort } from '@/utils/format';
+import type { Task } from '@/data/mockData';
 
 // ── Tasks & Calendar ──────────────────────────────────────────
 export function TasksCalendar() {
@@ -71,7 +72,7 @@ export function TasksCalendar() {
   };
 
   const advanceTask = (id: string) => {
-    const stages = ['To Do', 'In Progress', 'Review', 'Done'];
+    const stages: Task['status'][] = ['To Do', 'In Progress', 'Review', 'Done'];
     setTaskItems(
       taskItems.map((task) => {
         if (task.id !== id) return task;
