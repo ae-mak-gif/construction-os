@@ -111,7 +111,7 @@ on conflict (id) do nothing;
 insert into public.invoices
 (id,organization_id,project_id,client_id,invoice_number,status,issue_date,due_date,subtotal,tax_amount,total_amount,notes,created_by)
 values
-('aa000000-0000-4000-8000-000000000001','299c0e9d-78f8-4ecf-a9c5-0b3de9c96fb6','2937b153-37fb-4660-bc84-977d6b454d7f','2bc468ef-4d9c-4d05-8ccb-c77f1367954d','UAT03-INV-001','sent','2026-11-10','2026-12-10',42000,0,42000,'PILOT/UAT synthetic progress claim. No payment collection or external dispatch.','ad02abe2-abee-45ea-82de-dac8b639489e')
+('aa000000-0000-4000-8000-000000000001','299c0e9d-78f8-4ecf-a9c5-0b3de9c96fb6','2937b153-37fb-4660-bc84-977d6b454d7f','2bc468ef-4d9c-4d05-8ccb-c77f1367954d','UAT03-INV-001','draft','2026-11-10','2026-12-10',42000,0,42000,'PILOT/UAT synthetic progress claim. No payment collection or external dispatch.','ad02abe2-abee-45ea-82de-dac8b639489e')
 on conflict (id) do nothing;
 
 insert into public.payments
