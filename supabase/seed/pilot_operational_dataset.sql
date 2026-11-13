@@ -79,13 +79,13 @@ on conflict (id) do nothing;
 insert into public.purchase_requests
 (id,organization_id,project_id,requested_by,request_number,description,status,required_date,estimated_amount,notes)
 values
-('a6000000-0000-4000-8000-000000000001','299c0e9d-78f8-4ecf-a9c5-0b3de9c96fb6','e4fcc82e-adcd-4b09-a470-ed4527dd5082','9ce2bc2d-c22f-4f04-b98f-f942d4d95cba','UAT02-PR-001','PILOT/UAT: supply 180 LED recessed office light fittings','ordered','2026-11-20',6840,'Synthetic test request linked to a draft test PO; no real purchase commitment.')
+('a6000000-0000-4000-8000-000000000001','299c0e9d-78f8-4ecf-a9c5-0b3de9c96fb6','e4fcc82e-adcd-4b09-a470-ed4527dd5082','9ce2bc2d-c22f-4f04-b98f-f942d4d95cba','UAT02-PR-001','PILOT/UAT: supply 180 LED recessed office light fittings','pending','2026-11-20',6840,'Synthetic test request linked to a draft test PO; no real purchase commitment.')
 on conflict (id) do nothing;
 
 insert into public.purchase_orders
 (id,organization_id,project_id,supplier_id,purchase_request_id,po_number,status,order_date,expected_delivery_date,subtotal,tax_amount,total_amount,notes,created_by)
 values
-('a7000000-0000-4000-8000-000000000001','299c0e9d-78f8-4ecf-a9c5-0b3de9c96fb6','e4fcc82e-adcd-4b09-a470-ed4527dd5082','a5000000-0000-4000-8000-000000000001','a6000000-0000-4000-8000-000000000001','UAT02-PO-001','approved','2026-11-13','2026-11-20',6840,0,6840,'PILOT/UAT ONLY — do not send to supplier. Use to test partial and final goods receipt.','ad02abe2-abee-45ea-82de-dac8b639489e')
+('a7000000-0000-4000-8000-000000000001','299c0e9d-78f8-4ecf-a9c5-0b3de9c96fb6','e4fcc82e-adcd-4b09-a470-ed4527dd5082','a5000000-0000-4000-8000-000000000001','a6000000-0000-4000-8000-000000000001','UAT02-PO-001','draft','2026-11-13','2026-11-20',6840,0,6840,'PILOT/UAT ONLY — do not send to supplier. Use to test partial and final goods receipt.','ad02abe2-abee-45ea-82de-dac8b639489e')
 on conflict (id) do nothing;
 
 insert into public.purchase_order_items
