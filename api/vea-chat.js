@@ -11,7 +11,8 @@ export default async function handler(req, res) {
 
   const supabaseUrl = process.env.VITE_SUPABASE_URL;
   const publishableKey = process.env.VITE_SUPABASE_PUBLISHABLE_KEY;
-  const oidcToken = process.env.VERCEL_OIDC_TOKEN;
+  const requestOidcHeader = req.headers['x-vercel-oidc-token'];
+  const oidcToken = (Array.isArray(requestOidcHeader) ? requestOidcHeader[0] : requestOidcHeader) || process.env.VERCEL_OIDC_TOKEN;
   if (!supabaseUrl || !publishableKey) {
     return res.status(503).json({ error: 'The BuildFlow data connection is not configured for this deployment.' });
   }
