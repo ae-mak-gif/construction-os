@@ -129,7 +129,7 @@ function AppContent() {
     return {
       id: row.id, name: String(row.name ?? ''), client: String(client?.name ?? 'Client'), clientCompany: String(client?.name ?? 'Client'),
       manager: manager ? [manager.first_name, manager.last_name].filter(Boolean).join(' ') : 'Unassigned', progress: Number(row.progress_percent ?? 0), budget: Number(row.contract_value ?? 0),
-      actualCost: (records.project_costs ?? []).filter((cost) => cost.project_id === row.id).reduce((sum, cost) => sum + Number(cost.amount ?? 0), 0),
+      actualCost: (records.project_budgets ?? []).filter((budget) => budget.project_id === row.id).reduce((sum, budget) => sum + Number(budget.actual_amount ?? 0), 0),
       deadline: String(row.expected_completion_date ?? ''), startDate: String(row.start_date ?? ''),
       health: row.health_status === 'at_risk' ? 'at-risk' : row.health_status === 'critical' ? 'delayed' : row.health_status === 'completed' ? 'completed' : 'on-track',
       status: row.status === 'completed' ? 'Completed' : row.status === 'planning' ? 'Planning' : 'Active', location: String(row.location ?? ''), description: String(row.description ?? ''), contractValue: Number(row.contract_value ?? 0),
