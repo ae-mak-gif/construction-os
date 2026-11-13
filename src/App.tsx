@@ -21,7 +21,6 @@ import { ProjectSchedule } from '@/pages/ProjectSchedule';
 import { CostControl } from '@/pages/CostControl';
 import { ConstructionRegisters } from '@/pages/ConstructionRegisters';
 import { ProjectDocuments } from '@/pages/ProjectDocuments';
-import { projects } from '@/data/mockData';
 import type { Project } from '@/data/mockData';
 import { Loader2, Building2 } from 'lucide-react';
 
@@ -123,7 +122,7 @@ function AppContent() {
 
   const currentProject: Project | null = projectId ? (() => {
     const row = (records.projects ?? []).find((project) => project.id === projectId);
-    if (!row) return projects.find((project) => project.id === projectId) ?? null;
+    if (!row) return null;
     const client = (records.clients ?? []).find((item) => item.id === row.client_id);
     const manager = (records.staff ?? []).find((item) => item.id === row.project_manager_id);
     return {
@@ -146,7 +145,7 @@ function AppContent() {
             <div role="alert" aria-live="polite" className="mb-4 flex flex-col gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-900 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <p className="text-sm font-semibold">Some live data could not be loaded</p>
-                <p className="mt-1 text-sm text-amber-800">{dataErrorCount} data area(s) reported a loading error. Sample rows may be shown where live records are unavailable; sample rows are not saved records.</p>
+                <p className="mt-1 text-sm text-amber-800">{dataErrorCount} data area(s) reported a loading error. Affected sections may be incomplete until the live data connection is restored.</p>
               </div>
               <button type="button" onClick={() => { void refresh(); }} className="shrink-0 rounded-lg border border-amber-300 bg-white px-3 py-2 text-sm font-medium text-amber-900 hover:bg-amber-100">Retry data loading</button>
             </div>
