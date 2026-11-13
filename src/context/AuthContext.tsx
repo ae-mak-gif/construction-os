@@ -232,7 +232,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const { data: authListener } = supabase.auth.onAuthStateChange((_event, currentSession) => {
       authEventReceived = true;
-      void applySession(currentSession);
+      // Defer Supabase queries until the auth callback has released its internal lock.
+      window.setTimeout(() => {
+        void applySession(currentSession);
+      }, 0);
     });
 
     void supabase.auth.getSession()
