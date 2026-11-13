@@ -78,7 +78,7 @@ export function Finance() {
   const projectRows = (records.projects ?? []).map((row) => {
     const projectBudgets = (records.project_budgets ?? []).filter((budget) => budget.project_id === row.id);
     const budget = projectBudgets.reduce((sum, item) => sum + Number(item.budget_amount ?? 0), 0);
-    const actualCost = (records.project_costs ?? []).filter((cost) => cost.project_id === row.id).reduce((sum, cost) => sum + Number(cost.amount ?? 0), 0);
+    const actualCost = (records.project_budgets ?? []).filter((budget) => budget.project_id === row.id).reduce((sum, budget) => sum + Number(budget.actual_amount ?? 0), 0);
     const contractValue = Number(row.contract_value ?? 0);
     return {
       id: row.id,
