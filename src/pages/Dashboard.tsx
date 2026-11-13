@@ -19,14 +19,7 @@ import { HealthBadge, StatusBadge } from '@/components/ui/Badge';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import { BarChart } from '@/components/ui/BarChart';
 import { DonutChart } from '@/components/ui/DonutChart';
-import {
-  projects as mockProjects,
-  tasks as mockTasks,
-  recentActivity as mockRecentActivity,
-  revenueCostData,
-  purchaseRequests as mockPurchaseRequests,
-  invoices as mockInvoices,
-} from '@/data/mockData';
+import type { Project, Task, Invoice, PurchaseRequest, Activity } from '@/data/mockData';
 import { formatCurrency, formatDateShort } from '@/utils/format';
 import type { PageKey } from '@/components/layout/Sidebar';
 import { useBuildFlowData } from '@/context/BuildFlowDataContext';
@@ -53,19 +46,92 @@ const activityColors: Record<string, string> = {
 export function Dashboard({ onNavigate }: { onNavigate: (page: PageKey) => void }) {
   const { records } = useBuildFlowData();
   const clientsById = new Map((records.clients ?? []).map((row) => [row.id, row]));
-  const staffById = new Map((records.staff ?? []).map((row) => [row.id, row]));
-  const projects: Project[] = records.projects?.length ? records.projects.map((row) => ({
-    id: row.id, name: String(row.name ?? 'Untitled project'), client: String(clientsById.get(String(row.client_id))?.name ?? 'Client'),
-    clientCompany: String(clientsById.get(String(row.client_id))?.name ?? 'Client'), manager: String(staffById.get(String(row.project_manager_id))?.first_name ?? 'Unassigned'),
-    progress: Number(row.progress_percent ?? 0), budget: Number(row.contract_value ?? 0), actualCost: (records.project_costs ?? []).filter((cost) => cost.project_id === row.id).reduce((sum, cost) => sum + Number(cost.amount ?? 0), 0),
-    deadline: String(row.expected_completion_date ?? ''), startDate: String(row.start_date ?? ''), health: row.health_status === 'at_risk' ? 'at-risk' : row.health_status === 'critical' ? 'delayed' : row.health_status === 'completed' ? 'completed' : 'on-track',
-    status: row.status === 'completed' ? 'Completed' : row.status === 'planning' ? 'Planning' : 'Active', location: String(row.location ?? ''), description: String(row.description ?? ''), contractValue: Number(row.contract_value ?? 0),
-  } as Project)) : mockProjects;
+  const projects: Project[] = (records.projects ?? []).map((row) => ({
+    id: row.id,
+    name: String(row.name ?? 'Untitled project'),
+    client: String(clientsById.get(String(row.client_id))?.name ?? 'Client'),
+    clientCompany: String(clientsById.get(String(row.client_id))?.name ?? 'Client'),
+    manager: row.project_manager_id ? 'Assigned' : 'Unassigned',
+    progress: Number(row.progress_percent ?? 0),
+    budget: Number(row.contract_value ?? 0),
+    actualCost: (records.project_costs ?? []).filter((cost) => cost.project_id === row.id).reduce((sum, cost) => sum + Number(cost.amount ?? 0), 0),
+    deadline: String(row.expected_completion_date ?? ''),
+    startDate: String(row.start_date ?? ''),
+    health: row.health_status === 'at_risk' ? 'at-risk' : row.health_status === 'critical' ? 'delayed' : row.health_status === 'completed' ? 'completed' : 'on-track',
+    status: row.status === 'completed' ? 'Completed' : row.status === 'planning' ? 'Planning' : 'Active',
+    location: String(row.location ?? ''),
+    description: String(row.description ?? ''),
+    contractValue: Number(row.contract_value ?? 0),
+  } as Project));
   const projectById = new Map(projects.map((row) => [row.id, row]));
-  const tasks: Task[] = records.tasks?.length ? records.tasks.map((row) => ({ id: row.id, title: String(row.title ?? ''), project: projectById.get(String(row.project_id))?.name ?? 'Unassigned project', assignee: String(staffById.get(String(row.assigned_to))?.first_name ?? 'Unassigned'), dueDate: String(row.due_date ?? ''), priority: String(row.priority ?? 'medium').toLowerCase() === 'high' || String(row.priority).toLowerCase() === 'urgent' ? 'High' : String(row.priority).toLowerCase() === 'low' ? 'Low' : 'Medium', status: row.status === 'completed' ? 'Done' : row.status === 'in_progress' ? 'In Progress' : row.status === 'blocked' ? 'Review' : 'To Do' } as Task)) : mockTasks;
-  const invoices: Invoice[] = records.invoices?.length ? records.invoices.map((row) => ({ id: String(row.invoice_number ?? row.id), client: String(clientsById.get(String(row.client_id))?.name ?? 'Client'), project: projectById.get(String(row.project_id))?.name ?? 'Unassigned project', amount: Number(row.total_amount ?? 0), issuedDate: String(row.issue_date ?? ''), dueDate: String(row.due_date ?? ''), status: row.status === 'paid' ? 'Paid' : row.status === 'overdue' ? 'Overdue' : row.status === 'partially_paid' ? 'Partial' : 'Outstanding', paidAmount: (records.payments ?? []).filter((payment) => payment.invoice_id === row.id).reduce((sum, payment) => sum + Number(payment.amount ?? 0), 0) } as Invoice)) : mockInvoices;
-  const purchaseRequests: PurchaseRequest[] = records.purchase_requests?.length ? records.purchase_requests.map((row) => ({ id: String(row.request_number ?? row.id), item: String(row.description ?? ''), project: projectById.get(String(row.project_id))?.name ?? 'Unassigned project', qty: 1, unit: 'item', estCost: Number(row.estimated_amount ?? 0), requestedBy: 'Team member', date: String(row.created_at ?? '').slice(0, 10), status: row.status === 'approved' ? 'Approved' : row.status === 'ordered' ? 'PO Issued' : row.status === 'delivered' ? 'Delivered' : row.status === 'rejected' ? 'Rejected' : 'Requested', supplier: 'Pending' } as PurchaseRequest)) : mockPurchaseRequests;
-  const recentActivity: Activity[] = records.activities?.length ? records.activities.slice(0, 8).map((row) => ({ id: row.id, type: 'project', message: String(row.title ?? row.description ?? ''), time: String(row.created_at ?? ''), user: 'Team member' } as Activity)) : mockRecentActivity;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const tasks: Task[] = (records.tasks ?? []).map((row) => {
+    const dueDate = row.due_date ? new Date(`${row.due_date}T00:00:00`) : null;
+    const isOverdue = Boolean(dueDate && dueDate < today && row.status !== 'completed');
+    return {
+      id: row.id,
+      title: String(row.title ?? ''),
+      project: projectById.get(String(row.project_id))?.name ?? 'Unassigned project',
+      assignee: 'Team member',
+      dueDate: String(row.due_date ?? ''),
+      priority: String(row.priority ?? 'medium').toLowerCase() === 'high' || String(row.priority).toLowerCase() === 'urgent' ? 'High' : String(row.priority).toLowerCase() === 'low' ? 'Low' : 'Medium',
+      status: row.status === 'completed' ? 'Done' : isOverdue ? 'Overdue' : row.status === 'in_progress' ? 'In Progress' : row.status === 'blocked' ? 'Review' : 'To Do',
+    } as Task;
+  });
+  const invoices: Invoice[] = (records.invoices ?? []).map((row) => {
+    const paidAmount = (records.payments ?? []).filter((payment) => payment.invoice_id === row.id && payment.status === 'received').reduce((sum, payment) => sum + Number(payment.amount ?? 0), 0);
+    const balance = Math.max(0, Number(row.total_amount ?? 0) - paidAmount);
+    const dueDate = row.due_date ? new Date(`${row.due_date}T00:00:00`) : null;
+    const isOverdue = balance > 0 && Boolean(dueDate && dueDate < today);
+    return {
+      id: String(row.invoice_number ?? row.id),
+      client: String(clientsById.get(String(row.client_id))?.name ?? 'Client'),
+      project: projectById.get(String(row.project_id))?.name ?? 'Unassigned project',
+      amount: Number(row.total_amount ?? 0),
+      issuedDate: String(row.issue_date ?? ''),
+      dueDate: String(row.due_date ?? ''),
+      status: balance <= 0 || row.status === 'paid' ? 'Paid' : isOverdue || row.status === 'overdue' ? 'Overdue' : row.status === 'partially_paid' || paidAmount > 0 ? 'Partial' : 'Outstanding',
+      paidAmount,
+    } as Invoice;
+  });
+  const purchaseRequests: PurchaseRequest[] = (records.purchase_requests ?? []).map((row) => ({
+    id: String(row.request_number ?? row.id),
+    item: String(row.description ?? ''),
+    project: projectById.get(String(row.project_id))?.name ?? 'Unassigned project',
+    qty: 1,
+    unit: 'item',
+    estCost: Number(row.estimated_amount ?? 0),
+    requestedBy: 'Team member',
+    date: String(row.created_at ?? '').slice(0, 10),
+    status: row.status === 'approved' ? 'Approved' : row.status === 'ordered' ? 'PO Issued' : row.status === 'delivered' ? 'Delivered' : row.status === 'rejected' ? 'Rejected' : 'Requested',
+    supplier: 'Pending',
+  } as PurchaseRequest));
+  const recentActivity: Activity[] = (records.activities ?? []).slice(0, 8).map((row) => ({
+    id: row.id,
+    type: row.entity_type === 'task' ? 'task' : row.entity_type === 'invoice' || row.entity_type === 'payment' ? 'finance' : row.entity_type === 'purchase_order' ? 'procurement' : row.entity_type === 'client' ? 'client' : row.entity_type === 'risk' ? 'risk' : 'project',
+    message: String(row.title ?? row.description ?? ''),
+    time: String(row.created_at ?? ''),
+    user: 'Team member',
+  } as Activity));
+  const monthlyFinancialData = Array.from({ length: 7 }, (_, index) => {
+    const monthDate = new Date();
+    monthDate.setDate(1);
+    monthDate.setMonth(monthDate.getMonth() - (6 - index));
+    const monthStart = new Date(monthDate.getFullYear(), monthDate.getMonth(), 1);
+    const monthEnd = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 1);
+    const revenue = (records.payments ?? []).filter((payment) => {
+      if (payment.status !== 'received' || !payment.payment_date) return false;
+      const date = new Date(`${payment.payment_date}T00:00:00`);
+      return date >= monthStart && date < monthEnd;
+    }).reduce((sum, payment) => sum + Number(payment.amount ?? 0), 0);
+    const cost = (records.expenses ?? []).filter((expense) => {
+      if (!expense.expense_date) return false;
+      const date = new Date(`${expense.expense_date}T00:00:00`);
+      return date >= monthStart && date < monthEnd;
+    }).reduce((sum, expense) => sum + Number(expense.amount ?? 0), 0);
+    return { month: monthDate.toLocaleDateString('en-ZW', { month: 'short' }), revenue, cost };
+  });
   const activeProjects = projects.filter((p) => p.status === 'Active').length;
   const atRiskProjects = projects.filter((p) => p.health === 'at-risk' || p.health === 'delayed').length;
   const outstandingPayments = invoices
@@ -74,6 +140,17 @@ export function Dashboard({ onNavigate }: { onNavigate: (page: PageKey) => void 
   const totalCosts = projects.reduce((sum, p) => sum + p.actualCost, 0);
   const pendingProcurement = purchaseRequests.filter((p) => p.status === 'Requested' || p.status === 'Approved').length;
   const overdueTasks = tasks.filter((t) => t.status === 'Overdue').length;
+  const overdueInvoices = invoices.filter((invoice) => invoice.status === 'Overdue');
+  const openSafetyIncidents = (records.safety_incidents ?? []).filter((incident) => !['closed', 'resolved'].includes(String(incident.status ?? '').toLowerCase()));
+  const lowStockItems = (records.inventory_items ?? []).filter((item) => item.status !== 'inactive' && Number(item.quantity_on_hand ?? 0) <= Number(item.reorder_level ?? 0));
+  const newEnquiries = (records.enquiries ?? []).filter((enquiry) => enquiry.status === 'new');
+  const priorityItems = [
+    ...(overdueTasks ? [{ icon: <Clock size={16} />, color: 'bg-red-50 text-red-600', title: `${overdueTasks} overdue task${overdueTasks === 1 ? '' : 's'}`, detail: 'Review overdue project work and update the schedule', page: 'ops-tasks' as PageKey }] : []),
+    ...(overdueInvoices.length ? [{ icon: <DollarSign size={16} />, color: 'bg-orange-50 text-orange-600', title: `${overdueInvoices.length} overdue invoice${overdueInvoices.length === 1 ? '' : 's'}`, detail: `${formatCurrency(overdueInvoices.reduce((sum, invoice) => sum + Math.max(0, invoice.amount - invoice.paidAmount), 0))} outstanding past due date`, page: 'finance' as PageKey }] : []),
+    ...(openSafetyIncidents.length ? [{ icon: <ShieldAlert size={16} />, color: 'bg-red-50 text-red-600', title: `${openSafetyIncidents.length} open safety incident${openSafetyIncidents.length === 1 ? '' : 's'}`, detail: 'Review corrective actions and close-out evidence', page: 'mgmt-risk' as PageKey }] : []),
+    ...(lowStockItems.length ? [{ icon: <Package size={16} />, color: 'bg-amber-50 text-amber-600', title: `${lowStockItems.length} low-stock item${lowStockItems.length === 1 ? '' : 's'}`, detail: 'Check quantities against reorder levels', page: 'ops-inventory' as PageKey }] : []),
+    ...(newEnquiries.length ? [{ icon: <UserPlus size={16} />, color: 'bg-teal-50 text-teal-600', title: `${newEnquiries.length} new enquiry${newEnquiries.length === 1 ? '' : 'ies'}`, detail: 'Review and assign new client enquiries', page: 'crm-enquiries' as PageKey }] : []),
+  ];
 
   const healthSegments = [
     { label: 'On Track', value: projects.filter((p) => p.health === 'on-track').length, color: '#10b981' },
@@ -92,7 +169,7 @@ export function Dashboard({ onNavigate }: { onNavigate: (page: PageKey) => void 
       <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
         <StatCard label="Active Projects" value={String(activeProjects)} icon={<FolderKanban size={20} />} accent="blue" />
         <StatCard label="At Risk" value={String(atRiskProjects)} icon={<AlertTriangle size={20} />} accent="amber" />
-        <StatCard label="Outstanding" value={formatCurrency(outstandingPayments)} icon={<DollarSign size={20} />} accent="red" trend="2 invoices overdue" trendUp={false} />
+        <StatCard label="Outstanding" value={formatCurrency(outstandingPayments)} icon={<DollarSign size={20} />} accent="red" />
         <StatCard label="Project Costs" value={formatCurrency(totalCosts)} icon={<TrendingDown size={20} />} accent="orange" />
         <StatCard label="Pending Procurement" value={String(pendingProcurement)} icon={<ShoppingCart size={20} />} accent="blue" />
         <StatCard label="Overdue Tasks" value={String(overdueTasks)} icon={<Clock size={20} />} accent="red" />
@@ -103,7 +180,11 @@ export function Dashboard({ onNavigate }: { onNavigate: (page: PageKey) => void 
         <Card className="lg:col-span-2">
           <CardHeader title="Revenue vs Cost" subtitle="Last 7 months" />
           <CardBody>
-            <BarChart data={revenueCostData.map(({ month, revenue, cost }) => ({ label: month, value1: revenue, value2: cost }))} label1="Revenue" label2="Cost" />
+            {monthlyFinancialData.some((item) => item.revenue > 0 || item.cost > 0) ? (
+              <BarChart data={monthlyFinancialData.map(({ month, revenue, cost }) => ({ label: month, value1: revenue, value2: cost }))} label1="Cash received" label2="Expenses" />
+            ) : (
+              <p className="py-10 text-center text-sm text-gray-400">Recorded payments and expenses will appear here.</p>
+            )}
           </CardBody>
         </Card>
         <Card>
@@ -127,6 +208,7 @@ export function Dashboard({ onNavigate }: { onNavigate: (page: PageKey) => void 
           />
           <CardBody>
             <div className="space-y-4">
+              {projects.length === 0 && <p className="py-6 text-center text-sm text-gray-400">No projects have been created yet.</p>}
               {projects.map((p) => (
                 <div
                   key={p.id}
@@ -154,43 +236,10 @@ export function Dashboard({ onNavigate }: { onNavigate: (page: PageKey) => void 
           <CardHeader title="Priority Actions" subtitle="Items requiring immediate attention" />
           <CardBody>
             <div className="space-y-3">
-              {overdueTasks > 0 && (
-                <PriorityItem
-                  icon={<AlertCircle size={16} />}
-                  color="bg-red-50 text-red-600"
-                  title={`${overdueTasks} overdue tasks`}
-                  detail="Steel ordering and Block C plastering behind schedule"
-                  onClick={() => onNavigate('ops-tasks')}
-                />
-              )}
-              <PriorityItem
-                icon={<DollarSign size={16} />}
-                color="bg-orange-50 text-orange-600"
-                title="2 overdue invoices"
-                detail="Nyathi Investments & Chigumba Properties — $697,500 outstanding"
-                onClick={() => onNavigate('finance')}
-              />
-              <PriorityItem
-                icon={<ShieldAlert size={16} />}
-                color="bg-red-50 text-red-600"
-                title="1 open safety observation"
-                detail="Missing edge protection — Riverside Office, Level 2"
-                onClick={() => onNavigate('mgmt-risk')}
-              />
-              <PriorityItem
-                icon={<Package size={16} />}
-                color="bg-amber-50 text-amber-600"
-                title="1 item below reorder level"
-                detail={'Aggregate 3/4" — only 12m³ in stock'}
-                onClick={() => onNavigate('ops-inventory')}
-              />
-              <PriorityItem
-                icon={<FileText size={16} />}
-                  color="bg-blue-50 text-blue-600"
-                  title="1 new enquiry"
-                  detail="Patricia Sibanda — Highfield Apartments Complex ($850k)"
-                  onClick={() => onNavigate('crm-enquiries')}
-              />
+              {priorityItems.length === 0 && <p className="py-6 text-center text-sm text-gray-400">No immediate priority actions from the live records.</p>}
+              {priorityItems.map((item, index) => (
+                <PriorityItem key={index} icon={item.icon} color={item.color} title={item.title} detail={item.detail} onClick={() => onNavigate(item.page)} />
+              ))}
             </div>
           </CardBody>
         </Card>
@@ -202,6 +251,7 @@ export function Dashboard({ onNavigate }: { onNavigate: (page: PageKey) => void 
           <CardHeader title="Recent Activity" subtitle="Latest updates across all projects" />
           <CardBody>
             <div className="space-y-3">
+              {recentActivity.length === 0 && <p className="py-6 text-center text-sm text-gray-400">No activity has been recorded yet.</p>}
               {recentActivity.slice(0, 6).map((a) => (
                 <div key={a.id} className="flex items-start gap-3">
                   <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${activityColors[a.type]}`}>
@@ -230,6 +280,7 @@ export function Dashboard({ onNavigate }: { onNavigate: (page: PageKey) => void 
                 </tr>
               </thead>
               <tbody>
+                {upcomingDeadlines.length === 0 && <tr><td colSpan={4} className="py-8 text-center text-sm text-gray-400">No upcoming task deadlines.</td></tr>}
                 {upcomingDeadlines.map((t) => (
                   <Tr key={t.id}>
                     <Td className="font-medium text-gray-700">{t.title}</Td>
