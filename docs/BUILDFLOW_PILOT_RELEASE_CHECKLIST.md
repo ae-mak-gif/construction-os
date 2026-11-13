@@ -112,8 +112,8 @@ Workforce, document intelligence, accountability and safety specialist capabilit
 **Status: account access passed; operational browser UAT outstanding.**
 
 Use the latest READY Preview deployment from branch `fix/auth-client-access-stabilisation`:
-- Latest Preview deployment: `dpl_3ssUGvuETXfQnrxMag6aUvpmo6wP`
-- Preview URL: https://construction-bec1gcax0-aemakazhe-9121s-projects.vercel.app
+- Latest Preview deployment: `dpl_5qiGPPtx2L7y2kf82537fGPz95nB`
+- Preview URL: https://construction-os-git-fix-auth-cl-a2f3ad-aemakazhe-9121s-projects.vercel.app
 
 Execute and record each case with account/role, date, expected result, actual result, pass/fail and evidence reference:
 
