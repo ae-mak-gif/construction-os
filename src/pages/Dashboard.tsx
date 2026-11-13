@@ -21,7 +21,6 @@ import type { Project, Task, Invoice, PurchaseRequest, Activity } from '@/data/m
 import { formatCurrency, formatDateShort } from '@/utils/format';
 import type { PageKey } from '@/components/layout/Sidebar';
 import { useBuildFlowData } from '@/context/BuildFlowDataContext';
-import type { Project, Task, Invoice, PurchaseRequest, Activity } from '@/data/mockData';
 
 const activityIcons: Record<string, React.ReactNode> = {
   project: <FolderKanban size={14} />,
