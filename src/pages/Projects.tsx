@@ -1231,7 +1231,7 @@ function OverviewTab({
 function BOQTab({
   items,
 }: {
-  items: typeof boqItems;
+  items: BOQItem[];
 }) {
   const subtotal = items.reduce(
     (s, i) => s + i.qty * i.unitCost,
