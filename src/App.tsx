@@ -26,11 +26,11 @@ import type { Project } from '@/data/mockData';
 import { Loader2, Building2 } from 'lucide-react';
 
 const pageTitles: Record<PageKey, string> = {
-  'dashboard': 'Dashboard',
+  dashboard: 'Dashboard',
   'construction-modules': 'Construction Modules',
   'crm-enquiries': 'CRM — Enquiries',
   'crm-clients': 'CRM — Clients',
-  'projects': 'Projects',
+  projects: 'Projects',
   'project-detail': 'Project Overview',
   'ops-tasks': 'Tasks & Calendar',
   'site-diaries': 'Daily Site Diaries',
@@ -42,41 +42,29 @@ const pageTitles: Record<PageKey, string> = {
   'ops-procurement': 'Procurement',
   'ops-suppliers': 'Suppliers',
   'ops-inventory': 'Inventory',
-  'finance': 'Finance',
+  finance: 'Finance',
   'mgmt-hr': 'HR & Staff',
   'mgmt-workshop': 'Workshop',
   'mgmt-equipment': 'Equipment',
   'mgmt-risk': 'Risk & Quality',
   'mgmt-reports': 'Reports',
-  'communications': 'Communications',
+  communications: 'Communications',
   'client-portal': 'Client Portal',
   'ai-assistant': 'AI Assistant',
-  'settings': 'Settings',
+  settings: 'Settings',
 };
 
 function AppContent() {
-  const { session, loading, error } = useAuth();
+  const { session, loading, error, accountType, membership, clientAccess, signOut } = useAuth();
   const { loading: dataLoading, records, errors: dataErrors, refresh } = useBuildFlowData();
   const dataErrorCount = Object.keys(dataErrors).length;
   const [page, setPage] = useState<PageKey>('dashboard');
   const [projectId, setProjectId] = useState<string | null>(null);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
-  if (window.location.pathname === '/reset-password') {
-    return <ResetPasswordPage />;
-  }
+  if (window.location.pathname === '/reset-password') return <ResetPasswordPage />;
 
-  const handleNavigate = (p: PageKey) => {
-    setPage(p);
-    if (p !== 'project-detail') setProjectId(null);
-  };
-
-  const openProject = (id: string) => {
-    setProjectId(id);
-    setPage('project-detail');
-  };
-
-  if (loading || (session && dataLoading)) {
+  if (loading || (session && accountType === 'internal' && dataLoading)) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-navy-900">
         <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center mb-4 shadow-lg">
@@ -97,15 +85,41 @@ function AppContent() {
           <div className="w-12 h-12 rounded-full bg-amber-100 flex items-center justify-center mx-auto mb-4">
             <span className="text-amber-600 text-xl">!</span>
           </div>
-          <h2 className="text-lg font-semibold text-gray-800 mb-2">Connection Issue</h2>
+          <h2 className="text-lg font-semibold text-gray-800 mb-2">Account access issue</h2>
           <p className="text-sm text-gray-500 mb-1">{error}</p>
-          <p className="text-xs text-gray-400 mt-4">Please contact your administrator if this persists.</p>
+          <button onClick={() => void signOut()} className="mt-5 rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700">
+            Sign out
+          </button>
         </div>
       </div>
     );
   }
 
-  if (page === 'client-portal') return <ClientPortal onExit={() => handleNavigate('dashboard')} />;
+  // External client identities never enter the internal organisation data shell.
+  if (accountType === 'client' && clientAccess) {
+    return <ClientPortal clientAccess={clientAccess} onSignOut={() => void signOut()} />;
+  }
+
+  if (accountType !== 'internal' || !membership) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-navy-900 px-4">
+        <div className="max-w-md rounded-2xl bg-white p-8 text-center shadow-2xl">
+          <h2 className="text-lg font-semibold text-gray-800">Account access could not be resolved</h2>
+          <p className="mt-2 text-sm text-gray-500">Your account has no recognised BuildFlow access assignment.</p>
+          <button onClick={() => void signOut()} className="mt-5 rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white">Sign out</button>
+        </div>
+      </div>
+    );
+  }
+
+  const handleNavigate = (nextPage: PageKey) => {
+    setPage(nextPage);
+    if (nextPage !== 'project-detail') setProjectId(null);
+  };
+  const openProject = (id: string) => {
+    setProjectId(id);
+    setPage('project-detail');
+  };
 
   const currentProject: Project | null = projectId ? (() => {
     const row = (records.projects ?? []).find((project) => project.id === projectId);
@@ -129,24 +143,12 @@ function AppContent() {
         <TopBar title={pageTitles[page]} onMenuClick={() => setMobileSidebarOpen(true)} />
         <main className="flex-1 p-4 lg:p-6 overflow-x-hidden">
           {dataErrorCount > 0 && (
-            <div
-              role="alert"
-              aria-live="polite"
-              className="mb-4 flex flex-col gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-900 sm:flex-row sm:items-center sm:justify-between"
-            >
+            <div role="alert" aria-live="polite" className="mb-4 flex flex-col gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-900 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <p className="text-sm font-semibold">Some live data could not be loaded</p>
-                <p className="mt-1 text-sm text-amber-800">
-                  {dataErrorCount} data area(s) reported a loading error. Sample rows may be shown where live records are unavailable; sample rows are not saved records.
-                </p>
+                <p className="mt-1 text-sm text-amber-800">{dataErrorCount} data area(s) reported a loading error. Sample rows may be shown where live records are unavailable; sample rows are not saved records.</p>
               </div>
-              <button
-                type="button"
-                onClick={() => { void refresh(); }}
-                className="shrink-0 rounded-lg border border-amber-300 bg-white px-3 py-2 text-sm font-medium text-amber-900 hover:bg-amber-100"
-              >
-                Retry data loading
-              </button>
+              <button type="button" onClick={() => { void refresh(); }} className="shrink-0 rounded-lg border border-amber-300 bg-white px-3 py-2 text-sm font-medium text-amber-900 hover:bg-amber-100">Retry data loading</button>
             </div>
           )}
           {page === 'dashboard' && <Dashboard onNavigate={handleNavigate} />}
