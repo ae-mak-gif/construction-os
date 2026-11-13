@@ -24,13 +24,6 @@ export default async function handler(request: Request): Promise<Response> {
     return new Response(JSON.stringify({ error: "Sign in to use the Executive Assistant." }), { status: 401, headers });
   }
 
-  // Vercel injects this deployment-scoped OIDC token for the function request.
-  // It is forwarded server-to-server and is never returned to the browser.
-  const oidcToken = request.headers.get("x-vercel-oidc-token");
-  if (!oidcToken) {
-    return new Response(JSON.stringify({ error: "The Preview deployment has no Vercel OIDC token. Check the project's OIDC configuration." }), { status: 503, headers });
-  }
-
   const env = (globalThis as unknown as { process?: { env?: Record<string, string | undefined> } }).process?.env ?? {};
   const supabaseUrl = env.VITE_SUPABASE_URL;
   const publishableKey = env.VITE_SUPABASE_PUBLISHABLE_KEY;
@@ -51,7 +44,6 @@ export default async function handler(request: Request): Promise<Response> {
       "Authorization": authorization,
       "apikey": publishableKey,
       "Content-Type": "application/json",
-      "x-vercel-oidc-token": oidcToken,
     },
     body: JSON.stringify(body),
   });

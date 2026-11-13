@@ -1,8 +1,9 @@
 /**
  * BuildFlow VEA agent catalogue.
  *
- * The first four agents are connected to the authenticated read-only
- * conversational runtime. The remaining capabilities are planned.
+ * The first four agents use the authenticated read-only runtime. Specialist
+ * coordination is performed by the Executive Orchestrator when a request
+ * spans multiple first-wave domains.
  */
 export type VEAAgentStatus = "foundation" | "next" | "planned";
 
@@ -21,8 +22,8 @@ export const veaAgents: VEAAgentDefinition[] = [
   {
     key: "executive",
     name: "Executive Orchestrator",
-    description: "Understands the request, selects the right specialist and combines findings.",
-    remit: ["cross-functional briefings", "business pulse", "decision preparation", "delegation coordination"],
+    description: "Coordinates the relevant specialists, reconciles their findings and prepares a cross-functional executive response.",
+    remit: ["cross-functional briefings", "business pulse", "decision preparation", "specialist coordination"],
     routeHints: ["executive", "overview", "business", "briefing", "priority", "what needs attention"],
     status: "foundation",
     autonomy: "read_only",
@@ -116,19 +117,14 @@ export const veaAgentActionPolicy = {
 
 export function suggestVEAAgentKeys(message: string): string[] {
   const normalized = message.toLowerCase();
-  const matches = veaAgents
+  const matched = veaAgents
     .filter((agent) => ["project", "finance", "procurement"].includes(agent.key))
-    .map((agent) => ({
-      key: agent.key,
-      score: agent.routeHints.reduce(
-        (score, hint) => score + (normalized.includes(hint) ? 1 : 0),
-        0,
-      ),
-    }))
-    .filter((item) => item.score > 0)
-    .sort((a, b) => b.score - a.score);
+    .filter((agent) => agent.routeHints.some((hint) => normalized.includes(hint)))
+    .map((agent) => agent.key);
 
-  if (matches.length === 0) return ["executive"];
-  const topScore = matches[0].score;
-  return matches.filter((item) => item.score === topScore).map((item) => item.key);
+  const broadRequest = ["briefing", "business pulse", "overall", "what needs attention", "top priorities", "across the business"]
+    .some((hint) => normalized.includes(hint));
+  if (broadRequest) return ["executive", "project", "finance", "procurement"];
+  if (matched.length === 0) return ["executive"];
+  return matched;
 }

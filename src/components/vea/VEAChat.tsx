@@ -13,7 +13,7 @@ interface ChatMessage {
 const suggestions = [
   "Prepare my executive briefing",
   "Which projects need attention?",
-  "Summarise overdue invoices",
+  "Compare project delays with unpaid invoices",
   "What procurement requests are pending?",
 ];
 
@@ -23,7 +23,7 @@ export function VEAChat() {
       id: "welcome",
       role: "agent",
       agentName: "Executive Orchestrator",
-      content: "Hello. I can help you understand your BuildFlow projects, tasks, risks, invoices and procurement requests. My current access is read-only; I can analyse information and prepare recommendations, but I cannot change business records or approve actions.",
+      content: "Hello. I coordinate BuildFlow's Project, Finance and Procurement specialists when your question needs them. I can analyse your organisation's current records and prepare recommendations. My access is read-only: I cannot change business records or approve actions.",
     },
   ]);
   const [conversationId, setConversationId] = useState<string | null>(null);
@@ -37,7 +37,7 @@ export function VEAChat() {
     let cancelled = false;
     async function loadLatestConversation() {
       setLoadingHistory(true);
-      const { data: conversation } = await supabase
+      const { data: conversation, error: conversationError } = await supabase
         .from("vea_conversations")
         .select("id")
         .eq("status", "open")
@@ -45,12 +45,18 @@ export function VEAChat() {
         .limit(1)
         .maybeSingle();
 
-      if (!conversation || cancelled) {
-        if (!cancelled) setLoadingHistory(false);
+      if (cancelled) return;
+      if (conversationError) {
+        setError("Your previous VEA conversation could not be loaded. You can still start a new request.");
+        setLoadingHistory(false);
+        return;
+      }
+      if (!conversation) {
+        setLoadingHistory(false);
         return;
       }
 
-      const { data: rows } = await supabase
+      const { data: rows, error: messagesError } = await supabase
         .from("vea_messages")
         .select("id, sender_type, agent_key, content")
         .eq("conversation_id", conversation.id)
@@ -59,12 +65,14 @@ export function VEAChat() {
 
       if (!cancelled) {
         setConversationId(conversation.id);
-        if (rows?.length) {
+        if (messagesError) {
+          setError("Your previous messages could not be loaded. You can continue with a new message.");
+        } else if (rows?.length) {
           setMessages(rows.map((row) => ({
             id: row.id,
             role: row.sender_type === "user" || row.sender_type === "human" ? "user" : "agent",
             content: row.content,
-            agentName: row.agent_key || "Executive Orchestrator",
+            agentName: row.agent_key === "executive_orchestrator" ? "Executive Orchestrator" : row.agent_key || "Executive Orchestrator",
           })));
         }
         setLoadingHistory(false);
@@ -128,8 +136,8 @@ export function VEAChat() {
         <div className="flex items-center gap-2">
           <Sparkles size={16} className="text-emerald-700" />
           <div>
-            <p className="text-sm font-semibold text-emerald-900">VEA conversational runtime</p>
-            <p className="text-xs text-emerald-800">AI Gateway · Organisation-scoped · Read-only</p>
+            <p className="text-sm font-semibold text-emerald-900">VEA coordinated runtime</p>
+            <p className="text-xs text-emerald-800">Groq model · Organisation-scoped · Read-only</p>
           </div>
         </div>
         <span className="rounded-full bg-white px-3 py-1 text-xs font-medium text-emerald-800">No write actions enabled</span>
@@ -144,7 +152,7 @@ export function VEAChat() {
               </div>
               <div>
                 <h3 className="text-sm font-semibold text-gray-800">BuildFlow Executive Assistant</h3>
-                <p className="text-xs text-gray-400">Executive Orchestrator · Four first-wave specialists</p>
+                <p className="text-xs text-gray-400">Executive Orchestrator · Project, Finance & Procurement specialists</p>
               </div>
             </div>
 
@@ -163,7 +171,7 @@ export function VEAChat() {
               ))}
               {sending && (
                 <div className="flex items-center gap-2 text-xs text-gray-400">
-                  <Loader2 size={14} className="animate-spin" /> Executive Orchestrator is reviewing your BuildFlow context…
+                  <Loader2 size={14} className="animate-spin" /> Executive Orchestrator is coordinating specialist analysis…
                 </div>
               )}
             </div>

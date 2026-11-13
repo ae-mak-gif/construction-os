@@ -1,0 +1,23 @@
+name: VEA routing tests
+
+on:
+  push:
+    branches:
+      - feature/buildflow-vea-integration
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  routing-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - name: Test deterministic VEA routing and context boundaries
+        run: deno test supabase/functions/vea-chat/vea-routing_test.ts
