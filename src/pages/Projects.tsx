@@ -108,7 +108,7 @@ export function Projects({
     manager: managerNameById.get(String(row.project_manager_id ?? '')) ?? (row.project_manager_id ? 'Assigned' : 'Unassigned'),
     progress: Number(row.progress_percent ?? 0),
     budget: Number(row.contract_value ?? 0),
-    actualCost: (records.project_costs ?? []).filter((cost) => cost.project_id === row.id).reduce((sum, cost) => sum + Number(cost.amount ?? 0), 0),
+    actualCost: (records.project_budgets ?? []).filter((budget) => budget.project_id === row.id).reduce((sum, budget) => sum + Number(budget.actual_amount ?? 0), 0),
     deadline: String(row.expected_completion_date ?? ''),
     startDate: String(row.start_date ?? ''),
     health: row.health_status === 'at_risk' ? 'at-risk' : row.health_status === 'critical' ? 'delayed' : row.health_status === 'completed' ? 'completed' : 'on-track',
