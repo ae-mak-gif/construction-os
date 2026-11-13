@@ -72,131 +72,107 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null);
 
   const loadProfileAndMembership = async (currentUser: User) => {
-    let profileData: Profile | null = null;
-    let membershipData: Membership | null = null;
+    setError(null);
 
-    // ---------------------------------------------------------
-    // LOAD PROFILE
-    // ---------------------------------------------------------
-    // The verified profiles table contains:
-    // id, full_name, phone, avatar_url, created_at, updated_at
-    //
-    // Email comes from the authenticated Supabase user.
-    // ---------------------------------------------------------
+    try {
+      // Match the live profiles schema: first_name, last_name and display_name.
+      // The former full_name selection caused every successful sign-in to show
+      // a misleading Connection Issue screen.
+      const { data: prof, error: profError } = await supabase
+        .from('profiles')
+        .select('id, first_name, last_name, display_name, phone, avatar_url')
+        .eq('id', currentUser.id)
+        .maybeSingle();
 
-    const { data: prof, error: profError } = await supabase
-      .from('profiles')
-      .select('id, full_name, phone, avatar_url')
-      .eq('id', currentUser.id)
-      .maybeSingle();
-
-    if (profError) {
-      setError(`Unable to load profile: ${profError.message}`);
-    } else if (prof) {
-      profileData = {
-        id: prof.id,
-        email: currentUser.email ?? '',
-        full_name: prof.full_name ?? null,
-        display_name: prof.full_name ?? null,
-        avatar_url: prof.avatar_url ?? null,
-        phone: prof.phone ?? null,
-      };
-    } else {
-      // Graceful fallback if a profile record does not exist.
-      profileData = {
-        id: currentUser.id,
-        email: currentUser.email ?? '',
-        full_name: currentUser.user_metadata?.full_name ?? null,
-        display_name: currentUser.user_metadata?.full_name ?? null,
-        avatar_url: null,
-        phone: null,
-      };
-    }
-
-    // ---------------------------------------------------------
-    // LOAD ORGANIZATION MEMBERSHIP
-    // ---------------------------------------------------------
-    // Verified schema:
-    //
-    // organization_members:
-    // id
-    // organization_id
-    // user_id
-    // role_id
-    // status
-    //
-    // roles:
-    // id
-    // organization_id
-    // name
-    //
-    // Therefore we DO NOT request organization_members.role_name.
-    // ---------------------------------------------------------
-
-    const { data: memb, error: membError } = await supabase
-      .from('organization_members')
-      .select(`
-        id,
-        organization_id,
-        user_id,
-        role_id,
-        status,
-        organization:organizations(
-          id,
-          name,
-          slug
-        )
-      `)
-      .eq('user_id', currentUser.id)
-      .maybeSingle();
-
-    if (membError) {
-      setError(
-        `Unable to load organization membership: ${membError.message}`
-      );
-    } else if (memb) {
-      const organizationData = Array.isArray(memb.organization)
-        ? memb.organization[0]
-        : memb.organization;
-
-      // -------------------------------------------------------
-      // LOAD ROLE USING role_id
-      // -------------------------------------------------------
-
-      let roleName = 'User';
-
-      if (memb.role_id) {
-        const { data: role, error: roleError } = await supabase
-          .from('roles')
-          .select('id, name')
-          .eq('id', memb.role_id)
-          .maybeSingle();
-
-        if (roleError) {
-          setError(`Unable to load user role: ${roleError.message}`);
-        } else if (role?.name) {
-          roleName = role.name;
-        }
+      if (profError) {
+        throw new Error(`Unable to load profile: ${profError.message}`);
       }
 
-      membershipData = {
-        id: memb.id,
-        organization_id: memb.organization_id,
-        user_id: memb.user_id,
-        role_id: memb.role_id,
-        role_name: roleName,
-        status: memb.status ?? null,
-        organization:
-          organizationData ?? {
+      const joinedName = [prof?.first_name, prof?.last_name]
+        .filter((part): part is string => Boolean(part?.trim()))
+        .join(' ');
+      const fullName = prof?.display_name?.trim() || joinedName || currentUser.user_metadata?.full_name || null;
+
+      const profileData: Profile = {
+        id: currentUser.id,
+        email: currentUser.email ?? '',
+        full_name: fullName,
+        display_name: fullName,
+        avatar_url: prof?.avatar_url ?? null,
+        phone: prof?.phone ?? null,
+      };
+
+      // Internal membership is optional for authentication. External clients
+      // are linked through client_portal_access and must not be given an
+      // internal organisation role merely to make login succeed.
+      const { data: memberships, error: membershipError } = await supabase
+        .from('organization_members')
+        .select(`
+          id,
+          organization_id,
+          user_id,
+          role_id,
+          status,
+          organization:organizations(id, name, slug)
+        `)
+        .eq('user_id', currentUser.id)
+        .eq('status', 'active')
+        .limit(2);
+
+      if (membershipError) {
+        throw new Error(`Unable to load organization membership: ${membershipError.message}`);
+      }
+
+      if ((memberships?.length ?? 0) > 1) {
+        throw new Error('This account has more than one active organisation membership. Please contact your administrator to select the correct organisation.');
+      }
+
+      let membershipData: Membership | null = null;
+      const memb = memberships?.[0];
+
+      if (memb) {
+        const organizationData = Array.isArray(memb.organization)
+          ? memb.organization[0]
+          : memb.organization;
+
+        let roleName = 'User';
+        if (memb.role_id) {
+          const { data: role, error: roleError } = await supabase
+            .from('roles')
+            .select('id, name')
+            .eq('id', memb.role_id)
+            .eq('organization_id', memb.organization_id)
+            .maybeSingle();
+
+          if (roleError) {
+            throw new Error(`Unable to load user role: ${roleError.message}`);
+          }
+          if (role?.name) roleName = role.name;
+        }
+
+        membershipData = {
+          id: memb.id,
+          organization_id: memb.organization_id,
+          user_id: memb.user_id,
+          role_id: memb.role_id,
+          role_name: roleName,
+          status: memb.status ?? null,
+          organization: organizationData ?? {
             id: memb.organization_id,
             name: 'Unknown',
             slug: null,
           },
-      };
-    }
+        };
+      }
 
-    setProfile(profileData);
-    setMembership(membershipData);
+      setProfile(profileData);
+      setMembership(membershipData);
+      setError(null);
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : 'Unable to load your BuildFlow account details.');
+      setProfile(null);
+      setMembership(null);
+    }
   };
 
   useEffect(() => {
@@ -206,21 +182,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // INITIAL SESSION
     // ---------------------------------------------------------
 
-    supabase.auth.getSession().then(({ data: { session: currentSession } }) => {
+    supabase.auth.getSession().then(({ data: { session: currentSession }, error: sessionError }) => {
       if (!mounted) return;
+      if (sessionError) setError(`Unable to restore your BuildFlow session: ${sessionError.message}`);
 
       setSession(currentSession);
       setUser(currentSession?.user ?? null);
 
       if (currentSession?.user) {
-        loadProfileAndMembership(currentSession.user).finally(() => {
-          if (mounted) {
-            setLoading(false);
-          }
+        void loadProfileAndMembership(currentSession.user).finally(() => {
+          if (mounted) setLoading(false);
         });
       } else {
         setLoading(false);
       }
+    }).catch((sessionError: unknown) => {
+      if (!mounted) return;
+      setError(sessionError instanceof Error ? sessionError.message : 'Unable to restore your BuildFlow session.');
+      setLoading(false);
     });
 
     // ---------------------------------------------------------
@@ -238,12 +217,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (currentSession?.user) {
         setLoading(true);
-
-        loadProfileAndMembership(currentSession.user).finally(() => {
-          if (mounted) {
-            setLoading(false);
-          }
-        });
+        // Defer Supabase data queries until after the auth callback releases
+        // its internal lock; avoids auth callback re-entrancy/deadlock.
+        setTimeout(() => {
+          if (!mounted) return;
+          void loadProfileAndMembership(currentSession.user).finally(() => {
+            if (mounted) setLoading(false);
+          });
+        }, 0);
       } else {
         setProfile(null);
         setMembership(null);
@@ -264,21 +245,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signIn = async (email: string, password: string) => {
     setError(null);
 
-    const { error: signInError } =
-      await supabase.auth.signInWithPassword({
-        email,
+    try {
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: email.trim().toLowerCase(),
         password,
       });
 
-    if (signInError) {
+      return { error: signInError?.message ?? null };
+    } catch (signInError) {
       return {
-        error: signInError.message,
+        error: signInError instanceof Error
+          ? signInError.message
+          : 'Unable to contact the authentication service. Check your connection and try again.',
       };
     }
-
-    return {
-      error: null,
-    };
   };
 
   // -----------------------------------------------------------
