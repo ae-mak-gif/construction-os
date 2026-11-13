@@ -4,22 +4,10 @@ import { Card, CardHeader, CardBody } from '@/components/ui/Card';
 import { Table, Th, Td, Tr } from '@/components/ui/Table';
 import { StatusBadge, Badge } from '@/components/ui/Badge';
 import { Modal } from '@/components/ui/Modal';
-import {
-  enquiries as initialEnquiries,
-  clients as initialClients,
-  type Enquiry,
-  type EnquiryStage,
-  type Client,
-} from '@/data/mockData';
+import { type Enquiry, type EnquiryStage, type Client } from '@/data/mockData';
 import { formatCurrency, formatDate } from '@/utils/format';
 import { useBuildFlowData } from '@/context/BuildFlowDataContext';
-
-const isUuid = (value: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
-
-function preserveDemoRows<T extends { id: string }>(liveRows: T[], demoRows: T[]): T[] {
-  const liveIds = new Set(liveRows.map((row) => row.id));
-  return [...liveRows, ...demoRows.filter((row) => !liveIds.has(row.id))];
-}
+import { supabase } from '@/lib/supabase';
 
 const stages: EnquiryStage[] = [
   'New',
@@ -31,7 +19,7 @@ const stages: EnquiryStage[] = [
 ];
 
 export function Enquiries() {
-  const { create, update, remove, records } = useBuildFlowData();
+  const { update, refresh, records } = useBuildFlowData();
   const clientRows = records.clients ?? [];
   const contactById = new Map((records.contacts ?? []).map((row) => [row.id, row]));
   const clientById = new Map(clientRows.map((row) => [row.id, row]));
@@ -44,10 +32,8 @@ export function Enquiries() {
     const stage = row.status === 'proposal' ? 'Quoted' : row.status === 'won' ? 'Won' : row.status === 'lost' ? 'Lost' : row.status === 'qualified' ? 'Qualified' : row.status === 'contacted' || row.status === 'on_hold' ? 'Contacted' : 'New';
     return { id: row.id, client: contact ? [contact.first_name, contact.last_name].filter(Boolean).join(' ') : String(client?.name ?? 'Prospect'), company: String(client?.name ?? ''), project: String(row.title ?? ''), value: Number(row.estimated_value ?? 0), stage, date: String(row.created_at ?? '').slice(0, 10), source: String(row.source ?? ''), phone: String(contact?.phone ?? ''), email: String(contact?.email ?? '') } as Enquiry;
   });
-  const [enquiries, setEnquiries] = useState<Enquiry[]>(preserveDemoRows(liveEnquiries, initialEnquiries));
-  // Derive the visible list from immutable demo fixtures plus the latest live snapshot.
-  // This prevents an early state initialisation from hiding demo rows after hydration.
-  const clients = preserveDemoRows(liveClients, initialClients);
+  const enquiries = liveEnquiries;
+  const clients = liveClients;
   const [search, setSearch] = useState('');
   const [stageFilter, setStageFilter] =
     useState<EnquiryStage | 'All'>('All');
@@ -78,121 +64,77 @@ export function Enquiries() {
   }));
 
   async function createEnquiry() {
-    if (!form.client || !form.company || !form.project || !form.value) return;
+    if (!form.client.trim() || !form.company.trim() || !form.project.trim() || !form.value.trim()) return;
+    const nameParts = form.client.trim().split(/\\s+/);
 
-    const newEnquiry: Enquiry = {
-      id: `E${String(enquiries.length + 1).padStart(3, '0')}`,
-      client: form.client,
-      company: form.company,
-      project: form.project,
-      value: Number(form.value),
-      stage: 'New',
-      date: new Date().toISOString().split('T')[0],
-      source: form.source,
-      phone: form.phone,
-      email: form.email,
-    };
-
-    let clientId: string | null = null;
-    let contactId: string | null = null;
     try {
-      const clientRow = await create('clients', { name: form.company, client_type: 'company', status: 'prospect' });
-      clientId = clientRow.id;
-      const nameParts = form.client.trim().split(/\s+/);
-      const contactRow = await create('contacts', { client_id: clientRow.id, first_name: nameParts[0] || form.client, last_name: nameParts.slice(1).join(' ') || null, email: form.email || null, phone: form.phone || null, is_primary: true });
-      contactId = contactRow.id;
-      const enquiryRow = await create('enquiries', { client_id: clientRow.id, contact_id: contactRow.id, title: form.project, description: `Prospect: ${form.client} · ${form.company}`, source: form.source, status: 'new', estimated_value: Number(form.value) });
-      newEnquiry.id = enquiryRow.id;
+      const { error } = await supabase.rpc('create_crm_enquiry', {
+        p_company_name: form.company.trim(),
+        p_contact_first_name: nameParts[0],
+        p_contact_last_name: nameParts.slice(1).join(' ') || null,
+        p_email: form.email.trim() || null,
+        p_phone: form.phone.trim() || null,
+        p_title: form.project.trim(),
+        p_description: `Prospect: ${form.client.trim()} · ${form.company.trim()}`,
+        p_source: form.source,
+        p_estimated_value: Number(form.value),
+      });
+      if (error) throw error;
+      await refresh();
+      setForm({ client: '', company: '', project: '', value: '', source: 'Website', phone: '', email: '' });
+      setShowNew(false);
     } catch (error) {
-      if (contactId) await remove('contacts', contactId).catch(() => undefined);
-      if (clientId) await remove('clients', clientId).catch(() => undefined);
       console.error('Unable to save enquiry to BuildFlow:', error);
       window.alert(error instanceof Error ? error.message : 'Unable to save this enquiry. Please try again.');
-      return;
     }
-    setEnquiries((prev) => [newEnquiry, ...prev]);
-
-    setForm({
-      client: '',
-      company: '',
-      project: '',
-      value: '',
-      source: 'Website',
-      phone: '',
-      email: '',
-    });
-
-    setShowNew(false);
   }
 
-  function moveStage() {
+  async function moveStage() {
     if (!selected) return;
-
     const currentIndex = stages.indexOf(selected.stage);
     const nextStage = stages[currentIndex + 1];
-
     if (!nextStage || nextStage === 'Lost') return;
 
-    const updated = {
-      ...selected,
-      stage: nextStage,
+    const statusByStage: Record<EnquiryStage, string> = {
+      New: 'new',
+      Contacted: 'contacted',
+      Qualified: 'qualified',
+      Quoted: 'proposal',
+      Won: 'won',
+      Lost: 'lost',
     };
 
-    if (isUuid(selected.id)) {
-      const status = nextStage === 'Quoted' ? 'proposal' : nextStage.toLowerCase();
-      void update('enquiries', selected.id, { status }).catch((error) => window.alert(error.message));
+    try {
+      await update('enquiries', selected.id, { status: statusByStage[nextStage] });
+      setSelected({ ...selected, stage: nextStage });
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : 'Unable to update the enquiry stage.');
     }
-    setEnquiries((prev) =>
-      prev.map((e) => (e.id === selected.id ? updated : e))
-    );
-
-    setSelected(updated);
   }
 
   async function convertToClient() {
     if (!selected) return;
-
-    const persistedClient = (records.clients ?? []).find(
-      (client) => String(client.name).toLowerCase() === selected.company.toLowerCase()
-    );
-
-    if (!persistedClient) {
-      let clientId: string | null = null;
-      let contactId: string | null = null;
-      try {
-        const clientRow = await create('clients', { name: selected.company, client_type: 'company', status: 'active' });
-        clientId = clientRow.id;
-        const parts = selected.client.trim().split(/\s+/);
-        const contactRow = await create('contacts', { client_id: clientRow.id, first_name: parts[0] || selected.client, last_name: parts.slice(1).join(' ') || null, email: selected.email || null, phone: selected.phone || null, is_primary: true });
-        contactId = contactRow.id;
-        // The shared data context adds the saved row to records; the client list
-        // derives from that live snapshot plus the immutable demo fixtures.
-      } catch (error) {
-        if (contactId) await remove('contacts', contactId).catch(() => undefined);
-        if (clientId) await remove('clients', clientId).catch(() => undefined);
-        console.error('Unable to convert enquiry:', error);
-        window.alert(error instanceof Error ? error.message : 'Unable to convert this enquiry.');
-        return;
-      }
+    try {
+      const { error } = await supabase.rpc('convert_crm_enquiry_to_client', {
+        p_enquiry_id: selected.id,
+      });
+      if (error) throw error;
+      await refresh();
+      setSelected({ ...selected, stage: 'Won' });
+    } catch (error) {
+      console.error('Unable to convert enquiry:', error);
+      window.alert(error instanceof Error ? error.message : 'Unable to convert this enquiry.');
     }
+  }
 
-    if (persistedClient && persistedClient.status !== 'active') {
-      void update('clients', persistedClient.id, { status: 'active' }).catch((error) => window.alert(error.message));
+  async function markLost() {
+    if (!selected) return;
+    try {
+      await update('enquiries', selected.id, { status: 'lost' });
+      setSelected({ ...selected, stage: 'Lost' });
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : 'Unable to mark this enquiry as lost.');
     }
-    if (isUuid(selected.id)) {
-      void update('enquiries', selected.id, { status: 'won' }).catch((error) => window.alert(error.message));
-    }
-
-    const updated = {
-      ...selected,
-      stage: 'Won' as EnquiryStage,
-    };
-
-    setEnquiries((prev) =>
-      prev.map((e) => (e.id === selected.id ? updated : e))
-    );
-
-    setSelected(updated);
   }
 
   return (
@@ -364,12 +306,18 @@ export function Enquiries() {
                   </button>
                 )}
 
-              {selected.stage !== 'Won' && (
+              {selected.stage !== 'Won' && selected.stage !== 'Lost' && (
                 <button
                   onClick={convertToClient}
                   className="text-sm font-medium text-gray-600 px-4 py-2 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
                 >
                   Convert to Client
+                </button>
+              )}
+
+              {selected.stage !== 'Won' && selected.stage !== 'Lost' && (
+                <button onClick={markLost} className="text-sm font-medium text-red-600 px-4 py-2 rounded-lg border border-red-200 hover:bg-red-50 transition-colors">
+                  Mark Lost
                 </button>
               )}
             </div>
@@ -488,15 +436,14 @@ export function Enquiries() {
 }
 
 export function Clients() {
-  const { create, remove, records } = useBuildFlowData();
+  const { refresh, records } = useBuildFlowData();
   const liveClients: Client[] = (records.clients ?? []).map((row) => {
     const contact = (records.contacts ?? []).find((item) => item.client_id === row.id && item.is_primary) ?? (records.contacts ?? []).find((item) => item.client_id === row.id);
     return { id: row.id, name: contact ? [contact.first_name, contact.last_name].filter(Boolean).join(' ') : String(row.name ?? ''), company: String(row.name ?? ''), email: String(contact?.email ?? row.email ?? ''), phone: String(contact?.phone ?? row.phone ?? ''), activeProjects: (records.projects ?? []).filter((project) => project.client_id === row.id && project.status === 'active').length, accountBalance: 0, status: row.status === 'prospect' ? 'Prospect' : row.status === 'inactive' ? 'Inactive' : 'Active', since: String(row.created_at ?? '').slice(0, 7) } as Client;
   });
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<Client | null>(null);
-  // Always derive from immutable demo fixtures and the latest live snapshot.
-  const clients = preserveDemoRows(liveClients, initialClients);
+  const clients = liveClients;
 
   const [showNew, setShowNew] = useState(false);
 
@@ -514,31 +461,24 @@ export function Clients() {
   );
 
   async function createClient() {
-    if (!form.name || !form.company) return;
-
-    let clientId: string | null = null;
-    let contactId: string | null = null;
+    if (!form.name.trim() || !form.company.trim()) return;
+    const parts = form.name.trim().split(/\\s+/);
     try {
-      const clientRow = await create('clients', { name: form.company, client_type: 'company', email: form.email || null, phone: form.phone || null, status: 'active' });
-      clientId = clientRow.id;
-      const parts = form.name.trim().split(/\s+/);
-      const contactRow = await create('contacts', { client_id: clientRow.id, first_name: parts[0] || form.name, last_name: parts.slice(1).join(' ') || null, email: form.email || null, phone: form.phone || null, is_primary: true });
-      contactId = contactRow.id;
+      const { error } = await supabase.rpc('create_crm_client', {
+        p_company_name: form.company.trim(),
+        p_contact_first_name: parts[0],
+        p_contact_last_name: parts.slice(1).join(' ') || null,
+        p_email: form.email.trim() || null,
+        p_phone: form.phone.trim() || null,
+      });
+      if (error) throw error;
+      await refresh();
+      setForm({ name: '', company: '', phone: '', email: '' });
+      setShowNew(false);
     } catch (error) {
-      if (contactId) await remove('contacts', contactId).catch(() => undefined);
-      if (clientId) await remove('clients', clientId).catch(() => undefined);
       console.error('Unable to save client to BuildFlow:', error);
       window.alert(error instanceof Error ? error.message : 'Unable to save this client. Please try again.');
-      return;
     }
-    setForm({
-      name: '',
-      company: '',
-      phone: '',
-      email: '',
-    });
-
-    setShowNew(false);
   }
 
   return (

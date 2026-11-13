@@ -12,10 +12,8 @@ import { Card, CardHeader, CardBody, StatCard } from '@/components/ui/Card';
 import { Table, Th, Td, Tr } from '@/components/ui/Table';
 import { StatusBadge, Badge } from '@/components/ui/Badge';
 import {
-  tasks as mockTasks,
   calendarEvents,
   boqItems as mockBoqItems,
-  purchaseRequests as mockPurchaseRequests,
   suppliers as mockSuppliers,
   inventory as mockInventory,
   type Task,
@@ -28,8 +26,8 @@ import { useBuildFlowData } from '@/context/BuildFlowDataContext';
 export function TasksCalendar() {
   const { create, update, records } = useBuildFlowData();
   const projectById = new Map((records.projects ?? []).map((row) => [row.id, row]));
-  const liveTasks: Task[] = records.tasks?.length ? records.tasks.map((row) => ({ id: row.id, title: String(row.title ?? ''), project: String(projectById.get(String(row.project_id))?.name ?? 'Unassigned project'), assignee: 'Unassigned', dueDate: String(row.due_date ?? ''), priority: row.priority === 'high' || row.priority === 'urgent' ? 'High' : row.priority === 'low' ? 'Low' : 'Medium', status: row.status === 'completed' ? 'Done' : row.status === 'in_progress' ? 'In Progress' : row.status === 'blocked' ? 'Review' : 'To Do' } as Task)) : mockTasks;
-  const liveCalendarEvents = records.calendar_events?.length ? records.calendar_events.map((row) => ({ id: row.id, title: String(row.title ?? ''), date: String(row.start_at ?? '').slice(0, 10), time: String(row.start_at ?? '').slice(11, 16), type: row.event_type === 'inspection' ? 'inspection' : row.event_type === 'deadline' ? 'deadline' : row.event_type === 'client-meeting' ? 'client-meeting' : row.event_type === 'site-meeting' ? 'site-meeting' : 'project-meeting', project: String(projectById.get(String(row.project_id))?.name ?? 'General') } as (typeof calendarEvents)[number])) : calendarEvents;
+  const liveTasks: Task[] = (records.tasks ?? []).map((row) => ({ id: row.id, title: String(row.title ?? ''), project: String(projectById.get(String(row.project_id))?.name ?? 'Unassigned project'), assignee: 'Unassigned', dueDate: String(row.due_date ?? ''), priority: row.priority === 'high' || row.priority === 'urgent' ? 'High' : row.priority === 'low' ? 'Low' : 'Medium', status: row.status === 'completed' ? 'Done' : row.status === 'in_progress' ? 'In Progress' : row.status === 'blocked' ? 'Review' : 'To Do' } as Task));
+  const liveCalendarEvents = (records.calendar_events ?? []).map((row) => ({ id: row.id, title: String(row.title ?? ''), date: String(row.start_at ?? '').slice(0, 10), time: String(row.start_at ?? '').slice(11, 16), type: row.event_type === 'inspection' ? 'inspection' : row.event_type === 'deadline' ? 'deadline' : row.event_type === 'client-meeting' ? 'client-meeting' : row.event_type === 'site-meeting' ? 'site-meeting' : 'project-meeting', project: String(projectById.get(String(row.project_id))?.name ?? 'General') } as (typeof calendarEvents)[number]));
   const [tab, setTab] = useState<'tasks' | 'calendar'>('tasks');
   const [statusFilter, setStatusFilter] = useState<string>('All');
   const [taskItems, setTaskItems] = useState(liveTasks);
@@ -465,7 +463,7 @@ function CalendarView({
 export function BOQEstimates() {
   const { records, create, remove } = useBuildFlowData();
   const projectById = new Map((records.projects ?? []).map((row) => [row.id, row]));
-  const liveBoqItems = records.boq_items?.length ? records.boq_items.map((row) => ({ id: row.id, item: String(row.item_code ?? row.description ?? ''), description: String(row.description ?? ''), qty: Number(row.quantity ?? 1), unit: String(row.unit ?? ''), unitCost: Number(row.unit_rate ?? 0), category: String(row.category ?? 'Materials'), project: String(projectById.get(String(row.project_id))?.name ?? 'Unassigned project') } as (typeof mockBoqItems)[number])) : mockBoqItems;
+  const liveBoqItems = (records.boq_items ?? []).map((row) => ({ id: row.id, item: String(row.item_code ?? row.description ?? ''), description: String(row.description ?? ''), qty: Number(row.quantity ?? 1), unit: String(row.unit ?? ''), unitCost: Number(row.unit_rate ?? 0), category: String(row.category ?? 'Materials'), project: String(projectById.get(String(row.project_id))?.name ?? 'Unassigned project') } as (typeof mockBoqItems)[number]));
   const [projectFilter, setProjectFilter] = useState('All');
   const [items, setItems] = useState(liveBoqItems);
 
@@ -632,7 +630,7 @@ export function BOQEstimates() {
 export function Procurement() {
   const { create, records } = useBuildFlowData();
   const projectById = new Map((records.projects ?? []).map((row) => [row.id, row]));
-  const liveRequests = records.purchase_requests?.length ? records.purchase_requests.map((row) => ({ id: String(row.request_number ?? row.id), item: String(row.description ?? ''), project: String(projectById.get(String(row.project_id))?.name ?? 'Unassigned project'), qty: 1, unit: 'item', estCost: Number(row.estimated_amount ?? 0), requestedBy: 'Team member', date: String(row.created_at ?? '').slice(0, 10), status: row.status === 'approved' ? 'Approved' : row.status === 'ordered' ? 'PO Issued' : row.status === 'delivered' ? 'Delivered' : row.status === 'rejected' ? 'Rejected' : 'Requested', supplier: 'Pending' } as PurchaseRequest)) : mockPurchaseRequests;
+  const liveRequests = (records.purchase_requests ?? []).map((row) => ({ id: String(row.request_number ?? row.id), item: String(row.description ?? ''), project: String(projectById.get(String(row.project_id))?.name ?? 'Unassigned project'), qty: 1, unit: 'item', estCost: Number(row.estimated_amount ?? 0), requestedBy: 'Team member', date: String(row.created_at ?? '').slice(0, 10), status: row.status === 'approved' ? 'Approved' : row.status === 'ordered' ? 'PO Issued' : row.status === 'delivered' ? 'Delivered' : row.status === 'rejected' ? 'Rejected' : 'Requested', supplier: 'Pending' } as PurchaseRequest));
   const [statusFilter, setStatusFilter] = useState('All');
   const [requests, setRequests] = useState(liveRequests);
   const [showModal, setShowModal] = useState(false);
@@ -899,7 +897,7 @@ export function Procurement() {
 }
 export function Suppliers() {
   const { records } = useBuildFlowData();
-  const supplierRows = records.suppliers?.length ? records.suppliers.map((row) => ({ id: row.id, name: String(row.name ?? ''), category: 'Supplier', contact: String(row.contact_name ?? ''), phone: String(row.phone ?? ''), email: String(row.email ?? ''), rating: 0, totalOrders: 0, outstandingBalance: 0, status: row.status === 'inactive' ? 'Inactive' : 'Active' } as (typeof mockSuppliers)[number])) : mockSuppliers;
+  const supplierRows = (records.suppliers ?? []).map((row) => ({ id: row.id, name: String(row.name ?? ''), category: 'Supplier', contact: String(row.contact_name ?? ''), phone: String(row.phone ?? ''), email: String(row.email ?? ''), rating: 0, totalOrders: 0, outstandingBalance: 0, status: row.status === 'inactive' ? 'Inactive' : 'Active' } as (typeof mockSuppliers)[number]));
   return (
     <div className="space-y-6">
       <div>
@@ -950,7 +948,7 @@ export function Suppliers() {
 
 export function Inventory() {
   const { records } = useBuildFlowData();
-  const inventoryRows = records.inventory_items?.length ? records.inventory_items.map((row) => ({ id: row.id, material: String(row.name ?? ''), category: String(row.category ?? ''), stock: Number(row.quantity_on_hand ?? 0), allocated: 0, reorderLevel: Number(row.reorder_level ?? 0), unit: String(row.unit ?? ''), unitCost: Number(row.unit_cost ?? 0) } as (typeof mockInventory)[number])) : mockInventory;
+  const inventoryRows = (records.inventory_items ?? []).map((row) => ({ id: row.id, material: String(row.name ?? ''), category: String(row.category ?? ''), stock: Number(row.quantity_on_hand ?? 0), allocated: 0, reorderLevel: Number(row.reorder_level ?? 0), unit: String(row.unit ?? ''), unitCost: Number(row.unit_cost ?? 0) } as (typeof mockInventory)[number]));
   return (
     <div className="space-y-6">
       <div>

@@ -1,282 +1,233 @@
-import { useState } from 'react';
-import {
-  Building2,
-  DollarSign,
-  CheckCircle2,
-  Clock,
-  MessageSquare,
-  Download,
-  Eye,
-  ArrowLeft,
-  TrendingUp,
-} from 'lucide-react';
-import { Card, CardHeader, CardBody, StatCard } from '@/components/ui/Card';
-import { Table, Th, Td, Tr } from '@/components/ui/Table';
-import { Badge, StatusBadge, HealthBadge } from '@/components/ui/Badge';
-import { ProgressBar } from '@/components/ui/ProgressBar';
-import { projects, projectUpdates, invoices, projectDocuments } from '@/data/mockData';
-import { formatCurrency, formatFullCurrency, formatDate, formatDateShort } from '@/utils/format';
+import { useCallback, useEffect, useState } from 'react';
+import { Building2, LogOut, Loader2, MapPin, CalendarDays, RefreshCw, AlertCircle, CheckCircle2 } from 'lucide-react';
+import type { ClientAccess } from '@/context/AuthContext';
+import { supabase } from '@/lib/supabase';
 
-export function ClientPortal({ onExit }: { onExit: () => void }) {
-  const [selectedProject, setSelectedProject] = useState(projects[0]);
+interface SharedProject {
+  project_id: string;
+  project_name: string;
+  project_code: string | null;
+  description: string | null;
+  location: string | null;
+  project_status: string | null;
+  health_status: string | null;
+  start_date: string | null;
+  expected_completion_date: string | null;
+  progress_percent: number | null;
+  can_view_progress: boolean;
+  can_view_updates: boolean;
+  can_view_documents: boolean;
+  can_view_financials: boolean;
+}
 
-  const projectInvoices = invoices.filter((i) => i.project === selectedProject.name);
-  const projectDocs = projectDocuments.filter((d) => d.projectId === selectedProject.id);
-  const projectUpdatesFiltered = projectUpdates.filter((u) => u.projectId === selectedProject.id);
-  const paid = projectInvoices.filter((i) => i.status === 'Paid').reduce((s, i) => s + i.paidAmount, 0);
-  const outstanding = projectInvoices.filter((i) => i.status !== 'Paid').reduce((s, i) => s + (i.amount - i.paidAmount), 0);
+interface SharedUpdate {
+  update_id: string;
+  title: string | null;
+  content: string | null;
+  progress_percent: number | null;
+  created_at: string;
+}
+
+function formatDate(value: string | null) {
+  if (!value) return 'Not specified';
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime())
+    ? 'Not specified'
+    : new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(parsed);
+}
+
+export function ClientPortal({ clientAccess, onSignOut }: {
+  clientAccess: ClientAccess;
+  onSignOut: () => void;
+}) {
+  const [projects, setProjects] = useState<SharedProject[]>([]);
+  const [updates, setUpdates] = useState<SharedUpdate[]>([]);
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+  const [loadingProjects, setLoadingProjects] = useState(true);
+  const [loadingUpdates, setLoadingUpdates] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [updatesError, setUpdatesError] = useState<string | null>(null);
+
+  const loadProjects = useCallback(async () => {
+    setLoadingProjects(true);
+    setError(null);
+    const { data, error: queryError } = await supabase.rpc('get_client_portal_projects');
+    if (queryError) {
+      setProjects([]);
+      setSelectedProjectId(null);
+      setError('We could not load your shared projects. Please try again or contact the project administrator.');
+    } else {
+      const rows = (data ?? []) as SharedProject[];
+      setProjects(rows);
+      setSelectedProjectId((current) =>
+        current && rows.some((project) => project.project_id === current)
+          ? current
+          : rows[0]?.project_id ?? null
+      );
+    }
+    setLoadingProjects(false);
+  }, []);
+
+  const loadUpdates = useCallback(async (projectId: string) => {
+    setLoadingUpdates(true);
+    setUpdatesError(null);
+    const { data, error: queryError } = await supabase.rpc('get_client_portal_updates', {
+      target_project_id: projectId,
+    });
+    if (queryError) {
+      setUpdates([]);
+      setUpdatesError('Project updates are temporarily unavailable.');
+    } else {
+      setUpdates((data ?? []) as SharedUpdate[]);
+    }
+    setLoadingUpdates(false);
+  }, []);
+
+  useEffect(() => { void loadProjects(); }, [loadProjects]);
+
+  const selectedProject = projects.find((project) => project.project_id === selectedProjectId) ?? null;
+
+  useEffect(() => {
+    if (selectedProject?.can_view_updates) void loadUpdates(selectedProject.project_id);
+    else setUpdates([]);
+  }, [selectedProject?.project_id, selectedProject?.can_view_updates, loadUpdates]);
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Client portal header */}
-      <div className="bg-gradient-to-r from-navy-800 to-navy-900 text-white">
-        <div className="max-w-6xl mx-auto px-4 lg:px-6 py-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-11 h-11 rounded-lg bg-white/10 flex items-center justify-center">
-                <Building2 size={24} />
-              </div>
-              <div>
-                <h1 className="text-lg font-bold">BuildFlow — Client Portal Preview</h1>
-                <p className="text-xs text-navy-300">Welcome back, {selectedProject.client}</p>
-              </div>
+    <div className="min-h-screen bg-slate-50">
+      <header className="bg-slate-950 text-white">
+        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-5 lg:px-6">
+          <div className="flex items-center gap-3">
+            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/10">
+              <Building2 size={23} />
             </div>
-            <button
-              onClick={onExit}
-              className="flex items-center gap-1.5 text-sm bg-white/10 hover:bg-white/20 px-3 py-1.5 rounded-lg transition-colors"
-            >
-              <ArrowLeft size={14} /> Back to Construction OS
+            <div>
+              <p className="text-lg font-bold tracking-tight">BuildFlow</p>
+              <p className="text-xs text-slate-300">Client project portal</p>
+            </div>
+          </div>
+          <button onClick={onSignOut} className="inline-flex items-center gap-2 rounded-lg border border-white/15 px-3 py-2 text-sm text-slate-200 hover:bg-white/10">
+            <LogOut size={15} /> Sign out
+          </button>
+        </div>
+      </header>
+
+      <main className="mx-auto max-w-6xl space-y-6 px-4 py-8 lg:px-6">
+        <section>
+          <p className="text-sm font-medium text-blue-700">Welcome</p>
+          <h1 className="mt-1 text-2xl font-bold text-slate-900">{clientAccess.client_name}</h1>
+          <p className="mt-1 text-sm text-slate-500">Projects and updates that have been explicitly shared with your account.</p>
+        </section>
+
+        {loadingProjects ? (
+          <div className="flex items-center justify-center rounded-2xl border border-slate-200 bg-white py-16 text-slate-500">
+            <Loader2 className="mr-2 animate-spin" size={20} /> Loading your shared projects...
+          </div>
+        ) : error ? (
+          <div role="alert" className="rounded-2xl border border-rose-200 bg-white p-6">
+            <div className="flex items-start gap-3 text-rose-700">
+              <AlertCircle className="mt-0.5 shrink-0" size={19} />
+              <p className="text-sm">{error}</p>
+            </div>
+            <button onClick={() => void loadProjects()} className="mt-4 inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white">
+              <RefreshCw size={14} /> Retry
             </button>
           </div>
-        </div>
-      </div>
-
-      <div className="max-w-6xl mx-auto px-4 lg:px-6 py-6 space-y-6">
-        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800">
-          Client Portal preview — this area is still using sample records. Live client access will be enabled only after client-specific identity and project-level permissions are in place.
-        </div>
-        {/* Project selector */}
-        <div className="flex items-center gap-2 overflow-x-auto pb-1">
-          {projects.map((p) => (
-            <button
-              key={p.id}
-              onClick={() => setSelectedProject(p)}
-              className={`px-3 py-2 text-sm font-medium rounded-lg whitespace-nowrap transition-colors ${
-                selectedProject.id === p.id ? 'bg-brand-600 text-white' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
-              }`}
-            >
-              {p.name}
-            </button>
-          ))}
-        </div>
-
-        {/* Project overview stats */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <StatCard label="Progress" value={`${selectedProject.progress}%`} icon={<TrendingUp size={20} />} accent="blue" />
-          <StatCard label="Contract Value" value={formatCurrency(selectedProject.contractValue)} icon={<DollarSign size={20} />} accent="green" />
-          <StatCard label="Paid" value={formatCurrency(paid)} icon={<CheckCircle2 size={20} />} accent="green" />
-          <StatCard label="Outstanding" value={formatCurrency(outstanding)} icon={<Clock size={20} />} accent="red" />
-        </div>
-
-        {/* Progress + timeline */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <Card className="lg:col-span-2">
-            <CardHeader title="Project Progress" subtitle={selectedProject.name} />
-            <CardBody>
-              <div className="space-y-4">
-                <div>
-                  <div className="flex items-center justify-between text-sm mb-2">
-                    <span className="text-gray-500">Overall Completion</span>
-                    <span className="font-semibold text-gray-700">{selectedProject.progress}%</span>
-                  </div>
-                  <ProgressBar
-                    value={selectedProject.progress}
-                    color={selectedProject.health === 'on-track' ? 'green' : selectedProject.health === 'at-risk' ? 'amber' : 'red'}
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-4 mt-4">
-                  <div>
-                    <p className="text-xs text-gray-400">Start Date</p>
-                    <p className="text-sm text-gray-700 font-medium">{formatDate(selectedProject.startDate)}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-400">Expected Completion</p>
-                    <p className="text-sm text-gray-700 font-medium">{formatDate(selectedProject.deadline)}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-400">Project Manager</p>
-                    <p className="text-sm text-gray-700 font-medium">{selectedProject.manager}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-400">Status</p>
-                    <div className="mt-0.5"><HealthBadge health={selectedProject.health} /></div>
-                  </div>
-                </div>
-              </div>
-            </CardBody>
-          </Card>
-
-          <Card>
-            <CardHeader title="Latest Updates" />
-            <CardBody>
-              <div className="space-y-3">
-                {projectUpdatesFiltered.slice(0, 3).map((u) => (
-                  <div key={u.id} className="flex items-start gap-2">
-                    <div className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${
-                      u.type === 'milestone' ? 'bg-emerald-500' :
-                      u.type === 'issue' ? 'bg-red-500' :
-                      u.type === 'client' ? 'bg-blue-500' : 'bg-gray-400'
-                    }`} />
-                    <div>
-                      <p className="text-xs text-gray-700">{u.message}</p>
-                      <p className="text-[10px] text-gray-400 mt-0.5">{u.author} · {formatDateShort(u.date)}</p>
-                    </div>
-                  </div>
+        ) : projects.length === 0 ? (
+          <div className="rounded-2xl border border-slate-200 bg-white px-6 py-16 text-center">
+            <Building2 className="mx-auto text-slate-300" size={34} />
+            <h2 className="mt-4 text-lg font-semibold text-slate-900">No projects shared yet</h2>
+            <p className="mt-1 text-sm text-slate-500">Your project administrator has not shared a project with this account.</p>
+          </div>
+        ) : (
+          <>
+            {projects.length > 1 && (
+              <div className="flex flex-wrap gap-2">
+                {projects.map((project) => (
+                  <button key={project.project_id} onClick={() => setSelectedProjectId(project.project_id)}
+                    className={`rounded-lg px-4 py-2 text-sm font-medium ${selectedProjectId === project.project_id ? 'bg-blue-700 text-white' : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-100'}`}>
+                    {project.project_name}
+                  </button>
                 ))}
               </div>
-            </CardBody>
-          </Card>
-        </div>
+            )}
 
-        {/* Progress photos */}
-        <Card>
-          <CardHeader title="Progress Photos" subtitle="Recent site photographs" />
-          <CardBody>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              {[
-                { label: 'Foundation Pour', date: 'Sep 1', color: 'from-blue-400 to-blue-600' },
-                { label: 'Ground Floor', date: 'Aug 15', color: 'from-emerald-400 to-emerald-600' },
-                { label: 'First Floor Slab', date: 'Aug 28', color: 'from-orange-400 to-orange-600' },
-                { label: 'Site Overview', date: 'Sep 5', color: 'from-navy-400 to-navy-600' },
-              ].map((p) => (
-                <div key={p.label} className="relative group cursor-pointer">
-                  <div className={`h-32 rounded-lg bg-gradient-to-br ${p.color} flex items-end p-3`}>
-                    <div className="text-white">
-                      <p className="text-sm font-semibold">{p.label}</p>
-                      <p className="text-xs opacity-80">{p.date}</p>
+            {selectedProject && (
+              <section className="space-y-5">
+                <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-blue-700">{selectedProject.project_code || 'Shared project'}</p>
+                      <h2 className="mt-1 text-xl font-bold text-slate-900">{selectedProject.project_name}</h2>
+                      {selectedProject.description && <p className="mt-2 max-w-3xl text-sm text-slate-600">{selectedProject.description}</p>}
                     </div>
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700">
+                      <CheckCircle2 size={14} /> Shared with you
+                    </span>
                   </div>
-                  <div className="absolute inset-0 rounded-lg bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
-                    <Eye size={20} className="text-white opacity-0 group-hover:opacity-100 transition-opacity" />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardBody>
-        </Card>
 
-        {/* Invoices & Documents */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <Card>
-            <CardHeader title="Invoices & Payments" subtitle={`${projectInvoices.length} invoices`} />
-            <CardBody className="p-0">
-              <Table>
-                <thead>
-                  <tr>
-                    <Th>Invoice</Th>
-                    <Th>Amount</Th>
-                    <Th>Due Date</Th>
-                    <Th>Status</Th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {projectInvoices.map((inv) => (
-                    <Tr key={inv.id}>
-                      <Td className="font-mono text-xs text-gray-400">{inv.id}</Td>
-                      <Td className="font-medium text-gray-700">{formatFullCurrency(inv.amount)}</Td>
-                      <Td className="text-gray-500 text-xs">{formatDateShort(inv.dueDate)}</Td>
-                      <Td><StatusBadge status={inv.status} /></Td>
-                    </Tr>
-                  ))}
-                </tbody>
-              </Table>
-              <div className="px-5 py-3 bg-gray-50/50 border-t border-gray-100 flex items-center justify-between">
-                <span className="text-sm text-gray-500">Outstanding Balance</span>
-                <span className="text-sm font-bold text-red-600">{formatFullCurrency(outstanding)}</span>
-              </div>
-            </CardBody>
-          </Card>
+                  {selectedProject.location && (
+                    <p className="mt-5 flex items-center gap-2 text-sm text-slate-500"><MapPin size={15} /> {selectedProject.location}</p>
+                  )}
 
-          <Card>
-            <CardHeader title="Documents" subtitle={`${projectDocs.length} documents`} />
-            <CardBody className="p-0">
-              <Table>
-                <thead>
-                  <tr>
-                    <Th>Name</Th>
-                    <Th>Type</Th>
-                    <Th>Date</Th>
-                    <Th></Th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {projectDocs.map((d) => (
-                    <Tr key={d.id}>
-                      <Td className="font-medium text-gray-700 text-xs">{d.name}</Td>
-                      <Td><Badge variant="blue">{d.type}</Badge></Td>
-                      <Td className="text-gray-500 text-xs">{formatDateShort(d.date)}</Td>
-                      <Td><button className="text-gray-400 hover:text-gray-600"><Download size={14} /></button></Td>
-                    </Tr>
-                  ))}
-                </tbody>
-              </Table>
-            </CardBody>
-          </Card>
-        </div>
+                  {selectedProject.can_view_progress && (
+                    <div className="mt-6 border-t border-slate-100 pt-5">
+                      <div className="flex items-center justify-between gap-3">
+                        <h3 className="text-sm font-semibold text-slate-800">Project progress</h3>
+                        <span className="text-lg font-bold tabular-nums text-slate-900">{Number(selectedProject.progress_percent ?? 0)}%</span>
+                      </div>
+                      <div className="mt-3 h-2.5 overflow-hidden rounded-full bg-slate-100">
+                        <div className="h-full rounded-full bg-blue-600" style={{ width: `${Math.max(0, Math.min(100, Number(selectedProject.progress_percent ?? 0)))}%` }} />
+                      </div>
+                      <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                        <div className="flex items-start gap-2 text-sm text-slate-600">
+                          <CalendarDays size={16} className="mt-0.5 text-slate-400" />
+                          <span>Start date<br /><strong className="font-medium text-slate-800">{formatDate(selectedProject.start_date)}</strong></span>
+                        </div>
+                        <div className="flex items-start gap-2 text-sm text-slate-600">
+                          <CalendarDays size={16} className="mt-0.5 text-slate-400" />
+                          <span>Expected completion<br /><strong className="font-medium text-slate-800">{formatDate(selectedProject.expected_completion_date)}</strong></span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
 
-        {/* Approvals + Messages */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <Card>
-            <CardHeader title="Pending Approvals" />
-            <CardBody>
-              <div className="space-y-3">
-                <div className="flex items-center justify-between p-3 border border-gray-200 rounded-lg">
-                  <div>
-                    <p className="text-sm font-medium text-gray-700">BOQ Revision — Phase 2</p>
-                    <p className="text-xs text-gray-400 mt-0.5">Submitted by Tafadzwa Moyo · 2 days ago</p>
+                {selectedProject.can_view_updates && (
+                  <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                    <h3 className="font-semibold text-slate-900">Project updates</h3>
+                    {loadingUpdates ? (
+                      <p className="mt-4 flex items-center gap-2 text-sm text-slate-500"><Loader2 size={16} className="animate-spin" /> Loading updates...</p>
+                    ) : updatesError ? (
+                      <p role="alert" className="mt-4 text-sm text-rose-700">{updatesError}</p>
+                    ) : updates.length === 0 ? (
+                      <p className="mt-3 text-sm text-slate-500">No project updates have been published yet.</p>
+                    ) : (
+                      <ul className="mt-4 divide-y divide-slate-100">
+                        {updates.map((update) => (
+                          <li key={update.update_id} className="py-4 first:pt-0 last:pb-0">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <p className="text-sm font-semibold text-slate-800">{update.title || 'Project update'}</p>
+                              <time className="text-xs text-slate-400">{formatDate(update.created_at)}</time>
+                            </div>
+                            {update.content && <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-600">{update.content}</p>}
+                            {update.progress_percent !== null && <p className="mt-2 text-xs font-medium text-blue-700">Reported progress: {update.progress_percent}%</p>}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
                   </div>
-                  <div className="flex items-center gap-2">
-                    <button className="text-xs font-medium text-emerald-600 hover:text-emerald-700 px-3 py-1.5 rounded-lg border border-emerald-200 hover:bg-emerald-50">Approve</button>
-                    <button className="text-xs font-medium text-red-600 hover:text-red-700 px-3 py-1.5 rounded-lg border border-red-200 hover:bg-red-50">Reject</button>
-                  </div>
-                </div>
-                <div className="flex items-center justify-between p-3 border border-gray-200 rounded-lg">
-                  <div>
-                    <p className="text-sm font-medium text-gray-700">Variation Order — Pool Design Change</p>
-                    <p className="text-xs text-gray-400 mt-0.5">Submitted by Tafadzwa Moyo · 5 days ago</p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button className="text-xs font-medium text-emerald-600 hover:text-emerald-700 px-3 py-1.5 rounded-lg border border-emerald-200 hover:bg-emerald-50">Approve</button>
-                    <button className="text-xs font-medium text-red-600 hover:text-red-700 px-3 py-1.5 rounded-lg border border-red-200 hover:bg-red-50">Reject</button>
-                  </div>
-                </div>
-              </div>
-            </CardBody>
-          </Card>
+                )}
 
-          <Card>
-            <CardHeader title="Messages" subtitle="Communication with your project team" />
-            <CardBody>
-              <div className="space-y-3">
-                <div className="bg-gray-50 rounded-lg p-3">
-                  <p className="text-sm text-gray-700">Hi, can we schedule a site visit next week? I want to see the progress on the 2nd floor.</p>
-                  <p className="text-xs text-gray-400 mt-1">You · 10:42 AM</p>
-                </div>
-                <div className="bg-blue-50 rounded-lg p-3">
-                  <p className="text-sm text-gray-700">Good morning! We can arrange a visit for Wednesday at 10 AM. Does that work for you?</p>
-                  <p className="text-xs text-gray-400 mt-1">Tafadzwa Moyo · 11:05 AM</p>
-                </div>
-                <div className="flex items-center gap-2 pt-2 border-t border-gray-100">
-                  <input placeholder="Type a message..." className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none" />
-                  <button className="bg-brand-600 text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-brand-700">
-                    <MessageSquare size={14} />
-                  </button>
-                </div>
-              </div>
-            </CardBody>
-          </Card>
-        </div>
-      </div>
+                {(selectedProject.can_view_documents || selectedProject.can_view_financials) && (
+                  <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                    Additional document or financial sharing is recorded for this project, but those portal sections are not enabled in this pilot interface yet. No document or financial records are displayed here.
+                  </div>
+                )}
+              </section>
+            )}
+          </>
+        )}
+      </main>
     </div>
   );
 }
