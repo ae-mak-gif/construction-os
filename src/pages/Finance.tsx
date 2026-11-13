@@ -19,7 +19,7 @@ const dueDateValue = () => new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISO
 
 export function Finance() {
   const { records, create, update, refresh } = useBuildFlowData();
-  const { membership, user } = useAuth();
+  const { membership } = useAuth();
   const [canCreateFinance, setCanCreateFinance] = useState(false);
   const [canApproveFinance, setCanApproveFinance] = useState(false);
   const [activeForm, setActiveForm] = useState<FinanceForm>(null);
