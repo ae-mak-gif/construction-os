@@ -91,13 +91,15 @@ The current release does not yet have a verified end-to-end subscription/entitle
 
 **Implementation connected; live browser smoke test still required.**
 - Replaced the old predefined-response demo UI with a real authenticated chat interface.
-- Added a same-origin Vercel API proxy that forwards the caller's Supabase JWT and Vercel's rotating OIDC token to the Supabase `vea-chat` Edge Function.
-- VEA uses Vercel AI Gateway with model `openai/gpt-4.1-mini`, which is present in the current Gateway model catalogue.
+- Added a same-origin Vercel API proxy that forwards the caller's Supabase JWT to the Supabase `vea-chat` Edge Function; Vercel OIDC is no longer part of the model-provider path.
+- Replaced Vercel AI Gateway with the direct Groq OpenAI-compatible chat-completions API using `openai/gpt-oss-20b` on Groq's free developer tier.
+- The Development Supabase Edge Function now reads `GROQ_API_KEY` from the project secret store; the key must never be placed in source control or browser code.
+- The model context/history and output token budget were reduced to fit the free-tier rate limits.
 - The first-wave agents are Executive Orchestrator, Project Intelligence, Finance Intelligence and Procurement Intelligence.
 - Context is organisation-scoped and read-only. VEA cannot write, approve, pay, purchase or execute external actions.
 - VEA runs and messages are recorded for audit and usage tracking.
 
-**Browser acceptance still required:** send a live question and verify a model-generated answer, conversation persistence and a successful run record. The Vercel OIDC/Gateway path and available credits cannot be declared runtime-verified until this smoke test succeeds.
+**Configuration and browser acceptance still required:** create a Groq API key, save it as `GROQ_API_KEY` in the Development Supabase Edge Function secrets, then send a live question and verify a model-generated answer, conversation persistence and a successful run record. The direct provider path is deployed, but it is not runtime-verified until the secret is configured and the smoke test succeeds.
 
 Workforce, document intelligence, accountability and safety specialist capabilities are explicitly outside this first-wave runtime.
 
@@ -127,7 +129,7 @@ Do not use real payment details or irreversible commercial records for testing. 
 
 ### Known release gates
 - Complete the Stage 5 browser acceptance tests.
-- Confirm the VEA live Gateway/OIDC smoke test and check available Gateway credits/usage.
+- Configure the Groq API key in Development Supabase secrets and complete the VEA live provider smoke test; confirm actual free-tier limits and data controls before expanding pilot use.
 - Complete the Finance invoice-to-payment browser test.
 - Implement and verify subscription/entitlement enforcement before any tier-based commercial launch.
 - Enable Supabase leaked-password protection before inviting external pilot users beyond the controlled test group. The current Supabase security advisor reports this protection is disabled.
