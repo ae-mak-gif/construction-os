@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
-import { ArrowRight, CheckCircle2, PackageCheck, Plus, ShoppingCart, Truck } from 'lucide-react';
+import { ArrowRight, PackageCheck, Plus } from 'lucide-react';
 import { Card, CardBody, CardHeader } from '@/components/ui/Card';
 import { StatusBadge } from '@/components/ui/Badge';
 import { useBuildFlowData } from '@/context/BuildFlowDataContext';
@@ -55,7 +55,7 @@ export function ProcurementWorkspace() {
     return () => { cancelled = true; };
   }, [membership?.organization_id]);
 
-  const projects = records.projects ?? [];
+  const projects = useMemo(() => records.projects ?? [], [records.projects]);
   const suppliers = (records.suppliers ?? []).filter((row) => row.status !== 'inactive');
   const inventory = (records.inventory_items ?? []).filter((row) => row.status === 'active');
   const projectById = useMemo(() => new Map(projects.map((row) => [row.id, row])), [projects]);
