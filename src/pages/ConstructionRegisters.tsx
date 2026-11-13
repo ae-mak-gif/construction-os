@@ -2,6 +2,7 @@ import { useMemo, useState, type FormEvent } from 'react';
 import { ClipboardCheck, FileText, HardHat, Plus, ShieldCheck, Truck } from 'lucide-react';
 import { Card, CardBody, CardHeader } from '@/components/ui/Card';
 import { useBuildFlowData } from '@/context/BuildFlowDataContext';
+import { supabase } from '@/lib/supabase';
 
 type Tab = 'safety' | 'rfis' | 'variations' | 'subcontractors';
 const tabs: { id: Tab; label: string; icon: typeof ShieldCheck }[] = [
@@ -14,7 +15,7 @@ const tabs: { id: Tab; label: string; icon: typeof ShieldCheck }[] = [
 export function ConstructionRegisters() {
   const [tab, setTab] = useState<Tab>('safety');
   const [projectId, setProjectId] = useState('');
-  const { records, create, update } = useBuildFlowData();
+  const { records, create, update, refresh } = useBuildFlowData();
   const projects = useMemo(() => records.projects ?? [], [records.projects]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -121,9 +122,32 @@ export function ConstructionRegisters() {
     if (!Number.isFinite(amount) || amount < 0) { setError('Enter a valid approved amount.'); return; }
     setError(''); setNotice('');
     try {
-      await update('contract_variations', id, { approved_amount: amount, status: 'approved', decided_at: new Date().toISOString() });
-      setNotice('Variation approval and approved amount saved.');
+      const { error: decisionError } = await supabase.rpc('decide_contract_variation', {
+        p_variation_id: id,
+        p_decision: 'approved',
+        p_approved_amount: amount,
+        p_decision_notes: null,
+      });
+      if (decisionError) throw decisionError;
+      await refresh();
+      setNotice('Variation approved. The project contract value has been revised atomically.');
     } catch (saveError) { setError(saveError instanceof Error ? saveError.message : 'Could not approve the variation.'); }
+  };
+
+  const rejectVariation = async (id: string) => {
+    if (!window.confirm('Reject this contract variation? The decision will be recorded and cannot be edited.')) return;
+    setError(''); setNotice('');
+    try {
+      const { error: decisionError } = await supabase.rpc('decide_contract_variation', {
+        p_variation_id: id,
+        p_decision: 'rejected',
+        p_approved_amount: null,
+        p_decision_notes: null,
+      });
+      if (decisionError) throw decisionError;
+      await refresh();
+      setNotice('Variation rejected and decision recorded.');
+    } catch (saveError) { setError(saveError instanceof Error ? saveError.message : 'Could not reject the variation.'); }
   };
 
   const projectName = (id: string) => String(projects.find((p) => p.id === id)?.name ?? 'Project');
@@ -188,8 +212,8 @@ export function ConstructionRegisters() {
         {tab === 'rfis' && <div className="space-y-3">{(records.project_rfis ?? []).filter((r) => !projectId || r.project_id === projectId).map((r) => <article key={r.id} className="rounded-lg border border-gray-200 p-3"><div className="flex flex-wrap justify-between gap-2"><div><p className="font-semibold text-sm text-gray-800">{String(r.rfi_number)} · {String(r.subject)}</p><p className="mt-1 text-xs text-gray-500">{projectName(String(r.project_id))} · {String(r.discipline ?? 'General')} · Due {String(r.due_date ?? '—')}</p></div><select aria-label="RFI status" value={String(r.status)} onChange={(e) => void updateStatus('project_rfis',r.id,'status',e.target.value)} className="rounded-md border border-gray-200 px-2 py-1 text-xs"><option value="open">Open</option><option value="under_review">Under review</option><option value="answered">Answered</option><option value="closed">Closed</option><option value="void">Void</option></select></div><p className="mt-2 text-sm text-gray-600">{String(r.question)}</p>{Boolean(r.response) && <p className="mt-2 rounded bg-emerald-50 p-2 text-sm text-emerald-800">{String(r.response)}</p>}
           <div className="mt-3 space-y-2"><textarea aria-label="RFI response" rows={2} value={rfiResponses[r.id] ?? ''} onChange={(e) => setRfiResponses((current) => ({ ...current, [r.id]: e.target.value }))} placeholder="Record the technical response or clarification..." className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm" /><div className="flex justify-end"><button type="button" onClick={() => void saveRfiResponse(r.id)} className="rounded-md bg-brand-600 px-3 py-2 text-xs font-semibold text-white">Save response</button></div></div>
           </article>)}{(records.project_rfis ?? []).length === 0 && <p className="py-6 text-center text-sm text-gray-500">No RFIs raised.</p>}</div>}
-        {tab === 'variations' && <div className="space-y-3">{(records.contract_variations ?? []).filter((r) => !projectId || r.project_id === projectId).map((r) => <article key={r.id} className="rounded-lg border border-gray-200 p-3"><div className="flex flex-wrap justify-between gap-2"><div><p className="font-semibold text-sm text-gray-800">{String(r.variation_number)} · {String(r.title)}</p><p className="mt-1 text-xs text-gray-500">{projectName(String(r.project_id))} · Submitted {String(r.submitted_amount ?? 0)} · EOT {String(r.time_extension_days ?? 0)} days</p></div><select aria-label="Variation status" value={String(r.status)} onChange={(e) => void updateStatus('contract_variations',r.id,'status',e.target.value)} className="rounded-md border border-gray-200 px-2 py-1 text-xs"><option value="draft">Draft</option><option value="submitted">Submitted</option><option value="under_review">Under review</option><option value="approved">Approved</option><option value="rejected">Rejected</option><option value="withdrawn">Withdrawn</option></select></div><p className="mt-2 text-sm text-gray-600">{String(r.reason ?? r.description ?? '')}</p>
-          {String(r.status) !== 'approved' && <div className="mt-3 flex flex-col gap-2 sm:flex-row"><input aria-label="Approved variation amount" type="number" min="0" step="0.01" value={approvedAmounts[r.id] ?? String(r.approved_amount ?? r.submitted_amount ?? 0)} onChange={(e) => setApprovedAmounts((current) => ({ ...current, [r.id]: e.target.value }))} className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm sm:w-48" /><button type="button" onClick={() => void approveVariation(r.id)} className="rounded-md bg-brand-600 px-3 py-2 text-xs font-semibold text-white">Approve at this amount</button></div>}
+        {tab === 'variations' && <div className="space-y-3">{(records.contract_variations ?? []).filter((r) => !projectId || r.project_id === projectId).map((r) => <article key={r.id} className="rounded-lg border border-gray-200 p-3"><div className="flex flex-wrap justify-between gap-2"><div><p className="font-semibold text-sm text-gray-800">{String(r.variation_number)} · {String(r.title)}</p><p className="mt-1 text-xs text-gray-500">{projectName(String(r.project_id))} · Submitted {String(r.submitted_amount ?? 0)} · EOT {String(r.time_extension_days ?? 0)} days</p></div><select aria-label="Variation status" value={String(r.status)} onChange={(e) => void updateStatus('contract_variations',r.id,'status',e.target.value)} className="rounded-md border border-gray-200 px-2 py-1 text-xs"><option value="draft">Draft</option><option value="submitted">Submitted</option><option value="under_review">Under review</option><option value="withdrawn">Withdrawn</option></select></div><p className="mt-2 text-sm text-gray-600">{String(r.reason ?? r.description ?? '')}</p>
+          {['submitted','under_review'].includes(String(r.status)) && <div className="mt-3 flex flex-col gap-2 sm:flex-row"><input aria-label="Approved variation amount" type="number" min="0" step="0.01" value={approvedAmounts[r.id] ?? String(r.approved_amount ?? r.submitted_amount ?? 0)} onChange={(e) => setApprovedAmounts((current) => ({ ...current, [r.id]: e.target.value }))} className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm sm:w-48" /><button type="button" onClick={() => void approveVariation(r.id)} className="rounded-md bg-brand-600 px-3 py-2 text-xs font-semibold text-white">Approve & revise contract</button><button type="button" onClick={() => void rejectVariation(r.id)} className="rounded-md border border-red-200 px-3 py-2 text-xs font-semibold text-red-700">Reject variation</button></div>}
           {r.approved_amount !== null && r.approved_amount !== undefined && <p className="mt-2 text-xs font-medium text-emerald-700">Approved amount: {String(r.approved_amount)}</p>}
           </article>)}{(records.contract_variations ?? []).length === 0 && <p className="py-6 text-center text-sm text-gray-500">No contract variations recorded.</p>}</div>}
         {tab === 'subcontractors' && <div className="space-y-3">{(records.subcontractors ?? []).map((r) => <article key={r.id} className="rounded-lg border border-gray-200 p-3"><div className="flex flex-wrap justify-between gap-2"><div><p className="font-semibold text-sm text-gray-800">{String(r.business_name)}</p><p className="mt-1 text-xs text-gray-500">{String(r.trade_category)} · {String(r.contact_name ?? 'No contact')} · {String(r.email ?? 'No email')}</p></div><select aria-label="Subcontractor compliance status" value={String(r.compliance_status)} onChange={(e) => void updateStatus('subcontractors',r.id,'compliance_status',e.target.value)} className="rounded-md border border-gray-200 px-2 py-1 text-xs"><option value="pending">Pending</option><option value="compliant">Compliant</option><option value="expired">Expired</option><option value="non_compliant">Non-compliant</option></select></div><p className="mt-2 text-xs text-gray-500">Insurance expiry: {String(r.insurance_expiry ?? 'Not recorded')} · Licence expiry: {String(r.licence_expiry ?? 'Not recorded')}</p></article>)}{(records.subcontractors ?? []).length === 0 && <p className="py-6 text-center text-sm text-gray-500">No subcontractors registered.</p>}</div>}
