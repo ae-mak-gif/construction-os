@@ -242,8 +242,8 @@ Dataset details and reset safeguards: [docs/BUILDFLOW_PILOT_DATASET.md](./BUILDF
 - 40 business-table audit triggers are installed. They record authenticated actor, organisation, operation, target, changed columns, status transitions and non-sensitive references in `security_audit_events`.
 - Rollback-only database verification passed for actor attribution and changed-column capture. No permanent test record was left behind.
 
-### VEA v11
-- Development `vea-chat` version 11 is ACTIVE with JWT verification enabled.
+### VEA v12
+- Development `vea-chat` version 12 is ACTIVE with JWT verification enabled.
 - Version 11 reduces model token budgets and context size, limits per-project record payloads, removes repeated chat history from specialist prompts and does not immediately retry a Groq 429.
 - The latest six-project run before v11 had two specialist 429 failures. A post-v11 six-project runtime test is still required; VEA is not yet accepted.
 
@@ -259,3 +259,6 @@ Dataset details and reset safeguards: [docs/BUILDFLOW_PILOT_DATASET.md](./BUILDF
 - Complete user/admin guides, cleanup procedure and pilot sign-off.
 - Paid-tier subscription/entitlement lifecycle remains out of pilot scope.
 - No Production changes or merges are authorised by this checkpoint.
+
+### VEA v12 rate-limit circuit breaker
+- A specialist HTTP 429 now stops remaining specialist requests and skips synthesis for that run, records an explicit provider-rate-limit audit event, and returns a 60-second retry hint. This avoids repeated requests during an exhausted TPM window. A successful post-v12 portfolio test is still required.
