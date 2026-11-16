@@ -33,7 +33,7 @@ export function TopBar({ title, onMenuClick, onNavigate }: { title: string; onMe
   const results = useMemo<SearchResult[]>(() => {
     const query = search.trim().toLowerCase();
     if (query.length < 2) return [];
-    return searchable.flatMap(source => ((records as Record<string, unknown[]>)[source.table] ?? [])
+    return searchable.flatMap(source => ((records as unknown as Record<string, unknown[]>)[source.table] ?? [])
       .filter((raw): raw is Record<string, unknown> => Boolean(raw && typeof raw === 'object'))
       .filter(row => [row[source.title], row.name, row.title, row.description, row.project_code, row.invoice_number, row.po_number, row.first_name, row.last_name].some(v => String(v ?? '').toLowerCase().includes(query)))
       .slice(0, 5)
