@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { useAuth } from '@/context/AuthContext';
+import { supabase } from '@/lib/supabase';
 import { IntegrationConnections } from '@/components/settings/IntegrationConnections';
-import { Plus } from 'lucide-react';
+import { Plus, LockKeyhole, ShieldCheck } from 'lucide-react';
 import { Card, CardHeader, CardBody } from '@/components/ui/Card';
 
 type PermissionItem = { key: string; module: string; description: string };
