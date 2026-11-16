@@ -38,7 +38,24 @@ export function TasksCalendar() {
   const [taskAssignee, setTaskAssignee] = useState('');
   const [taskDueDate, setTaskDueDate] = useState('');
   const [taskPriority, setTaskPriority] = useState<Task['priority']>('Medium');
-  const [currentMonth, setCurrentMonth] = useState(new Date(2026, 8, 1));
+  const [currentMonth, setCurrentMonth] = useState(new Date());
+  const [showEventModal, setShowEventModal] = useState(false);
+  const [eventTitle, setEventTitle] = useState('');
+  const [eventStart, setEventStart] = useState('');
+  const [eventEnd, setEventEnd] = useState('');
+  const [eventProject, setEventProject] = useState('');
+  const [eventType, setEventType] = useState('project-meeting');
+  const [eventError, setEventError] = useState('');
+  const [eventSaving, setEventSaving] = useState(false);
+  const createCalendarEvent = async () => {
+    if (!eventTitle.trim() || !eventStart) { setEventError('Enter an event title and start date/time.'); return; }
+    setEventSaving(true); setEventError('');
+    try {
+      await create('calendar_events', { title: eventTitle.trim(), start_at: new Date(eventStart).toISOString(), end_at: eventEnd ? new Date(eventEnd).toISOString() : null, project_id: eventProject || null, event_type: eventType });
+      setEventTitle(''); setEventStart(''); setEventEnd(''); setEventProject(''); setShowEventModal(false);
+    } catch (error) { setEventError(error instanceof Error ? error.message : 'Calendar event could not be saved.'); }
+    finally { setEventSaving(false); }
+  };
 
   const filteredTasks =
     statusFilter === 'All'
@@ -231,9 +248,11 @@ export function TasksCalendar() {
           currentMonth={currentMonth}
           setCurrentMonth={setCurrentMonth}
           events={liveCalendarEvents}
+          onAddEvent={() => setShowEventModal(true)}
         />
       )}
 
+      {showEventModal && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"><div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl"><h3 className="text-lg font-semibold">Create calendar event</h3>{eventError && <p role="alert" className="mt-3 text-sm text-red-600">{eventError}</p>}<div className="mt-4 space-y-3"><input value={eventTitle} onChange={e=>setEventTitle(e.target.value)} placeholder="Event title" className="w-full rounded-lg border px-3 py-2 text-sm"/><label className="block text-sm">Start date/time<input type="datetime-local" value={eventStart} onChange={e=>setEventStart(e.target.value)} className="mt-1 w-full rounded-lg border px-3 py-2"/></label><label className="block text-sm">End date/time (optional)<input type="datetime-local" value={eventEnd} onChange={e=>setEventEnd(e.target.value)} className="mt-1 w-full rounded-lg border px-3 py-2"/></label><label className="block text-sm">Project<select value={eventProject} onChange={e=>setEventProject(e.target.value)} className="mt-1 w-full rounded-lg border px-3 py-2"><option value="">Organisation-wide</option>{(records.projects ?? []).map(p=><option key={p.id} value={p.id}>{String(p.name)}</option>)}</select></label><label className="block text-sm">Event type<select value={eventType} onChange={e=>setEventType(e.target.value)} className="mt-1 w-full rounded-lg border px-3 py-2"><option value="project-meeting">Project meeting</option><option value="site-meeting">Site meeting</option><option value="inspection">Inspection</option><option value="deadline">Deadline</option><option value="client-meeting">Client meeting</option></select></label></div><div className="mt-5 flex justify-end gap-2"><button type="button" onClick={()=>setShowEventModal(false)} className="rounded-lg border px-4 py-2 text-sm">Cancel</button><button type="button" disabled={eventSaving} onClick={()=>void createCalendarEvent()} className="rounded-lg bg-brand-600 px-4 py-2 text-sm text-white">{eventSaving?'Saving…':'Save event'}</button></div></div></div>}
       {showTaskModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div className="w-full max-w-lg bg-white rounded-2xl shadow-xl">
@@ -320,10 +339,12 @@ function CalendarView({
   currentMonth,
   setCurrentMonth,
   events,
+  onAddEvent,
 }: {
   currentMonth: Date;
   setCurrentMonth: (d: Date) => void;
   events: (typeof calendarEvents);
+  onAddEvent: () => void;
 }) {
   const year = currentMonth.getFullYear();
   const month = currentMonth.getMonth();
@@ -368,12 +389,13 @@ function CalendarView({
             </button>
 
             <button
-              onClick={() => setCurrentMonth(new Date(2026, 8, 1))}
+              onClick={() => setCurrentMonth(new Date())}
               className="text-sm font-medium text-brand-600 px-3 py-1"
             >
               Today
             </button>
 
+            <button type="button" onClick={onAddEvent} className="rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-medium text-white">Add event</button>
             <button
               onClick={() => setCurrentMonth(new Date(year, month + 1, 1))}
               className="w-8 h-8 rounded-lg border border-gray-200 flex items-center justify-center text-gray-500 hover:bg-gray-50"
@@ -402,7 +424,8 @@ function CalendarView({
               return <div key={i} className="min-h-20 rounded-lg" />;
 
             const dayEvents = eventsForDay(d);
-            const isToday = d === 11 && month === 8 && year === 2026;
+            const today = new Date();
+            const isToday = d === today.getDate() && month === today.getMonth() && year === today.getFullYear();
 
             return (
               <div
