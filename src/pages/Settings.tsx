@@ -3,7 +3,6 @@ import { useAuth } from '@/context/AuthContext';
 import { IntegrationConnections } from '@/components/settings/IntegrationConnections';
 import { Plus } from 'lucide-react';
 import { Card, CardHeader, CardBody } from '@/components/ui/Card';
-import { Badge } from '@/components/ui/Badge';
 
 type PermissionItem = { key: string; module: string; description: string };
 type OrganisationRole = { id: string; name: string; description: string | null; is_system: boolean; permissions: Record<string, boolean> };
