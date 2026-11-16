@@ -140,7 +140,7 @@ function AppContent() {
     <div className="flex min-h-screen bg-gray-50">
       <Sidebar current={page} onNavigate={handleNavigate} mobileOpen={mobileSidebarOpen} onCloseMobile={() => setMobileSidebarOpen(false)} />
       <div className="flex-1 flex flex-col min-w-0">
-        <TopBar title={pageTitles[page]} onMenuClick={() => setMobileSidebarOpen(true)} />
+        <TopBar title={pageTitles[page]} onMenuClick={() => setMobileSidebarOpen(true)} onNavigate={(nextPage) => handleNavigate(nextPage as PageKey)} />
         <main className="flex-1 p-4 lg:p-6 overflow-x-hidden">
           {dataErrorCount > 0 && (
             <div role="alert" aria-live="polite" className="mb-4 flex flex-col gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-900 sm:flex-row sm:items-center sm:justify-between">
