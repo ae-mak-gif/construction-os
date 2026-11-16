@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { supabase } from '@/lib/supabase';
 import {
   Plus,
   ChevronLeft,
@@ -896,107 +897,83 @@ export function Procurement() {
   );
 }
 export function Suppliers() {
-  const { records } = useBuildFlowData();
-  const supplierRows = (records.suppliers ?? []).map((row) => ({ id: row.id, name: String(row.name ?? ''), category: 'Supplier', contact: String(row.contact_name ?? ''), phone: String(row.phone ?? ''), email: String(row.email ?? ''), rating: 0, totalOrders: 0, outstandingBalance: 0, status: row.status === 'inactive' ? 'Inactive' : 'Active' } as (typeof mockSuppliers)[number]));
-  return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold text-gray-900">Suppliers</h1>
-        <p className="mt-1 text-sm text-gray-500">
-          Manage suppliers and procurement contacts.
-        </p>
-      </div>
-
-      <Card>
-        <CardHeader title="Supplier Directory" />
-        <CardBody>
-          <div className="overflow-x-auto">
-            <Table>
-              <thead>
-                <tr>
-                  <Th>Supplier</Th>
-                  <Th>Contact</Th>
-                  <Th>Status</Th>
-                </tr>
-              </thead>
-              <tbody>
-                {supplierRows.map((supplier) => (
-                  <Tr key={supplier.id}>
-                    <Td>
-                      <div className="font-medium text-gray-900">
-                        {supplier.name}
-                      </div>
-                    </Td>
-                    <Td>
-                      {supplier.email || supplier.phone || supplier.contact || '—'}
-                    </Td>
-                    <Td>
-                      <Badge>
-                        {supplier.status || 'Active'}
-                      </Badge>
-                    </Td>
-                  </Tr>
-                ))}
-              </tbody>
-            </Table>
-          </div>
-        </CardBody>
-      </Card>
-    </div>
-  );
+  const { records, create, update } = useBuildFlowData();
+  const rows = records.suppliers ?? [];
+  const [editing, setEditing] = useState<string | null>(null);
+  const [showForm, setShowForm] = useState(false);
+  const [name, setName] = useState('');
+  const [contact, setContact] = useState('');
+  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
+  const [address, setAddress] = useState('');
+  const [paymentTerms, setPaymentTerms] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const reset = () => { setName(''); setContact(''); setEmail(''); setPhone(''); setAddress(''); setPaymentTerms(''); setEditing(null); setShowForm(false); };
+  const beginEdit = (row: typeof rows[number]) => { setEditing(row.id); setName(String(row.name ?? '')); setContact(String(row.contact_name ?? '')); setEmail(String(row.email ?? '')); setPhone(String(row.phone ?? '')); setAddress(String(row.address ?? '')); setPaymentTerms(String(row.payment_terms ?? '')); setShowForm(true); };
+  const save = async () => {
+    if (!name.trim()) return;
+    setBusy(true); setError('');
+    try {
+      const values = { name: name.trim(), contact_name: contact.trim() || null, email: email.trim() || null, phone: phone.trim() || null, address: address.trim() || null, payment_terms: paymentTerms.trim() || null, status: 'active' };
+      if (editing) await update('suppliers', editing, values); else await create('suppliers', values);
+      reset();
+    } catch (e) { setError(e instanceof Error ? e.message : 'Supplier could not be saved.'); }
+    finally { setBusy(false); }
+  };
+  return <div className="space-y-6">
+    <div className="flex items-start justify-between"><div><h1 className="text-2xl font-semibold text-gray-900">Suppliers</h1><p className="mt-1 text-sm text-gray-500">Manage supplier master data and procurement contacts.</p></div><button type="button" onClick={() => { reset(); setShowForm(true); }} className="flex items-center gap-2 rounded-lg bg-brand-600 px-3 py-2 text-sm font-medium text-white"><Plus size={15}/> Add supplier</button></div>
+    {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</p>}
+    {showForm && <Card><CardHeader title={editing ? 'Edit supplier' : 'Add supplier'} /><CardBody><div className="grid gap-3 md:grid-cols-2">
+      <label className="text-sm">Supplier name<input required value={name} onChange={e=>setName(e.target.value)} className="mt-1 w-full rounded-lg border px-3 py-2"/></label>
+      <label className="text-sm">Contact person<input value={contact} onChange={e=>setContact(e.target.value)} className="mt-1 w-full rounded-lg border px-3 py-2"/></label>
+      <label className="text-sm">Email<input type="email" value={email} onChange={e=>setEmail(e.target.value)} className="mt-1 w-full rounded-lg border px-3 py-2"/></label>
+      <label className="text-sm">Phone<input value={phone} onChange={e=>setPhone(e.target.value)} className="mt-1 w-full rounded-lg border px-3 py-2"/></label>
+      <label className="text-sm">Address<input value={address} onChange={e=>setAddress(e.target.value)} className="mt-1 w-full rounded-lg border px-3 py-2"/></label>
+      <label className="text-sm">Payment terms<input value={paymentTerms} onChange={e=>setPaymentTerms(e.target.value)} placeholder="e.g. 30 days" className="mt-1 w-full rounded-lg border px-3 py-2"/></label>
+    </div><div className="mt-4 flex gap-2"><button type="button" disabled={busy || !name.trim()} onClick={()=>void save()} className="rounded-lg bg-brand-600 px-4 py-2 text-sm text-white disabled:opacity-50">{busy?'Saving…':'Save supplier'}</button><button type="button" onClick={reset} className="rounded-lg border px-4 py-2 text-sm">Cancel</button></div></CardBody></Card>}
+    <Card><CardHeader title="Supplier Directory" subtitle={rows.length + ' live supplier records'}/><CardBody><div className="overflow-x-auto"><Table><thead><tr><Th>Supplier</Th><Th>Contact</Th><Th>Status</Th><Th>Payment terms</Th><Th>Action</Th></tr></thead><tbody>{rows.map(row=><Tr key={row.id}><Td><div className="font-medium text-gray-900">{String(row.name)}</div><div className="text-xs text-gray-400">{String(row.address ?? '')}</div></Td><Td>{String(row.contact_name ?? '—')}<div className="text-xs text-gray-500">{String(row.email ?? row.phone ?? '')}</div></Td><Td><Badge>{String(row.status ?? 'active')}</Badge></Td><Td>{String(row.payment_terms ?? '—')}</Td><Td><button type="button" onClick={()=>beginEdit(row)} className="text-sm font-medium text-brand-600">Edit</button></Td></Tr>)}</tbody></Table>{!rows.length && <p className="p-6 text-sm text-gray-500">No suppliers registered yet. Add your first supplier.</p>}</div></CardBody></Card>
+  </div>;
 }
 
 export function Inventory() {
-  const { records } = useBuildFlowData();
-  const inventoryRows = (records.inventory_items ?? []).map((row) => ({ id: row.id, material: String(row.name ?? ''), category: String(row.category ?? ''), stock: Number(row.quantity_on_hand ?? 0), allocated: 0, reorderLevel: Number(row.reorder_level ?? 0), unit: String(row.unit ?? ''), unitCost: Number(row.unit_cost ?? 0) } as (typeof mockInventory)[number]));
-  return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold text-gray-900">Inventory</h1>
-        <p className="mt-1 text-sm text-gray-500">
-          Track materials, stock levels and inventory movements.
-        </p>
-      </div>
-
-      <Card>
-        <CardHeader title="Inventory" />
-        <CardBody>
-          <div className="overflow-x-auto">
-            <Table>
-              <thead>
-                <tr>
-                  <Th>Item</Th>
-                  <Th>Quantity</Th>
-                  <Th>Unit</Th>
-                  <Th>Status</Th>
-                </tr>
-              </thead>
-              <tbody>
-                {inventoryRows.map((item) => (
-                  <Tr key={item.id}>
-                    <Td>
-                      <div className="font-medium text-gray-900">
-                        {item.material}
-                      </div>
-                    </Td>
-                    <Td>
-                      {item.stock}
-                    </Td>
-                    <Td>
-                      {item.unit}
-                    </Td>
-                    <Td>
-                      <Badge>
-                        {item.stock > 0 ? 'In Stock' : 'Out of Stock'}
-                      </Badge>
-                    </Td>
-                  </Tr>
-                ))}
-              </tbody>
-            </Table>
-          </div>
-        </CardBody>
-      </Card>
-    </div>
-  );
+  const { records, create, refresh } = useBuildFlowData();
+  const rows = records.inventory_items ?? [];
+  const projects = records.projects ?? [];
+  const [showNew, setShowNew] = useState(false);
+  const [showMovement, setShowMovement] = useState(false);
+  const [selectedItem, setSelectedItem] = useState('');
+  const [name, setName] = useState('');
+  const [category, setCategory] = useState('');
+  const [unit, setUnit] = useState('units');
+  const [quantity, setQuantity] = useState('');
+  const [unitCost, setUnitCost] = useState('0');
+  const [projectId, setProjectId] = useState('');
+  const [notes, setNotes] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
+  const addItem = async () => {
+    if (!name.trim() || !unit.trim()) return;
+    setBusy(true); setError('');
+    try { const row = await create('inventory_items', { name: name.trim(), category: category.trim() || null, unit: unit.trim(), quantity_on_hand: 0, reorder_level: 0, unit_cost: Number(unitCost) || 0, status: 'active' }); setSelectedItem(row.id); setName(''); setCategory(''); setShowNew(false); setNotice('Inventory item created. Record an opening receipt to add stock.'); }
+    catch(e) { setError(e instanceof Error ? e.message : 'Inventory item could not be created.'); } finally { setBusy(false); }
+  };
+  const recordMovement = async () => {
+    const qty = Number(quantity);
+    if (!selectedItem || !Number.isFinite(qty) || qty <= 0) { setError('Select an item and enter a quantity greater than zero.'); return; }
+    setBusy(true); setError(''); setNotice('');
+    try {
+      const { error: rpcError } = await supabase.rpc('record_inventory_transaction', { p_inventory_item_id: selectedItem, p_quantity_delta: qty, p_unit_cost: Number(unitCost) || 0, p_notes: notes.trim() || null, p_project_id: projectId || null });
+      if (rpcError) throw new Error(rpcError.message);
+      await refresh(); setQuantity(''); setNotes(''); setProjectId(''); setShowMovement(false); setNotice('Stock receipt recorded and on-hand quantity updated atomically.');
+    } catch(e) { setError(e instanceof Error ? e.message : 'Stock movement could not be recorded.'); } finally { setBusy(false); }
+  };
+  return <div className="space-y-6">
+    <div className="flex items-start justify-between"><div><h1 className="text-2xl font-semibold text-gray-900">Inventory</h1><p className="mt-1 text-sm text-gray-500">Manage stock items and record auditable stock receipts. Issues and returns require their own controlled project workflows.</p></div><div className="flex gap-2"><button type="button" onClick={()=>setShowNew(true)} className="rounded-lg border border-gray-200 px-3 py-2 text-sm">Add item</button><button type="button" onClick={()=>setShowMovement(true)} disabled={!rows.length} className="flex items-center gap-2 rounded-lg bg-brand-600 px-3 py-2 text-sm text-white disabled:opacity-50"><Plus size={15}/> Record receipt</button></div></div>
+    {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</p>}{notice && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700">{notice}</p>}
+    {showNew && <Card><CardHeader title="New inventory item"/><CardBody><div className="grid gap-3 md:grid-cols-3"><label className="text-sm">Item name<input value={name} onChange={e=>setName(e.target.value)} className="mt-1 w-full rounded-lg border px-3 py-2"/></label><label className="text-sm">Category<input value={category} onChange={e=>setCategory(e.target.value)} className="mt-1 w-full rounded-lg border px-3 py-2"/></label><label className="text-sm">Unit<input value={unit} onChange={e=>setUnit(e.target.value)} className="mt-1 w-full rounded-lg border px-3 py-2"/></label></div><div className="mt-3 flex gap-2"><button type="button" disabled={busy || !name.trim()} onClick={()=>void addItem()} className="rounded-lg bg-brand-600 px-4 py-2 text-sm text-white">Save item</button><button type="button" onClick={()=>setShowNew(false)} className="rounded-lg border px-4 py-2 text-sm">Cancel</button></div></CardBody></Card>}
+    {showMovement && <Card><CardHeader title="Record stock receipt"/><CardBody><div className="grid gap-3 md:grid-cols-2"><label className="text-sm">Inventory item<select value={selectedItem} onChange={e=>setSelectedItem(e.target.value)} className="mt-1 w-full rounded-lg border px-3 py-2"><option value="">Select item</option>{rows.map(row=><option key={row.id} value={row.id}>{String(row.name)}</option>)}</select></label><label className="text-sm">Quantity received<input type="number" min="0.001" step="any" value={quantity} onChange={e=>setQuantity(e.target.value)} className="mt-1 w-full rounded-lg border px-3 py-2"/></label><label className="text-sm">Unit cost<input type="number" min="0" step="any" value={unitCost} onChange={e=>setUnitCost(e.target.value)} className="mt-1 w-full rounded-lg border px-3 py-2"/></label><label className="text-sm">Project (optional)<select value={projectId} onChange={e=>setProjectId(e.target.value)} className="mt-1 w-full rounded-lg border px-3 py-2"><option value="">General stock</option>{projects.map(p=><option key={p.id} value={p.id}>{String(p.name)}</option>)}</select></label><label className="text-sm md:col-span-2">Reference / notes<input value={notes} onChange={e=>setNotes(e.target.value)} className="mt-1 w-full rounded-lg border px-3 py-2"/></label></div><div className="mt-3 flex gap-2"><button type="button" disabled={busy} onClick={()=>void recordMovement()} className="rounded-lg bg-brand-600 px-4 py-2 text-sm text-white disabled:opacity-50">{busy?'Saving…':'Record receipt'}</button><button type="button" onClick={()=>setShowMovement(false)} className="rounded-lg border px-4 py-2 text-sm">Cancel</button></div></CardBody></Card>}
+    <Card><CardHeader title="Inventory register" subtitle={rows.length + ' live stock items'}/><CardBody><div className="overflow-x-auto"><Table><thead><tr><Th>Item</Th><Th>Category</Th><Th>Quantity</Th><Th>Unit</Th><Th>Unit cost</Th><Th>Status</Th></tr></thead><tbody>{rows.map(row=><Tr key={row.id}><Td className="font-medium">{String(row.name)}</Td><Td>{String(row.category ?? '—')}</Td><Td>{Number(row.quantity_on_hand ?? 0)}</Td><Td>{String(row.unit)}</Td><Td>{formatFullCurrency(Number(row.unit_cost ?? 0))}</Td><Td><Badge>{Number(row.quantity_on_hand ?? 0) > 0 ? 'In Stock' : 'Out of Stock'}</Badge></Td></Tr>)}</tbody></Table>{!rows.length && <p className="p-6 text-sm text-gray-500">No inventory items registered yet.</p>}</div></CardBody></Card>
+  </div>;
 }
