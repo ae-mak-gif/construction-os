@@ -56,6 +56,20 @@ export function IntegrationConnections() {
     setBusy(false);
   };
 
+  const connectGoogle = async (provider: 'google_calendar' | 'google_drive') => {
+    if (!organizationId) return;
+    setBusy(true); setError(''); setNotice('');
+    const { data, error: invokeError } = await supabase.functions.invoke('google-oauth', {
+      body: { organization_id: organizationId, provider },
+    });
+    if (invokeError || data?.error || !data?.authorization_url) {
+      setError(data?.error || invokeError?.message || 'Google authorisation could not be started.');
+      setBusy(false);
+      return;
+    }
+    window.location.assign(data.authorization_url);
+  };
+
   const disconnect = async (provider: Provider) => {
     if (!organizationId || !window.confirm('Disconnect this provider and delete its stored credentials?')) return;
     setBusy(true); setError(''); setNotice('');
@@ -89,7 +103,7 @@ export function IntegrationConnections() {
           {row?.last_error && <p className="mt-2 text-[11px] text-red-600">{row.last_error}</p>}
           {item.note && <p className="mt-2 rounded-lg bg-blue-50 p-2 text-[11px] text-blue-800">{item.note}</p>}
           <div className="mt-4 flex gap-2">
-            {item.fields.length > 0 ? <button type="button" onClick={() => { setSelected(item.provider); setValues({}); setError(''); setNotice(''); }} className="inline-flex flex-1 items-center justify-center gap-1 rounded-lg bg-brand-600 px-3 py-2 text-xs font-medium text-white"><PlugZap size={13}/> {row?.status === 'pending_setup' ? 'Update credentials' : 'Configure'}</button> : <span className="flex-1 rounded-lg border border-dashed border-gray-200 px-2 py-2 text-center text-[11px] text-gray-400">OAuth setup required</span>}
+            {item.fields.length > 0 ? <button type="button" onClick={() => { setSelected(item.provider); setValues({}); setError(''); setNotice(''); }} className="inline-flex flex-1 items-center justify-center gap-1 rounded-lg bg-brand-600 px-3 py-2 text-xs font-medium text-white"><PlugZap size={13}/> {row?.status === 'pending_setup' ? 'Update credentials' : 'Configure'}</button> : (item.provider === 'google_calendar' || item.provider === 'google_drive') ? <button type="button" disabled={busy} onClick={() => void connectGoogle(item.provider)} className="inline-flex flex-1 items-center justify-center gap-1 rounded-lg bg-brand-600 px-3 py-2 text-xs font-medium text-white disabled:opacity-50"><PlugZap size={13}/> {connected ? 'Reconnect Google' : 'Connect Google'}</button> : null}
             {row && row.status !== 'disconnected' && <button type="button" disabled={busy} onClick={() => void disconnect(item.provider)} title="Disconnect" className="rounded-lg border border-gray-200 px-3 py-2 text-gray-500 disabled:opacity-50"><Unplug size={14}/></button>}
           </div>
         </article>;
