@@ -15,8 +15,6 @@ import { StatusBadge, Badge } from '@/components/ui/Badge';
 import {
   calendarEvents,
   boqItems as mockBoqItems,
-  suppliers as mockSuppliers,
-  inventory as mockInventory,
   type Task,
   type PurchaseRequest,
 } from '@/data/mockData';
@@ -76,7 +74,7 @@ export function TasksCalendar() {
       title: taskTitle.trim(),
       project: taskProject || 'Riverside Office Development',
       assignee: taskAssignee || 'Unassigned',
-      dueDate: taskDueDate || '2026-09-30',
+      dueDate: taskDueDate || new Date().toISOString().slice(0, 10),
       priority: taskPriority,
       status: 'To Do',
     };
@@ -103,23 +101,17 @@ export function TasksCalendar() {
   const advanceTask = async (id: string) => {
     const stages: Task['status'][] = ['To Do', 'In Progress', 'Review', 'Done'];
     const selectedTask = taskItems.find((task) => task.id === id);
-    if (selectedTask && /^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(selectedTask.id)) {
-      const next = stages[stages.indexOf(selectedTask.status) + 1];
-      if (next) void update('tasks', id, { status: next === 'Done' ? 'completed' : next === 'Review' ? 'blocked' : next.toLowerCase().replace(' ', '_') }).catch((error) => window.alert(error.message));
+    if (!selectedTask) return;
+    const currentIndex = stages.indexOf(selectedTask.status);
+    if (currentIndex < 0 || currentIndex >= stages.length - 1) return;
+    const next = stages[currentIndex + 1];
+    try {
+      if (!/^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(id)) throw new Error('This task is not linked to a saved database record. Refresh the task list before editing.');
+      await update('tasks', id, { status: next === 'Done' ? 'completed' : next === 'Review' ? 'blocked' : next.toLowerCase().replace(' ', '_') });
+      setTaskItems(current => current.map(task => task.id === id ? { ...task, status: next } : task));
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : 'Task status could not be updated.');
     }
-    setTaskItems(
-      taskItems.map((task) => {
-        if (task.id !== id) return task;
-
-        const currentIndex = stages.indexOf(task.status);
-        if (currentIndex === -1 || currentIndex === stages.length - 1) return task;
-
-        return {
-          ...task,
-          status: stages[currentIndex + 1],
-        };
-      })
-    );
   };
 
   return (
