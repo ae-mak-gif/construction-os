@@ -1,4 +1,7 @@
-import { Plus } from 'lucide-react';import { Card, CardHeader, CardBody } from '@/components/ui/Card';
+import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { useAuth } from '@/context/AuthContext';
+import { IntegrationConnections } from '@/components/settings/IntegrationConnections';
+import { Plus } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
 
 type PermissionItem = { key: string; module: string; description: string };
