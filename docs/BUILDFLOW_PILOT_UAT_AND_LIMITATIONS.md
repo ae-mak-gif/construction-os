@@ -41,7 +41,7 @@ For each test, record the tester, date/time, actual result, pass/fail and a scre
 | UAT-09 | Project Manager | Attempt Finance view and role administration | Access is denied or controls are absent | Not run |
 | UAT-10 | Finance User | Attempt project delivery update and role administration | Access is denied or controls are absent | Not run |
 | UAT-11 | Site Manager | Attempt Finance view and role administration | Access is denied or controls are absent | Not run |
-| UAT-12 | VEA user with `agents.view` and relevant module permissions | Run cross-functional portfolio briefing across all six UAT projects | Three specialists execute in parallel; Executive Orchestrator synthesises one ranked briefing; run records and conversation persist; no write actions | Retest required — corrective orchestration deployed to Development |
+| UAT-12 | VEA user with `agents.view` and relevant module permissions | Run cross-functional portfolio briefing across all six UAT projects | Three specialists execute in parallel; Executive Orchestrator synthesises one ranked briefing; run records and conversation persist; no write actions | Retest required — VEA version 11 deployed; the latest pre-v11 run still hit Groq 429 limits |
 
 ### Execution notes
 
@@ -112,4 +112,33 @@ Three additional synthetic projects (UAT-04 to UAT-06) have been inserted into D
 
 ## VEA rate-limit stabilisation checkpoint — 16 November 2026
 
-Development `vea-chat` version 8 replaces concurrent specialist model calls with sequential Project → Finance → Procurement execution, separated by a short pacing delay, before Executive synthesis. This addresses the observed Groq 8,000-token-per-minute limit, where parallel requests exhausted the shared budget before synthesis. Specialist completion budgets are reduced to 350 tokens each and synthesis to 650; specialist context is capped at 3,600 characters, history at two short messages, and supplementary table reads at 15 rows. Synthesis receives a bounded delayed retry rather than an immediate retry. Failed specialists remain explicitly marked as coverage gaps; the system does not present disconnected specialist reports as a complete briefing. Token usage is retained in run metadata where available. Specialist reads continue to use the caller JWT and RLS; service-role access is limited to orchestration/audit persistence. All agents remain read-only. Deployment is confirmed ACTIVE in Development with JWT verification enabled. A new authenticated live six-project smoke test is still required; the prior 429 failure has not yet been proven resolved by a fresh end-to-end request.
+Development `vea-chat` version 11 replaces concurrent specialist model calls with sequential Project → Finance → Procurement execution, separated by a short pacing delay, before Executive synthesis. This addresses the observed Groq 8,000-token-per-minute limit, where parallel requests exhausted the shared budget before synthesis. Specialist completion budgets are reduced to 350 tokens each and synthesis to 650; specialist context is capped at 3,600 characters, history at two short messages, and supplementary table reads at 15 rows. Synthesis receives a bounded delayed retry rather than an immediate retry. Failed specialists remain explicitly marked as coverage gaps; the system does not present disconnected specialist reports as a complete briefing. Token usage is retained in run metadata where available. Specialist reads continue to use the caller JWT and RLS; service-role access is limited to orchestration/audit persistence. All agents remain read-only. Deployment is confirmed ACTIVE in Development with JWT verification enabled. A new authenticated live six-project smoke test is still required; the prior 429 failure has not yet been proven resolved by a fresh end-to-end request.
+
+
+## Development completion checkpoint — 16 November 2026
+
+### VEA reliability update — version 11
+
+- `vea-chat` version 11 is ACTIVE in Development with JWT verification enabled.
+- Reduced specialist completion allowance from 550 to 300 tokens, specialist retry allowance to 350, and executive synthesis allowance to 650 (800 on retry).
+- Reduced specialist context to 3,000 characters, capped project-specific records at two per project per dataset, compacted record fields, reduced shared procurement records, and removed repeated conversation history from specialist requests.
+- Specialists remain sequential with an 8-second pacing delay. A 429 is not retried immediately, avoiding a second request inside the same exhausted rate-limit window.
+- The most recent six-project run before version 11 (16 Nov, 08:39 UTC) completed Project Intelligence but Finance and Procurement failed with Groq HTTP 429. The Executive Orchestrator correctly disclosed that coverage was incomplete.
+- **Acceptance status: pending.** A fresh authenticated six-project run after version 11 must complete all three specialists and synthesis before VEA can be marked accepted.
+
+### Native business audit trail
+
+- Applied Development migration `20261116090000_native_business_audit_triggers`.
+- Installed transaction-bound audit triggers on 40 business tables covering organisation membership, CRM, projects, delivery, procurement, inventory, finance, variations, client shares and related records.
+- Each event records the authenticated actor, organisation, operation, target, changed column names, status transition, project reference where applicable and a non-sensitive record reference. It does not store full row snapshots, message content, payment details or document contents.
+- Verified a project update produces a `security_audit_events` row with the correct actor, target and changed-column list. The verification transaction was rolled back, leaving no test mutation.
+- This is database-level verification; browser-visible audit history and role-based audit access still require acceptance testing.
+
+### Current release gates
+
+- Supabase Security Advisor: leaked-password protection remains disabled and requires an administrator decision before broader external access.
+- Performance Advisor: 63 unindexed foreign keys and one multiple-permissive-policy warning remain for review; no health findings were returned. These have not been blindly remediated.
+- Browser UAT remains pending for procurement, finance, variations, project delivery, least-privilege role boundaries and external client portal.
+- Backup/restore drill remains pending. The available connected Supabase operations do not expose a Development backup-creation workflow; complete the backup and restore exercise through the Supabase Dashboard and record the evidence.
+- Subscription and paid-tier entitlement lifecycle remains outside the supervised pilot scope.
+- No Production database, schema, environment variable or deployment changes have been made. Draft PRs remain unmerged.
