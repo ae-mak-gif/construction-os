@@ -1,49 +1,5 @@
-import { useCallback, useEffect, useState, type FormEvent } from 'react';
-import { useAuth } from '@/context/AuthContext';
-import { supabase } from '@/lib/supabase';
-import {
-  MessageSquare,
-  Smartphone,
-  Mail,
-  Calendar,
-  HardDrive,
-  Calculator,
-  Landmark,
-  CreditCard,
-  ListChecks,
-  Brain,
-  Clock,
-  Plug,
-  ShieldCheck,
-  Plus,
-  LockKeyhole,
-} from 'lucide-react';
-import { Card, CardHeader, CardBody } from '@/components/ui/Card';
+import { Plus } from 'lucide-react';import { Card, CardHeader, CardBody } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
-
-interface Integration {
-  name: string;
-  description: string;
-  icon: React.ReactNode;
-  status: 'ready' | 'coming';
-  category: string;
-  color: string;
-}
-
-const integrations: Integration[] = [
-  { name: 'WhatsApp', description: 'Send and receive WhatsApp messages to clients and team members', icon: <MessageSquare size={22} />, status: 'ready', category: 'Communication', color: 'bg-emerald-50 text-emerald-600' },
-  { name: 'SMS', description: 'Send SMS notifications and alerts', icon: <Smartphone size={22} />, status: 'ready', category: 'Communication', color: 'bg-blue-50 text-blue-600' },
-  { name: 'Email', description: 'Send emails and manage email campaigns', icon: <Mail size={22} />, status: 'ready', category: 'Communication', color: 'bg-orange-50 text-orange-600' },
-  { name: 'Google Calendar', description: 'Sync project meetings, inspections, and deadlines', icon: <Calendar size={22} />, status: 'ready', category: 'Productivity', color: 'bg-purple-50 text-purple-600' },
-  { name: 'Google Drive', description: 'Connect Google Drive to store, organise, preview and share project documents and drawings', icon: <HardDrive size={22} />, status: 'ready', category: 'Storage', color: 'bg-blue-50 text-blue-600' },
-  { name: 'Accounting', description: 'Connect accounting platforms such as Sage / Pastel and QuickBooks for invoices, expenses and reconciliation', icon: <Calculator size={22} />, status: 'ready', category: 'Finance', color: 'bg-indigo-50 text-indigo-600' },
-  { name: 'Banking', description: 'Connect bank accounts for transaction tracking', icon: <Landmark size={22} />, status: 'coming', category: 'Finance', color: 'bg-gray-50 text-gray-500' },
-  { name: 'Online Payments', description: 'Connect payment providers to accept client payments online and reconcile transactions', icon: <CreditCard size={22} />, status: 'ready', category: 'Finance', color: 'bg-emerald-50 text-emerald-600' },
-  { name: 'ClickUp', description: 'Sync tasks and project management with ClickUp', icon: <ListChecks size={22} />, status: 'coming', category: 'Productivity', color: 'bg-gray-50 text-gray-500' },
-  { name: 'Advanced AI', description: 'Connect an AI API for intelligent insights and automation', icon: <Brain size={22} />, status: 'coming', category: 'AI', color: 'bg-gray-50 text-gray-500' },
-  { name: 'Virtual Executive Assistant', description: 'AI executive support for email triage, scheduling, task coordination, follow-ups and workflow execution', icon: <Brain size={22} />, status: 'ready', category: 'AI & Productivity', color: 'bg-violet-50 text-violet-600' },
-];
-
 
 type PermissionItem = { key: string; module: string; description: string };
 type OrganisationRole = { id: string; name: string; description: string | null; is_system: boolean; permissions: Record<string, boolean> };
@@ -515,95 +471,19 @@ function SecurityAuditLog() {
 }
 
 export function Settings() {
-  const [selectedIntegration, setSelectedIntegration] = useState<Integration | null>(null);
-  const ready = integrations.filter((i) => i.status === 'ready');
-  const coming = integrations.filter((i) => i.status === 'coming');
-
   return (
     <div className="space-y-6">
       <RoleManagement />
       <ProjectAccessManagement />
       <SecurityAuditLog />
-      {/* Ready to connect */}
-      <Card>
-        <CardHeader title="Integration setup" subtitle={`${ready.length} providers have setup workflows available; external credentials are required before a live connection can be established.`} />
-        <CardBody>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {ready.map((i) => (
-              <div key={i.name} className="border border-gray-200 rounded-xl p-4 hover:shadow-card-hover transition-all">
-                <div className="flex items-start justify-between mb-3">
-                  <div className={`w-11 h-11 rounded-lg flex items-center justify-center ${i.color}`}>
-                    {i.icon}
-                  </div>
-                  <Badge variant="amber">Setup required</Badge>
-                </div>
-                <h3 className="text-sm font-semibold text-gray-800">{i.name}</h3>
-                <p className="text-xs text-gray-400 mt-1">{i.description}</p>
-                <button type="button" onClick={() => setSelectedIntegration(i)} className="mt-3 w-full flex items-center justify-center gap-1.5 text-sm font-medium text-brand-600 border border-brand-200 rounded-lg py-2 hover:bg-brand-50 transition-colors">
-                  <Plug size={14} /> View connection setup
-                </button>
-              </div>
-            ))}
-          </div>
-        </CardBody>
-      </Card>
-
-      {selectedIntegration && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" role="dialog" aria-modal="true" aria-label={selectedIntegration.name + ' setup'}>
-        <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl">
-          <div className="flex items-start justify-between gap-4"><div><h3 className="text-lg font-semibold text-gray-900">{selectedIntegration.name} connection setup</h3><p className="mt-1 text-sm text-gray-500">{selectedIntegration.description}</p></div><button type="button" onClick={() => setSelectedIntegration(null)} className="text-sm text-gray-500 hover:text-gray-800">Close</button></div>
-          <div className="mt-5 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">This provider is not connected yet. BuildFlow will not report a successful connection until the provider credentials, server-side callback and connection test are completed.</div>
-          <h4 className="mt-5 text-sm font-semibold text-gray-800">What is required</h4>
-          <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-gray-600">
-            <li>A provider account owned by your organisation.</li>
-            <li>Provider-issued OAuth client credentials or API keys, as applicable.</li>
-            <li>Server-side secrets stored in Supabase Edge Function secrets, never in the browser.</li>
-            <li>A verified callback/webhook URL and a successful test before enabling live traffic.</li>
-          </ul>
-          <p className="mt-4 text-xs text-gray-500">The next implementation step is to configure the selected provider's backend adapter and credentials. Existing BuildFlow data and access controls remain unchanged.</p>
-          <button type="button" onClick={() => setSelectedIntegration(null)} className="mt-5 w-full rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white">Close setup guide</button>
-        </div>
-      </div>}
-      {/* Coming soon */}
-      <Card>
-        <CardHeader title="Coming Soon" subtitle={`${coming.length} integrations in development`} />
-        <CardBody>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {coming.map((i) => (
-              <div key={i.name} className="border border-gray-200 rounded-xl p-4 opacity-70">
-                <div className="flex items-start justify-between mb-3">
-                  <div className={`w-11 h-11 rounded-lg flex items-center justify-center ${i.color}`}>
-                    {i.icon}
-                  </div>
-                  <Badge variant="gray">Coming Soon</Badge>
-                </div>
-                <h3 className="text-sm font-semibold text-gray-800">{i.name}</h3>
-                <p className="text-xs text-gray-400 mt-1">{i.description}</p>
-                <div className="mt-3 w-full flex items-center justify-center gap-1.5 text-sm text-gray-400 border border-gray-200 rounded-lg py-2">
-                  <Clock size={14} /> In Development
-                </div>
-              </div>
-            ))}
-          </div>
-        </CardBody>
-      </Card>
-
-      {/* Platform info */}
+      <IntegrationConnections />
       <Card>
         <CardHeader title="Platform" subtitle="Construction OS configuration" />
         <CardBody>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="p-4 border border-gray-200 rounded-lg">
-              <p className="text-xs text-gray-400 font-medium">Platform Name</p>
-              <p className="text-sm text-gray-700 font-semibold mt-1">Construction OS</p>
-            </div>
-            <div className="p-4 border border-gray-200 rounded-lg">
-              <p className="text-xs text-gray-400 font-medium">Version</p>
-              <p className="text-sm text-gray-700 font-semibold mt-1">1.0.0 (Demo)</p>
-            </div>
-            <div className="p-4 border border-gray-200 rounded-lg">
-              <p className="text-xs text-gray-400 font-medium">Powered By</p>
-              <p className="text-sm text-gray-700 font-semibold mt-1">Tishande</p>
-            </div>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+            <div className="rounded-lg border border-gray-200 p-4"><p className="text-xs font-medium text-gray-400">Platform Name</p><p className="mt-1 text-sm font-semibold text-gray-700">Construction OS</p></div>
+            <div className="rounded-lg border border-gray-200 p-4"><p className="text-xs font-medium text-gray-400">Version</p><p className="mt-1 text-sm font-semibold text-gray-700">1.0.0 (Pilot)</p></div>
+            <div className="rounded-lg border border-gray-200 p-4"><p className="text-xs font-medium text-gray-400">Powered By</p><p className="mt-1 text-sm font-semibold text-gray-700">Tishande</p></div>
           </div>
         </CardBody>
       </Card>
