@@ -157,6 +157,7 @@ Deno.serve(async (request: Request) => {
   };
 
   const findings: Array<any> = [];
+  let providerRateLimited = false;
   let specialistIndex = 0;
   for (const [key, agent] of Object.entries(AGENTS) as Array<[AgentKey, typeof AGENTS[AgentKey]]>) {
     if (specialistIndex++ > 0) await new Promise(resolve => setTimeout(resolve, SPECIALIST_PAUSE_MS));
@@ -166,6 +167,12 @@ Deno.serve(async (request: Request) => {
       metadata: { parent_run_id: parentRun.id, role: agent.name, read_only: true, writes_enabled: false },
     }).select("id").single();
     if (error || !childRun) { findings.push({ key, name: agent.name, ok: false, error: "Could not create specialist run record." }); continue; }
+    if (providerRateLimited) {
+      const reason = "Skipped because an earlier specialist reached the Groq token-per-minute limit; no immediate retry was attempted.";
+      await admin.from("vea_agent_runs").update({status:"failed",completed_at:new Date().toISOString(),output_summary:reason,metadata:{parent_run_id:parentRun.id,role:agent.name,read_only:true,rate_limited:true}}).eq("id",childRun.id).eq("organization_id",organizationId);
+      findings.push({key,name:agent.name,ok:false,run_id:childRun.id,error:reason});
+      continue;
+    }
     try {
       const projectKeys = key === "project"
         ? ["tasks","risks","schedule_activities","site_diaries","calendar_events","project_updates"]
@@ -199,11 +206,19 @@ Deno.serve(async (request: Request) => {
       findings.push({ key, name:agent.name, ok:true, run_id:childRun.id, content:result.content, usage:result.usage });
     } catch (e) {
       const reason = e instanceof Error ? e.message.slice(0,220) : "Unknown specialist error";
-      await admin.from("vea_agent_runs").update({status:"failed",completed_at:new Date().toISOString(),output_summary:reason,metadata:{parent_run_id:parentRun.id,role:agent.name,read_only:true}}).eq("id",childRun.id).eq("organization_id",organizationId);
+      if (reason.includes("Groq HTTP 429")) providerRateLimited = true;
+      await admin.from("vea_agent_runs").update({status:"failed",completed_at:new Date().toISOString(),output_summary:reason,metadata:{parent_run_id:parentRun.id,role:agent.name,read_only:true,rate_limited:providerRateLimited}}).eq("id",childRun.id).eq("organization_id",organizationId);
       findings.push({key,name:agent.name,ok:false,run_id:childRun.id,error:reason});
     }
   }
 
+
+  if (providerRateLimited) {
+    const detail = "Groq's token-per-minute limit was reached. Remaining specialist calls and Executive synthesis were stopped to avoid repeated failures.";
+    await admin.from("vea_agent_runs").update({status:"failed",completed_at:new Date().toISOString(),output_summary:detail,metadata:{orchestration:"sequential_specialists_then_synthesis",rate_limited:true,retry_after_seconds:60,specialists:findings.map(f=>({key:f.key,ok:f.ok,run_id:f.run_id,error:f.error??null}))}}).eq("id",parentRun.id).eq("organization_id",organizationId);
+    await admin.from("vea_audit_events").insert({organization_id:organizationId,actor_type:"agent",event_key:"vea.provider.rate_limited",resource_type:"vea_agent_run",resource_id:parentRun.id,outcome:"failed",details:{retry_after_seconds:60,specialists:findings.map(f=>({key:f.key,ok:f.ok,run_id:f.run_id,error:f.error??null}))}});
+    return json({error:"The model provider's token-per-minute limit was reached during this run. Remaining agents and synthesis were stopped to avoid repeated failures. Wait at least 60 seconds, then retry.",conversation_id:conversationId,run_id:parentRun.id,retry_after_seconds:60,specialists:findings.map(f=>({key:f.key,name:f.name,ok:f.ok,run_id:f.run_id}))},429);
+  }
 
   const successful = findings.filter(f => f.ok);
   if (!successful.length) {
