@@ -426,6 +426,94 @@ function ProjectAccessManagement() {
   );
 }
 
+type SecurityAuditRow = {
+  id: string;
+  actor_id: string;
+  action: string;
+  target_type: string;
+  target_id: string | null;
+  metadata: Record<string, unknown> | null;
+  created_at: string;
+};
+
+function SecurityAuditLog() {
+  const { membership } = useAuth();
+  const [events, setEvents] = useState<SecurityAuditRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    let active = true;
+    async function load() {
+      if (!membership?.organization_id) {
+        setEvents([]);
+        setLoading(false);
+        return;
+      }
+      setLoading(true);
+      setError('');
+      const { data, error: queryError } = await supabase
+        .from('security_audit_events')
+        .select('id, actor_id, action, target_type, target_id, metadata, created_at')
+        .eq('organization_id', membership.organization_id)
+        .order('created_at', { ascending: false })
+        .limit(50);
+      if (!active) return;
+      if (queryError) {
+        setError('Audit history is restricted to users with audit-view permission, or could not be loaded.');
+        setEvents([]);
+      } else {
+        setEvents((data ?? []) as SecurityAuditRow[]);
+      }
+      setLoading(false);
+    }
+    void load();
+    return () => { active = false; };
+  }, [membership?.organization_id]);
+
+  return (
+    <Card>
+      <CardHeader title="Security & Activity Audit" subtitle="Recent organisation changes and business-record activity. Access is controlled by the audit.view permission." />
+      <CardBody>
+        {loading ? <p className="text-sm text-gray-500">Loading audit history…</p> : error ? (
+          <p role="alert" className="rounded-lg bg-amber-50 p-3 text-xs text-amber-800">{error}</p>
+        ) : events.length === 0 ? (
+          <p className="text-sm text-gray-500">No audit events are available for this organisation.</p>
+        ) : (
+          <div className="divide-y divide-gray-100">
+            {events.map((event) => {
+              const metadata = event.metadata ?? {};
+              const before = metadata.status_before;
+              const after = metadata.status_after;
+              const changed = Array.isArray(metadata.changed_columns) ? metadata.changed_columns.map(String).join(', ') : '';
+              const reference = typeof metadata.reference === 'string' ? metadata.reference : '';
+              return (
+                <div key={event.id} className="py-3 first:pt-0 last:pb-0">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div>
+                      <p className="text-sm font-semibold text-gray-800">{event.action} <span className="font-normal text-gray-500">· {event.target_type}</span></p>
+                      <p className="mt-0.5 text-xs text-gray-500">{reference || event.target_id || 'Record'} · Actor {event.actor_id.slice(0, 8)}</p>
+                    </div>
+                    <time className="text-xs text-gray-400">{new Date(event.created_at).toLocaleString()}</time>
+                  </div>
+                  {(before || after || changed) && (
+                    <p className="mt-1 text-xs text-gray-500">
+                      {before || after ? 'Status: ' + String(before ?? '—') + ' → ' + String(after ?? '—') : ''}
+                      {before || after ? (changed ? ' · ' : '') : ''}
+                      {changed ? 'Changed: ' + changed : ''}
+                    </p>
+                  )}
+                  {typeof metadata.project_id === 'string' && <p className="mt-1 text-[11px] text-gray-400">Project ID: {metadata.project_id}</p>}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </CardBody>
+    </Card>
+  );
+}
+
 export function Settings() {
   const ready = integrations.filter((i) => i.status === 'ready');
   const coming = integrations.filter((i) => i.status === 'coming');
@@ -434,6 +522,7 @@ export function Settings() {
     <div className="space-y-6">
       <RoleManagement />
       <ProjectAccessManagement />
+      <SecurityAuditLog />
       {/* Ready to connect */}
       <Card>
         <CardHeader title="Ready to Connect" subtitle={`${ready.length} integrations available`} />
