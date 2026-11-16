@@ -4,6 +4,7 @@ import { Card, CardHeader, CardBody, StatCard } from '@/components/ui/Card';
 import { Table, Th, Td, Tr } from '@/components/ui/Table';
 import { StatusBadge, Badge } from '@/components/ui/Badge';
 import { useBuildFlowData } from '@/context/BuildFlowDataContext';
+import type { BuildFlowTable } from '@/lib/buildflowData';
 import { formatDate, formatDateShort } from '@/utils/format';
 
 type Row = Record<string, string | number | boolean | null | undefined> & { id: string };
@@ -27,7 +28,7 @@ function Feedback({ error, notice }: { error: string; notice: string }) { return
 function useRecordActions() {
   const { records, create, update } = useBuildFlowData();
   const [saving,setSaving]=useState(false); const [error,setError]=useState(''); const [notice,setNotice]=useState('');
-  const save = async (table: any, id: string|undefined, values: Record<string,unknown>) => {
+  const save = async (table: BuildFlowTable, id: string|undefined, values: Record<string,unknown>) => {
     setSaving(true);setError('');setNotice('');
     try { if(id) await update(table,id,values); else await create(table,values); setNotice(id?'Record updated successfully.':'Record created successfully.'); return true; }
     catch(e) { setError(e instanceof Error?e.message:'The record could not be saved. Check your permissions and try again.'); return false; }
