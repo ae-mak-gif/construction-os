@@ -242,8 +242,8 @@ Dataset details and reset safeguards: [docs/BUILDFLOW_PILOT_DATASET.md](./BUILDF
 - 40 business-table audit triggers are installed. They record authenticated actor, organisation, operation, target, changed columns, status transitions and non-sensitive references in `security_audit_events`.
 - Rollback-only database verification passed for actor attribution and changed-column capture. No permanent test record was left behind.
 
-### VEA v12
-- Development `vea-chat` version 12 is ACTIVE with JWT verification enabled.
+### VEA v13
+- Development `vea-chat` version 13 is ACTIVE with JWT verification enabled.
 - Version 11 reduces model token budgets and context size, limits per-project record payloads, removes repeated chat history from specialist prompts and does not immediately retry a Groq 429.
 - The latest six-project run before v11 had two specialist 429 failures. A post-v11 six-project runtime test is still required; VEA is not yet accepted.
 
@@ -260,10 +260,16 @@ Dataset details and reset safeguards: [docs/BUILDFLOW_PILOT_DATASET.md](./BUILDF
 - Paid-tier subscription/entitlement lifecycle remains out of pilot scope.
 - No Production changes or merges are authorised by this checkpoint.
 
-### VEA v12 rate-limit circuit breaker
+### VEA v13 rate-limit circuit breaker
 - A specialist HTTP 429 now stops remaining specialist requests and skips synthesis for that run, records an explicit provider-rate-limit audit event, and returns a 60-second retry hint. This avoids repeated requests during an exhausted TPM window. A successful post-v12 portfolio test is still required.
 
 
 ### Audit history interface
 - Settings includes a Security & Activity Audit panel showing up to 50 recent organisation events. The query is protected by the existing `audit.view` RLS policy.
 - Verify in browser with an authorised audit viewer and a role without `audit.view`; the latter must not receive event data.
+
+
+### VEA v13 coverage integrity
+- Specialist context now reports per-project record counts accurately and indicates when record lists are capped.
+- It no longer silently truncates the six-project payload. If a complete specialist context exceeds the safe size limit, the specialist fails closed and the briefing is marked incomplete.
+- Post-v13 six-project runtime acceptance remains outstanding.
