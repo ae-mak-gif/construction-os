@@ -128,7 +128,7 @@ Development `vea-chat` version 11 replaces concurrent specialist model calls wit
 
 ### Native business audit trail
 
-- Applied Development migration `20261116090000_native_business_audit_triggers`.
+- Applied Development migration `20261116084851_native_business_audit_triggers`.
 - Installed transaction-bound audit triggers on 40 business tables covering organisation membership, CRM, projects, delivery, procurement, inventory, finance, variations, client shares and related records.
 - Each event records the authenticated actor, organisation, operation, target, changed column names, status transition, project reference where applicable and a non-sensitive record reference. It does not store full row snapshots, message content, payment details or document contents.
 - Verified a project update produces a `security_audit_events` row with the correct actor, target and changed-column list. The verification transaction was rolled back, leaving no test mutation.
