@@ -238,7 +238,7 @@ Dataset details and reset safeguards: [docs/BUILDFLOW_PILOT_DATASET.md](./BUILDF
 - Pull Request #3 remains Draft and unmerged.
 
 ### Native audit trail
-- Development migration `20261116090000_native_business_audit_triggers` is applied.
+- Development migration `20261116084851_native_business_audit_triggers` is applied.
 - 40 business-table audit triggers are installed. They record authenticated actor, organisation, operation, target, changed columns, status transitions and non-sensitive references in `security_audit_events`.
 - Rollback-only database verification passed for actor attribution and changed-column capture. No permanent test record was left behind.
 
