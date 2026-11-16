@@ -155,3 +155,12 @@ Development `vea-chat` version 11 replaces concurrent specialist model calls wit
 - Settings now includes a Security & Activity Audit panel that reads the latest 50 organisation events from `security_audit_events`.
 - The panel relies on the database `audit.view` RLS permission; it does not bypass access control or expose full row snapshots.
 - The interface has been committed to the Preview branch. Browser acceptance for an authorised audit viewer and a user without `audit.view` remains pending.
+
+
+### VEA version 13 — portfolio coverage integrity
+
+- Development `vea-chat` version 13 is ACTIVE with JWT verification enabled.
+- Corrected per-project record counts so each project is assessed against its own returned records, not the organisation-wide table total.
+- Added explicit truncation indicators for project and shared procurement datasets.
+- Removed silent character truncation of specialist context. If the complete six-project context exceeds the 5,000-character safe limit, that specialist fails closed rather than receiving a partial portfolio and implying complete coverage.
+- A fresh authenticated six-project runtime test after version 13 remains pending.
