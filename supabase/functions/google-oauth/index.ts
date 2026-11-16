@@ -53,16 +53,12 @@ Deno.serve(async (request) => {
     if (!GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_SECRET) return html("Google OAuth has not yet been configured by the BuildFlow platform administrator.", false);
 
     const stateHash = await sha256(state);
-    const { data: pending, error: stateError } = await admin.schema("private")
-      .from("google_oauth_states")
-      .select("state_hash, organization_id, provider, user_id, code_verifier, expires_at, consumed_at")
-      .eq("state_hash", stateHash).maybeSingle();
-    if (stateError || !pending || pending.consumed_at || new Date(pending.expires_at).getTime() < Date.now()) {
+    const { data: pending, error: stateError } = await admin.rpc("google_oauth_state_consume", {
+      target_state_hash: stateHash,
+    });
+    if (stateError || !pending) {
       return html("This authorisation request has expired or was already used. Start again from BuildFlow Settings.", false);
     }
-    const { error: consumeError } = await admin.schema("private").from("google_oauth_states")
-      .update({ consumed_at: new Date().toISOString() }).eq("state_hash", stateHash).is("consumed_at", null);
-    if (consumeError) return html("The authorisation request could not be validated. Please start again.", false);
 
     const provider = pending.provider as Provider;
     if (!providers.includes(provider)) return html("The requested Google service is not supported.", false);
@@ -178,13 +174,13 @@ Deno.serve(async (request) => {
   const verifier = randomHex(48);
   const challenge = base64url(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier))));
   const stateHash = await sha256(state);
-  const { error: insertError } = await admin.schema("private").from("google_oauth_states").insert({
-    state_hash: stateHash,
-    organization_id: organizationId,
-    provider,
-    user_id: auth.user.id,
-    code_verifier: verifier,
-    expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
+  const { error: insertError } = await admin.rpc("google_oauth_state_create", {
+    target_state_hash: stateHash,
+    target_organization_id: organizationId,
+    target_provider: provider,
+    target_user_id: auth.user.id,
+    target_code_verifier: verifier,
+    target_expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
   });
   if (insertError) return json({ error: "Could not initialise Google authorisation. " + insertError.message }, 500);
 
