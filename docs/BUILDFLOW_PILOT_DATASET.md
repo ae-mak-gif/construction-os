@@ -4,11 +4,11 @@
 **Environment:** Supabase Development `buildflow-dev` only  
 **Organisation:** BuildFlow Demo  
 **Data classification:** Synthetic, linked operational test records — not customer records  
-**Seed script:** `supabase/seed/pilot_operational_dataset.sql`
+**Seed script:** `supabase/seed/pilot_operational_dataset.sql` plus `supabase/seed/pilot_operational_dataset_v2.sql`
 
 ## Purpose
 
-This dataset moves BuildFlow UAT beyond isolated demo cards. The records are stored in the real Development database tables and linked to the three existing UAT clients and projects. They exercise the same project, procurement, finance, programme and site-record structures used by the application.
+This dataset moves BuildFlow UAT beyond isolated demo cards. The records are stored in the real Development database tables and linked to the six synthetic UAT projects and their existing synthetic UAT clients. They exercise the same project, procurement, finance, programme and site-record structures used by the application.
 
 Every scenario is labelled `UAT` or `PILOT`. Supplier contact details use the reserved `.invalid` domain and a non-routable demonstration phone number. Purchase orders and payment records are test-only; no external dispatch, bank transfer or real payment is authorised.
 
@@ -18,7 +18,7 @@ Every scenario is labelled `UAT` or `PILOT`. Supplier contact details use the re
 |---|---|---|---|
 | UAT-01-PROJ | Residential housing development | 3 programme activities, 1 site diary, 3 BOQ items, 2 budget lines, 1 client progress update | Programme, site diary, BOQ, cost plan, progress and client-visible update |
 | UAT-02-PROJ | Commercial office fit-out | 1 BOQ item, synthetic supplier, 1 pending purchase request, 1 draft PO with 1 PO line, 1 zero-stock inventory item, 1 progress update | Request-to-PO workflow, PO approval, partial receipt of 80 units, final receipt of 100 units, stock and PO status reconciliation |
-| UAT-03-PROJ | Road and drainage upgrade | 2 budget lines, 1 draft invoice, 1 pending test payment, 1 submitted variation, 1 site diary with weather delay, 1 progress update | Invoice issue, pending-to-confirmed payment, balance reconciliation, variation approval/rejection and contract value, delay reporting |
+| UAT-03-PROJ | Road and drainage upgrade | 2 budget lines, 1 draft invoice, 1 pending test payment, 1 submitted variation, 1 site diary with weather delay, 1 progress update | Invoice issue, pending-to-confirmed payment, balance reconciliation, variation approval/rejection and contract value, delay reporting |\n| UAT-04-PROJ | Industrial warehouse mobilisation | 2 tasks, 1 permit risk, PM and Site Manager assignments, 1 progress update | Mobilisation readiness, regulatory gating, baseline programme and early-stage risk |\n| UAT-05-PROJ | Hotel renovation and closeout | 2 tasks, 2 risks, 1 budget line with forecast overrun, 1 unpaid synthetic expense, 1 progress update | Defects/snags, overdue handover documents, commercial exposure and closeout readiness |\n| UAT-06-PROJ | Water treatment commissioning | 2 tasks, 1 commissioning risk, 1 budget line, 1 unpaid synthetic test expense, 1 site diary, 1 progress update | Performance testing, quality evidence, supplier documentation and handover readiness |
 
 ## Important starting states
 
@@ -59,3 +59,8 @@ The Development database query confirmed:
 - Three dataset audit markers exist.
 
 This is a seeded baseline, not completed browser acceptance. The procurement, finance and variation journeys still need to be executed through the Preview UI using their assigned users.
+
+
+## Expanded portfolio — 16 November 2026
+
+The portfolio now contains six synthetic projects. UAT-04 through UAT-06 were inserted into Development and verified by project-level counts. The repeatable expansion seed is [pilot_operational_dataset_v2.sql](../supabase/seed/pilot_operational_dataset_v2.sql). The six-project test plan and VEA prompts are in [BUILDFLOW_UAT_SCENARIO_MATRIX.md](./BUILDFLOW_UAT_SCENARIO_MATRIX.md). All three additional projects are linked to existing synthetic UAT clients and assigned to the existing Project Manager; UAT-04 and UAT-06 also include Site Manager assignments. No Production records were changed.
