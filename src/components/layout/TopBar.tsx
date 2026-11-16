@@ -77,7 +77,7 @@ export function TopBar({ title, onMenuClick, onNavigate }: { title: string; onMe
               <div className="px-4 py-3 border-b border-gray-100 flex justify-between"><h3 className="text-sm font-semibold text-gray-800">Notifications</h3><span className="text-xs text-gray-400">{unread} unread</span></div>
               {notifications.length ? notifications.filter(n => !n.user_id || n.user_id === profile?.id).slice(0, 30).map(n => <div key={n.id} className={`px-4 py-3 border-b border-gray-50 last:border-0 ${n.is_read !== true ? 'bg-blue-50/40' : ''}`}>
                 <div className="flex items-start gap-2"><div className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${n.type === 'alert' ? 'bg-red-500' : n.type === 'warning' ? 'bg-amber-500' : 'bg-blue-500'}`} />
-                  <div className="flex-1"><p className="text-xs font-semibold text-gray-700">{n.title}</p><p className="text-xs text-gray-500 mt-0.5">{n.message}</p><p className="text-[10px] text-gray-400 mt-1">{new Date(String(n.created_at)).toLocaleString()}</p></div>
+                  <div className="flex-1"><p className="text-xs font-semibold text-gray-700">{String(n.title ?? 'Notification')}</p><p className="text-xs text-gray-500 mt-0.5">{String(n.message ?? '')}</p><p className="text-[10px] text-gray-400 mt-1">{new Date(String(n.created_at)).toLocaleString()}</p></div>
                   {n.is_read !== true && <button title="Mark as read" onClick={() => void markRead(n.id)} className="text-gray-400 hover:text-brand-600"><Check size={15}/></button>}
                 </div></div>) : <p className="px-4 py-6 text-sm text-gray-500 text-center">You're all caught up. New organisation notifications will appear here.</p>}
             </div>
