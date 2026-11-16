@@ -117,12 +117,12 @@ Development `vea-chat` version 11 replaces concurrent specialist model calls wit
 
 ## Development completion checkpoint — 16 November 2026
 
-### VEA reliability update — version 11
+### VEA reliability update — version 12
 
-- `vea-chat` version 11 is ACTIVE in Development with JWT verification enabled.
+- `vea-chat` version 12 is ACTIVE in Development with JWT verification enabled.
 - Reduced specialist completion allowance from 550 to 300 tokens, specialist retry allowance to 350, and executive synthesis allowance to 650 (800 on retry).
 - Reduced specialist context to 3,000 characters, capped project-specific records at two per project per dataset, compacted record fields, reduced shared procurement records, and removed repeated conversation history from specialist requests.
-- Specialists remain sequential with an 8-second pacing delay. A 429 is not retried immediately, avoiding a second request inside the same exhausted rate-limit window.
+- Specialists remain sequential with an 8-second pacing delay. A 429 activates a circuit breaker: remaining specialist calls and synthesis are stopped, the run is marked failed with a retry-after hint, and no immediate retry is sent into the exhausted rate-limit window.
 - The most recent six-project run before version 11 (16 Nov, 08:39 UTC) completed Project Intelligence but Finance and Procurement failed with Groq HTTP 429. The Executive Orchestrator correctly disclosed that coverage was incomplete.
 - **Acceptance status: pending.** A fresh authenticated six-project run after version 11 must complete all three specialists and synthesis before VEA can be marked accepted.
 
@@ -142,3 +142,9 @@ Development `vea-chat` version 11 replaces concurrent specialist model calls wit
 - Backup/restore drill remains pending. The available connected Supabase operations do not expose a Development backup-creation workflow; complete the backup and restore exercise through the Supabase Dashboard and record the evidence.
 - Subscription and paid-tier entitlement lifecycle remains outside the supervised pilot scope.
 - No Production database, schema, environment variable or deployment changes have been made. Draft PRs remain unmerged.
+
+### VEA version 12 circuit-breaker checkpoint
+
+- Version 12 is deployed ACTIVE in Development. If a specialist hits Groq HTTP 429, remaining specialist calls are marked skipped/failed with an explicit reason, a `vea.provider.rate_limited` audit event is written, and the parent run returns HTTP 429 with a 60-second retry hint. Executive synthesis is not attempted in that exhausted window.
+- This prevents repeated failed requests and misleading partial executive output during a provider rate-limit event. It does not increase Groq's quota; token compaction in version 11 is intended to reduce the likelihood of reaching the limit.
+- Post-v12 runtime acceptance remains pending.
