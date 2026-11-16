@@ -113,7 +113,7 @@ Workforce, document intelligence, accountability and safety specialist capabilit
 
 Use the latest READY Preview deployment from branch `fix/auth-client-access-stabilisation`:
 - Latest Preview deployment: `dpl_5qiGPPtx2L7y2kf82537fGPz95nB`
-- Preview URL: https://construction-mljt45n3v-aemakazhe-9121s-projects.vercel.app
+- Preview URL: https://construction-4lot9f87z-aemakazhe-9121s-projects.vercel.app
 
 Execute and record each case with account/role, date, expected result, actual result, pass/fail and evidence reference:
 
@@ -233,7 +233,7 @@ Dataset details and reset safeguards: [docs/BUILDFLOW_PILOT_DATASET.md](./BUILDF
 ## Development checkpoint — 16 November 2026, 08:50 UTC
 
 ### Latest verified application Preview
-- Vercel Preview for commit `f04a15943c8b0d25c8b83af1c5edaf3b5afe01e6` is READY: https://construction-mljt45n3v-aemakazhe-9121s-projects.vercel.app
+- Vercel Preview for commit `f04a15943c8b0d25c8b83af1c5edaf3b5afe01e6` is READY: https://construction-4lot9f87z-aemakazhe-9121s-projects.vercel.app
 - The subsequent documentation-only commit is building; do not replace the READY URL until its deployment reports READY.
 - Pull Request #3 remains Draft and unmerged.
 
