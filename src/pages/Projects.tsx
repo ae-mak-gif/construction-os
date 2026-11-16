@@ -587,7 +587,8 @@ function ProjectTabContent({
       const { error } = await supabase.storage.from('project-documents').upload(filePath, file, { cacheControl: '3600', upsert: false, contentType: file.type });
       if (error) { await update('project_documents', doc.id, { file_path: null, file_type: null }); throw new Error(error.message); }
     } catch (error) {
-      if (docId && filePath) { try { await supabase.storage.from('project-documents').remove([filePath]); } catch { /* best-effort cleanup */ } }
+      if (docId) { try { await update('project_documents', docId, { file_path: null, file_type: null }); } catch { /* best-effort metadata cleanup */ } }
+      if (filePath) { try { await supabase.storage.from('project-documents').remove([filePath]); } catch { /* best-effort object cleanup */ } }
       setDocumentError(error instanceof Error ? error.message : 'Upload failed.');
     } finally { setDocumentBusy(false); }
   };
