@@ -148,3 +148,10 @@ Development `vea-chat` version 11 replaces concurrent specialist model calls wit
 - Version 12 is deployed ACTIVE in Development. If a specialist hits Groq HTTP 429, remaining specialist calls are marked skipped/failed with an explicit reason, a `vea.provider.rate_limited` audit event is written, and the parent run returns HTTP 429 with a 60-second retry hint. Executive synthesis is not attempted in that exhausted window.
 - This prevents repeated failed requests and misleading partial executive output during a provider rate-limit event. It does not increase Groq's quota; token compaction in version 11 is intended to reduce the likelihood of reaching the limit.
 - Post-v12 runtime acceptance remains pending.
+
+
+### Audit history interface — 16 November 2026
+
+- Settings now includes a Security & Activity Audit panel that reads the latest 50 organisation events from `security_audit_events`.
+- The panel relies on the database `audit.view` RLS permission; it does not bypass access control or expose full row snapshots.
+- The interface has been committed to the Preview branch. Browser acceptance for an authorised audit viewer and a user without `audit.view` remains pending.
