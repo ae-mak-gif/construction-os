@@ -1,10 +1,10 @@
 # BuildFlow Pilot — Role Quick Start Guide
 
-**Version:** 13 November 2026  
+**Version:** 16 November 2026  
 **Environment:** Development Supabase + Vercel Preview  
-**Preview:** https://construction-os-git-fix-auth-cl-a2f3ad-aemakazhe-9121s-projects.vercel.app
+**Preview:** https://construction-6tzre2etk-aemakazhe-9121s-projects.vercel.app
 
-This guide is for the controlled pilot. It describes the current navigation and the intended role journeys; it does not replace role permissions or the UAT acceptance record. Some workflows remain subject to browser acceptance. Use only approved pilot/test records.
+This guide is for the controlled pilot. It describes the current navigation and the intended role journeys; it does not replace role permissions or the UAT acceptance record. Browser acceptance is still pending for the listed workflows. Use only approved pilot/test records.
 
 ## 1. Signing in
 
@@ -28,7 +28,7 @@ The internal workspace currently groups pages as follows:
 - **Finance:** Finance.
 - **Management:** HR & Staff, Workshop, Equipment, Risk & Quality and Reports.
 - **Communications:** organisation/project communications.
-- **AI Assistant:** VEA chat entry point; live inference is not enabled until its provider secret is configured and smoke-tested.
+- **AI Assistant:** VEA chat entry point; live inference is deployed with the Development provider secret configured; runtime acceptance remains pending.
 - **Settings:** account/organisation settings subject to assigned permissions.
 
 The sidebar may show navigation labels that a user's role cannot access. Database and application permissions remain authoritative. A missing or denied feature is not a reason to use another user's account.
@@ -118,7 +118,7 @@ Use the Primary Admin account for oversight and controlled administration. Avoid
 
 ## 5. Known pilot exclusions
 
-- VEA live inference is pending confirmation of the Development `GROQ_API_KEY` secret and a successful smoke test.
+- VEA live inference is deployed on the Development `GROQ_API_KEY` configuration. It is read-only; complete a fresh six-project runtime smoke test before relying on portfolio briefings.
 - Subscription selection, billing and paid-tier entitlement enforcement are not complete.
 - This is not a Production environment or a general-availability release.
 - Do not promise that every module visible in navigation is enabled for every pilot role.
