@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { supabase } from '@/lib/supabase';
 import {
   Search,
   Plus,
@@ -568,7 +569,39 @@ function ProjectTabContent({
   project: Project;
   onProgressChange?: (progress: number) => void;
 }) {
-  const { records } = useBuildFlowData();
+  const { records, create, update } = useBuildFlowData();
+  const [documentError, setDocumentError] = useState('');
+  const [documentBusy, setDocumentBusy] = useState(false);
+  const uploadProjectDocument = async (file: File | null) => {
+    if (!file) return;
+    const allowed = ['application/pdf','image/png','image/jpeg','image/webp','application/msword','application/vnd.openxmlformats-officedocument.wordprocessingml.document','application/vnd.ms-excel','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet','application/vnd.ms-powerpoint','application/vnd.openxmlformats-officedocument.presentationml.presentation'];
+    if (file.size > 25 * 1024 * 1024 || !allowed.includes(file.type)) { setDocumentError('Choose a PDF, image or Office file up to 25 MB.'); return; }
+    setDocumentBusy(true); setDocumentError('');
+    let docId = '';
+    let filePath = '';
+    try {
+      const doc = await create('project_documents', { project_id: project.id, name: file.name, document_category: 'general', revision: 'A', document_status: 'draft', is_client_shared: false, file_url: null, file_path: null, file_type: file.type });
+      docId = doc.id;
+      const safeName = file.name.replace(/[^A-Za-z0-9._-]/g, '_');
+      filePath = String(doc.organization_id) + '/' + project.id + '/' + doc.id + '/' + Date.now() + '_' + safeName;
+      await update('project_documents', doc.id, { file_path: filePath, file_type: file.type });
+      const { error } = await supabase.storage.from('project-documents').upload(filePath, file, { cacheControl: '3600', upsert: false, contentType: file.type });
+      if (error) { await update('project_documents', doc.id, { file_path: null, file_type: null }); throw new Error(error.message); }
+    } catch (error) {
+      if (docId && filePath) { try { await supabase.storage.from('project-documents').remove([filePath]); } catch { /* best-effort cleanup */ } }
+      setDocumentError(error instanceof Error ? error.message : 'Upload failed.');
+    } finally { setDocumentBusy(false); }
+  };
+  const downloadProjectDocument = async (docId: string) => {
+    const doc = (records.project_documents ?? []).find(row => row.id === docId);
+    if (!doc?.file_path) { setDocumentError('This document has no uploaded file.'); return; }
+    setDocumentError('');
+    const tab = window.open('', '_blank');
+    if (!tab) { setDocumentError('Allow pop-ups to open the secure download.'); return; }
+    const { data, error } = await supabase.storage.from('project-documents').createSignedUrl(String(doc.file_path), 60);
+    if (error || !data?.signedUrl) { tab.close(); setDocumentError(error?.message ?? 'Could not create a secure download link.'); return; }
+    tab.location.href = data.signedUrl;
+  };
   const staffById = new Map((records.staff ?? []).map((row) => [row.id, row]));
   const projectTasks = (records.tasks ?? []).filter((row) => row.project_id === project.id).map((row) => ({ id: row.id, title: String(row.title ?? ''), project: project.name, assignee: String(staffById.get(String(row.assigned_to))?.first_name ?? 'Unassigned'), dueDate: String(row.due_date ?? ''), priority: row.priority === 'high' || row.priority === 'urgent' ? 'High' : row.priority === 'low' ? 'Low' : 'Medium', status: row.status === 'completed' ? 'Done' : row.status === 'in_progress' ? 'In Progress' : row.status === 'blocked' ? 'Review' : 'To Do' } as Task))
     ;
@@ -776,13 +809,15 @@ function ProjectTabContent({
             title="Documents"
             subtitle={`${projectDocs.length} documents`}
             action={
-              <button className="flex items-center gap-1.5 text-sm font-medium text-brand-600 hover:text-brand-700">
-                <Upload size={14} /> Upload
-              </button>
+              <label className={`flex items-center gap-1.5 text-sm font-medium text-brand-600 hover:text-brand-700 ${documentBusy ? 'opacity-50 pointer-events-none' : 'cursor-pointer'}`}>
+                <Upload size={14} /> {documentBusy ? 'Uploading…' : 'Upload'}
+                <input type="file" className="sr-only" disabled={documentBusy} accept=".pdf,.png,.jpg,.jpeg,.webp,.doc,.docx,.xls,.xlsx,.ppt,.pptx" onChange={event => { void uploadProjectDocument(event.target.files?.[0] ?? null); event.currentTarget.value = ''; }} />
+              </label>
             }
           />
 
           <CardBody className="p-0">
+            {documentError && <div role="alert" className="m-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{documentError}</div>}
             <Table>
               <thead>
                 <tr>
@@ -818,7 +853,7 @@ function ProjectTabContent({
                     </Td>
 
                     <Td>
-                      <button className="text-gray-400 hover:text-gray-600">
+                      <button type="button" onClick={() => void downloadProjectDocument(d.id)} disabled={!(records.project_documents ?? []).find(row => row.id === d.id)?.file_path} title="Secure download" className="text-gray-400 hover:text-gray-600 disabled:opacity-30 disabled:cursor-not-allowed">
                         <Download size={14} />
                       </button>
                     </Td>
