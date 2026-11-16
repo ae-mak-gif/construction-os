@@ -181,7 +181,7 @@ Deno.serve(async (request: Request) => {
       let result: any;
       try {
         result = await groq(groqApiKey, [{role:"system",content:system}, ...history, {role:"user",content:message}], SPECIALIST_BUDGET);
-      } catch (firstError) {
+      } catch {
         await new Promise(resolve => setTimeout(resolve, 5000));
         result = await groq(groqApiKey, [{role:"system",content:system + " Return a shorter but complete project-by-project report. Use compact bullets and do not omit any project."}, {role:"user",content:message}], SPECIALIST_RETRY_BUDGET);
       }
