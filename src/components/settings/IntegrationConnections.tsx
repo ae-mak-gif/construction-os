@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
-import { CheckCircle2, CircleAlert, Cloud, Link2, LockKeyhole, PlugZap, RefreshCw, Unplug } from 'lucide-react';
+import { Cloud, LockKeyhole, PlugZap, RefreshCw, Unplug } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
 
