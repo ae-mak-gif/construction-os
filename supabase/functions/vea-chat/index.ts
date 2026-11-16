@@ -140,9 +140,9 @@ Deno.serve(async (request: Request) => {
   const sourceContext = {
     projects: baseProjects,
     summary: context.summary ?? {},
-    tasks: extra.tasks, risks: extra.risks, schedule_activities: extra.schedule_activities, site_diaries: extra.site_diaries, calendar_events: context.calendar_events ?? extra.calendar_events,
-    project_budgets: extra.project_budgets, expenses: extra.expenses, invoices: context.invoices ?? extra.invoices, payments: extra.payments,
-    purchase_requests: context.purchase_requests ?? extra.purchase_requests, purchase_orders: extra.purchase_orders, purchase_order_items: extra.purchase_order_items,
+    tasks: extra.tasks, risks: extra.risks, schedule_activities: extra.schedule_activities, site_diaries: extra.site_diaries, calendar_events: extra.calendar_events,
+    project_budgets: extra.project_budgets, expenses: extra.expenses, invoices: extra.invoices, payments: extra.payments,
+    purchase_requests: extra.purchase_requests, purchase_orders: extra.purchase_orders, purchase_order_items: extra.purchase_order_items,
     suppliers: extra.suppliers, inventory_items: extra.inventory_items, inventory_transactions: extra.inventory_transactions, boq_items: extra.boq_items, project_updates: extra.project_updates,
   };
   const { data: historyRows } = await admin.from("vea_messages").select("sender_type,content").eq("organization_id", organizationId).eq("conversation_id", conversationId).order("created_at", { ascending: false }).limit(2);
@@ -228,8 +228,8 @@ Deno.serve(async (request: Request) => {
     await admin.from("vea_agent_runs").update({status:"failed",completed_at:new Date().toISOString(),output_summary:"Unable to persist executive response."}).eq("id",parentRun.id);
     return json({error:"The executive briefing was generated but could not be saved to the conversation."},500);
   }
-  await admin.from("vea_agent_runs").update({status:"completed",completed_at:new Date().toISOString(),output_summary:finalText.slice(0,500),input_tokens:synthesis.usage?.prompt_tokens??null,output_tokens:synthesis.usage?.completion_tokens??null,metadata:{orchestration:"parallel_specialists_then_synthesis",specialists:findings.map(f=>({key:f.key,ok:f.ok,run_id:f.run_id})),read_only:true,writes_enabled:false}}).eq("id",parentRun.id).eq("organization_id",organizationId);
-  await admin.from("vea_conversations").update({updated_at:new Date().toISOString(),context:{source:"vea-chat",mode:"read_only",last_model_id:MODEL_ID,orchestration:"parallel_specialists_then_synthesis"}}).eq("id",conversationId).eq("organization_id",organizationId);
+  await admin.from("vea_agent_runs").update({status:"completed",completed_at:new Date().toISOString(),output_summary:finalText.slice(0,500),input_tokens:synthesis.usage?.prompt_tokens??null,output_tokens:synthesis.usage?.completion_tokens??null,metadata:{orchestration:"sequential_specialists_then_synthesis",specialists:findings.map(f=>({key:f.key,ok:f.ok,run_id:f.run_id})),read_only:true,writes_enabled:false}}).eq("id",parentRun.id).eq("organization_id",organizationId);
+  await admin.from("vea_conversations").update({updated_at:new Date().toISOString(),context:{source:"vea-chat",mode:"read_only",last_model_id:MODEL_ID,orchestration:"sequential_specialists_then_synthesis"}}).eq("id",conversationId).eq("organization_id",organizationId);
   await admin.from("vea_audit_events").insert({organization_id:organizationId,actor_type:"agent",event_key:"vea.orchestration.completed",resource_type:"vea_agent_run",resource_id:parentRun.id,outcome:"allowed",details:{model_id:MODEL_ID,specialists:findings.map(f=>({key:f.key,ok:f.ok,run_id:f.run_id})),synthesis_retried:!!synthesisError,specialist_usage:findings.map(f=>({key:f.key,usage:f.usage??null})),read_only:true,writes_enabled:false}});
   return json({conversation_id:conversationId,run_id:parentRun.id,agent_key:"executive",agent_name:"Executive Orchestrator",model_id:MODEL_ID,reply:finalText,specialists:findings.map(f=>({key:f.key,name:f.name,ok:f.ok,run_id:f.run_id})),permissions:{mode:"read_only",writes_enabled:false,approval_actions_enabled:false}});
 });
