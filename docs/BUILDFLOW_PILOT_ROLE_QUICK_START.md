@@ -2,7 +2,7 @@
 
 **Version:** 16 November 2026  
 **Environment:** Development Supabase + Vercel Preview  
-**Preview:** https://construction-6tzre2etk-aemakazhe-9121s-projects.vercel.app
+**Preview:** https://construction-4lot9f87z-aemakazhe-9121s-projects.vercel.app
 
 This guide is for the controlled pilot. It describes the current navigation and the intended role journeys; it does not replace role permissions or the UAT acceptance record. Browser acceptance is still pending for the listed workflows. Use only approved pilot/test records.
 
