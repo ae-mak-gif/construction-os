@@ -81,7 +81,7 @@ Deno.serve(async (request) => {
       return html("Google could not complete the token exchange. Check the OAuth client configuration and authorised redirect URI.", false);
     }
 
-    const profileResponse = await fetch("https://www.googleapis.com/oauth2/v2/userinfo", {
+    const profileResponse = await fetch("https://openidconnect.googleapis.com/v1/userinfo", {
       headers: { Authorization: `Bearer ${tokens.access_token}` },
     });
     const profile = profileResponse.ok ? await profileResponse.json() : {};
