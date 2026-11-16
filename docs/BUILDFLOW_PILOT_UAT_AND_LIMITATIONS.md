@@ -41,7 +41,7 @@ For each test, record the tester, date/time, actual result, pass/fail and a scre
 | UAT-09 | Project Manager | Attempt Finance view and role administration | Access is denied or controls are absent | Not run |
 | UAT-10 | Finance User | Attempt project delivery update and role administration | Access is denied or controls are absent | Not run |
 | UAT-11 | Site Manager | Attempt Finance view and role administration | Access is denied or controls are absent | Not run |
-| UAT-12 | VEA user with `agents.view` and relevant module permissions | Ask one project, one finance and one procurement question | Answers are grounded in live organisation-scoped data; no write/approval/payment/purchase action is available | Blocked — Groq secret not yet confirmed |
+| UAT-12 | VEA user with `agents.view` and relevant module permissions | Run cross-functional portfolio briefing across all six UAT projects | Three specialists execute in parallel; Executive Orchestrator synthesises one ranked briefing; run records and conversation persist; no write actions | Retest required — corrective orchestration deployed to Development |
 
 ### Execution notes
 
@@ -72,10 +72,10 @@ Copy one block for each test:
 
 | ID | Limitation / risk | Current evidence | Required action | Gate |
 |---|---|---|---|---|
-| KL-01 | VEA live inference is not runtime-verified | Edge Function deployed; `GROQ_API_KEY` has not been confirmed in Development secrets | Configure secret directly in Supabase Dashboard; run live VEA tests; never paste key into chat or source | Before VEA is included in pilot scope |
+| KL-01 | VEA orchestration and synthesis require live retest | Groq specialist calls returned findings, but the prior Executive synthesis failed. Corrective multi-agent orchestration is now deployed as `vea-chat` version 6 in Development. | Re-run portfolio synthesis; inspect parent and child agent-run records, persistence, context coverage and error handling. | Before VEA is included in pilot scope |
 | KL-02 | Subscription and tier entitlements are incomplete | No verified end-to-end plan/billing/entitlement lifecycle | Implement server-enforced Essential, Professional, Executive and Strategic Office entitlements | Before paid commercial launch |
 | KL-03 | Leaked-password protection is disabled | Development Supabase Security Advisor reports `auth_leaked_password_protection` warning | Enable and verify in Supabase Auth security settings before expanding external access | Before broader external pilot |
-| KL-04 | Browser UAT is incomplete | Backend rollback-only tests passed for several workflows; browser evidence not yet recorded | Complete UAT-01 through UAT-12 and resolve release-blocking defects | Before pilot sign-off |
+| KL-04 | Browser UAT is incomplete | Backend rollback-only tests passed for several workflows; browser evidence not yet recorded | Complete UAT-01 through UAT-12 plus the six-project scenario matrix and resolve release-blocking defects | Before pilot sign-off |
 | KL-05 | Backup/restore readiness is unverified | No verified restore drill recorded in this release checkpoint | Take a Development backup and complete a restore/recovery exercise; document outcome | Before controlled customer pilot |
 | KL-06 | User and administrator guides are not yet complete | Release checklist identifies required role guides | Prepare and review role-specific quick-start guides and admin procedures | Before onboarding pilot users |
 | KL-07 | Production release is not authorised | No Production migration/deployment approval | Separate migration review, verified backup, smoke test and explicit approval | Before any Production change |
@@ -104,3 +104,12 @@ Conditions or exclusions:
 A controlled, synthetic but relationally connected Development dataset has now been seeded for the three UAT projects. See [BuildFlow Operational Pilot Dataset](./BUILDFLOW_PILOT_DATASET.md) for the scenario register, exact starting states, role-based execution and reset rules.
 
 The dataset is stored in the real application tables, not UI mock fallbacks. It is not customer data and does not constitute browser acceptance. UAT-02 starts with a draft PO; UAT-03 starts with a draft invoice, pending test payment and submitted variation. Complete each remaining transition through the Preview UI using the authorised account. The seed operation has three dataset-level audit markers; those are not a substitute for native per-action application audit logging.
+
+
+## Six-project UAT expansion — 16 November 2026
+
+Three additional synthetic projects (UAT-04 to UAT-06) have been inserted into Development and linked to existing synthetic UAT clients. They cover mobilisation, delayed closeout and commissioning. See [six-project scenario matrix](./BUILDFLOW_UAT_SCENARIO_MATRIX.md) and [additional seed script](../supabase/seed/pilot_operational_dataset_v2.sql). Database verification confirmed: UAT-04 has 2 tasks and 1 risk; UAT-05 has 2 tasks, 2 risks, 1 budget line and 1 unpaid synthetic expense; UAT-06 has 2 tasks, 1 risk, 1 budget line, 1 unpaid synthetic expense and 1 site diary. These are database-level checks, not browser acceptance.
+
+## VEA corrective checkpoint — 16 November 2026
+
+Development `vea-chat` version 6 now runs Project, Finance and Procurement specialists concurrently, then invokes the Executive Orchestrator to reconcile and prioritise their findings. Specialist context reads use the caller JWT and RLS; no service-role business-data reads are used. Parent and child run records capture status and summaries. Synthesis retries once; if it still fails, VEA returns an explicit error instead of presenting disconnected specialist notes as an executive answer. All agents remain read-only. Live browser/runtime acceptance after this deployment remains outstanding.
