@@ -262,3 +262,8 @@ Dataset details and reset safeguards: [docs/BUILDFLOW_PILOT_DATASET.md](./BUILDF
 
 ### VEA v12 rate-limit circuit breaker
 - A specialist HTTP 429 now stops remaining specialist requests and skips synthesis for that run, records an explicit provider-rate-limit audit event, and returns a 60-second retry hint. This avoids repeated requests during an exhausted TPM window. A successful post-v12 portfolio test is still required.
+
+
+### Audit history interface
+- Settings includes a Security & Activity Audit panel showing up to 50 recent organisation events. The query is protected by the existing `audit.view` RLS policy.
+- Verify in browser with an authorised audit viewer and a role without `audit.view`; the latter must not receive event data.
