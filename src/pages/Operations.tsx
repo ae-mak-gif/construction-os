@@ -477,11 +477,13 @@ function CalendarView({
 
 // ── BOQ & Estimates ───────────────────────────────────────────
 export function BOQEstimates() {
-  const { records, create, remove } = useBuildFlowData();
+  const { records, create, update, remove } = useBuildFlowData();
   const projectById = new Map((records.projects ?? []).map((row) => [row.id, row]));
   const liveBoqItems = (records.boq_items ?? []).map((row) => ({ id: row.id, item: String(row.item_code ?? row.description ?? ''), description: String(row.description ?? ''), qty: Number(row.quantity ?? 1), unit: String(row.unit ?? ''), unitCost: Number(row.unit_rate ?? 0), category: String(row.category ?? 'Materials'), project: String(projectById.get(String(row.project_id))?.name ?? 'Unassigned project') } as (typeof mockBoqItems)[number]));
   const [projectFilter, setProjectFilter] = useState('All');
   const [items, setItems] = useState(liveBoqItems);
+  const [showBoqForm,setShowBoqForm]=useState(false); const [editingBoqId,setEditingBoqId]=useState<string|null>(null);
+  const [boqProjectId,setBoqProjectId]=useState(''); const [boqItemCode,setBoqItemCode]=useState(''); const [boqDescription,setBoqDescription]=useState(''); const [boqQty,setBoqQty]=useState('1'); const [boqUnit,setBoqUnit]=useState('item'); const [boqRate,setBoqRate]=useState('0'); const [boqCategory,setBoqCategory]=useState('Materials'); const [boqError,setBoqError]=useState(''); const [boqSaving,setBoqSaving]=useState(false);
 
   const projects = [
     'All',
@@ -505,28 +507,23 @@ export function BOQEstimates() {
     Subcontractors: 'purple',
   };
 
-  const removeItem = (id: string) => {
-    setItems(items.filter((i) => i.id !== id));
-    if (/^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(id)) void remove('boq_items', id).catch((error) => window.alert(error.message));
-  };
-
-  const addItem = async () => {
-    const newId = `B${String(items.length + 1).padStart(3, '0')}`;
-
-    const projectName = projectFilter === 'All' ? 'Riverside Office Development' : projectFilter;
-    const linkedProject = (records.projects ?? []).find((row) => row.name === projectName);
-    const item = { id: newId, item: 'New Item', description: 'Enter description', qty: 1, unit: 'pcs', unitCost: 0, category: 'Materials' as const, project: projectName };
-    if (linkedProject) {
-      try {
-        const saved = await create('boq_items', { project_id: linkedProject.id, item_code: newId, description: item.description, quantity: 1, unit: 'pcs', unit_rate: 0, total_amount: 0, category: 'Materials', status: 'planned' });
-        item.id = saved.id;
-      } catch (error) { window.alert(error instanceof Error ? error.message : 'Unable to save BOQ item.'); return; }
-    }
-    setItems((current) => [...current, item]);
-  };
+  const resetBoqForm=()=>{setShowBoqForm(false);setEditingBoqId(null);setBoqProjectId('');setBoqItemCode('');setBoqDescription('');setBoqQty('1');setBoqUnit('item');setBoqRate('0');setBoqCategory('Materials');setBoqError('');};
+  const openNewBoqForm=()=>{setEditingBoqId(null);setBoqProjectId(projectFilter==='All'?'':String((records.projects??[]).find(p=>p.name===projectFilter)?.id??''));setBoqItemCode('');setBoqDescription('');setBoqQty('1');setBoqUnit('item');setBoqRate('0');setBoqCategory('Materials');setBoqError('');setShowBoqForm(true);};
+  const openEditBoqForm=(item:typeof liveBoqItems[number])=>{const source=(records.boq_items??[]).find(row=>row.id===item.id);if(!source)return;setEditingBoqId(item.id);setBoqProjectId(String(source.project_id));setBoqItemCode(String(source.item_code??''));setBoqDescription(String(source.description??''));setBoqQty(String(source.quantity??1));setBoqUnit(String(source.unit??'item'));setBoqRate(String(source.unit_rate??0));setBoqCategory(String(source.category??'Materials'));setBoqError('');setShowBoqForm(true);};
+  const saveBoqItem=async()=>{const qty=Number(boqQty),rate=Number(boqRate);if(!boqProjectId||!boqDescription.trim()||!Number.isFinite(qty)||qty<=0||!Number.isFinite(rate)||rate<0){setBoqError('Select a project, enter a description, a quantity greater than zero and a non-negative unit rate.');return;}setBoqSaving(true);setBoqError('');try{const values={project_id:boqProjectId,item_code:boqItemCode.trim()||null,description:boqDescription.trim(),quantity:qty,unit:boqUnit.trim()||null,unit_rate:rate,total_amount:qty*rate,category:boqCategory,status:'planned'};const saved=editingBoqId?await update('boq_items',editingBoqId,values):await create('boq_items',values);const projectName=String((records.projects??[]).find(p=>p.id===boqProjectId)?.name??'Project');const next={id:saved.id,item:String(saved.item_code??saved.description??''),description:String(saved.description??''),qty:Number(saved.quantity??1),unit:String(saved.unit??''),unitCost:Number(saved.unit_rate??0),category:String(saved.category??'Materials'),project:projectName} as typeof liveBoqItems[number];setItems(current=>editingBoqId?current.map(row=>row.id===editingBoqId?next:row):[...current,next]);resetBoqForm();}catch(error){setBoqError(error instanceof Error?error.message:'BOQ item could not be saved.');}finally{setBoqSaving(false);}};
+  const removeItem=async(id:string)=>{if(!/^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(id)){window.alert('This item is not a saved database record.');return;}try{await remove('boq_items',id);setItems(current=>current.filter(item=>item.id!==id));}catch(error){window.alert(error instanceof Error?error.message:'BOQ item could not be removed.');}};
 
   return (
     <div className="space-y-6">
+      {showBoqForm && <Card><CardHeader title={editingBoqId?'Edit BOQ line item':'Add BOQ line item'}/><CardBody><div className="grid gap-3 md:grid-cols-2">
+        <label className="text-sm">Project<select value={boqProjectId} onChange={e=>setBoqProjectId(e.target.value)} className="mt-1 w-full rounded-lg border px-3 py-2"><option value="">Select project</option>{(records.projects??[]).map(p=><option key={p.id} value={p.id}>{String(p.name)}</option>)}</select></label>
+        <label className="text-sm">Item code<input value={boqItemCode} onChange={e=>setBoqItemCode(e.target.value)} className="mt-1 w-full rounded-lg border px-3 py-2"/></label>
+        <label className="text-sm md:col-span-2">Description<input value={boqDescription} onChange={e=>setBoqDescription(e.target.value)} className="mt-1 w-full rounded-lg border px-3 py-2"/></label>
+        <label className="text-sm">Quantity<input type="number" min="0.001" step="any" value={boqQty} onChange={e=>setBoqQty(e.target.value)} className="mt-1 w-full rounded-lg border px-3 py-2"/></label>
+        <label className="text-sm">Unit<input value={boqUnit} onChange={e=>setBoqUnit(e.target.value)} className="mt-1 w-full rounded-lg border px-3 py-2"/></label>
+        <label className="text-sm">Unit rate<input type="number" min="0" step="any" value={boqRate} onChange={e=>setBoqRate(e.target.value)} className="mt-1 w-full rounded-lg border px-3 py-2"/></label>
+        <label className="text-sm">Category<select value={boqCategory} onChange={e=>setBoqCategory(e.target.value)} className="mt-1 w-full rounded-lg border px-3 py-2">{['Materials','Labour','Equipment','Subcontractors'].map(v=><option key={v}>{v}</option>)}</select></label>
+      </div>{boqError&&<p role="alert" className="mt-3 text-sm text-red-600">{boqError}</p>}<div className="mt-4 flex gap-2"><button type="button" disabled={boqSaving} onClick={()=>void saveBoqItem()} className="rounded-lg bg-brand-600 px-4 py-2 text-sm text-white">{boqSaving?'Saving…':'Save BOQ item'}</button><button type="button" onClick={resetBoqForm} className="rounded-lg border px-4 py-2 text-sm">Cancel</button></div></CardBody></Card>}
       <Card>
         <CardHeader
           title="Bill of Quantities"
@@ -546,7 +543,7 @@ export function BOQEstimates() {
               </select>
 
               <button
-                onClick={addItem}
+                onClick={openNewBoqForm}
                 className="flex items-center gap-1.5 bg-brand-600 text-white text-sm font-medium px-3 py-1.5 rounded-lg hover:bg-brand-700 transition-colors"
               >
                 <Plus size={16} /> Add Item
@@ -590,14 +587,7 @@ export function BOQEstimates() {
                   <Td className="font-semibold text-gray-700">
                     {formatFullCurrency(i.qty * i.unitCost)}
                   </Td>
-                  <Td>
-                    <button
-                      onClick={() => removeItem(i.id)}
-                      className="text-gray-300 hover:text-red-500 transition-colors"
-                    >
-                      <X size={14} />
-                    </button>
-                  </Td>
+                  <Td><div className="flex gap-2"><button type="button" onClick={()=>openEditBoqForm(i)} className="text-xs text-brand-600">Edit</button><button type="button" onClick={()=>void removeItem(i.id)} className="text-gray-300 hover:text-red-500"><X size={14}/></button></div></Td>
                 </Tr>
               ))}
             </tbody>
