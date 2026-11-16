@@ -129,37 +129,45 @@ export function RiskQuality() {
 
 // ── Reports ───────────────────────────────────────────────────
 export function Reports() {
-  const reports = [
-    { name: 'Monthly Project Summary', desc: 'Overview of all active projects', date: '2026-09-01', type: 'Monthly' },
-    { name: 'Financial Performance', desc: 'Revenue, cost, and margin analysis', date: '2026-09-01', type: 'Financial' },
-    { name: 'Risk & Safety Report', desc: 'Open risks and safety observations', date: '2026-08-28', type: 'Safety' },
-    { name: 'Procurement Summary', desc: 'Purchase orders and supplier performance', date: '2026-08-25', type: 'Procurement' },
-    { name: 'Resource Utilisation', desc: 'Staff and equipment allocation', date: '2026-08-20', type: 'Resources' },
-    { name: 'Client Status Report', desc: 'Client accounts and outstanding balances', date: '2026-08-15', type: 'Client' },
+  const { records, errors } = useBuildFlowData();
+  const [active, setActive] = useState('');
+  const reportDefinitions = [
+    { key: 'projects', name: 'Monthly Project Summary', desc: 'Live project status, progress and contract values', type: 'Projects' },
+    { key: 'finance', name: 'Financial Performance', desc: 'Live invoices, expenses, payments and budget actuals', type: 'Financial' },
+    { key: 'risk', name: 'Risk & Safety Report', desc: 'Open risks, quality issues and safety incidents', type: 'Safety' },
+    { key: 'procurement', name: 'Procurement Summary', desc: 'Purchase requests, purchase orders and suppliers', type: 'Procurement' },
+    { key: 'resources', name: 'Resource Utilisation', desc: 'Staff, equipment and current assignments', type: 'Resources' },
+    { key: 'clients', name: 'Client Status Report', desc: 'Live client directory and linked project counts', type: 'Client' },
   ];
-
-  return (
-    <div className="space-y-6">
-      <Card>
-        <CardHeader title="Reports" subtitle="Generated reports and summaries" />
-        <CardBody>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {reports.map((r) => (
-              <div key={r.name} className="border border-gray-200 rounded-xl p-4 hover:shadow-card-hover hover:border-gray-300 cursor-pointer transition-all">
-                <div className="flex items-start justify-between mb-2">
-                  <div className="w-10 h-10 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
-                    <FileBarChart size={20} />
-                  </div>
-                  <Badge variant="gray">{r.type}</Badge>
-                </div>
-                <h3 className="text-sm font-semibold text-gray-800">{r.name}</h3>
-                <p className="text-xs text-gray-400 mt-1">{r.desc}</p>
-                <p className="text-xs text-gray-400 mt-3">Generated: {formatDate(r.date)}</p>
-              </div>
-            ))}
-          </div>
-        </CardBody>
-      </Card>
-    </div>
-  );
+  const rowsFor = (key: string): Record<string, unknown>[] => {
+    if (key === 'projects') return (records.projects ?? []).map(r => ({ Project: r.name, Code: r.project_code, Status: r.status, Progress: r.progress_percent, Contract_Value: r.contract_value, Location: r.location }));
+    if (key === 'finance') return [...(records.invoices ?? []).map(r => ({ Record: 'Invoice', Reference: r.invoice_number, Status: r.status, Amount: r.total_amount, Project_ID: r.project_id })), ...(records.expenses ?? []).map(r => ({ Record: 'Expense', Reference: r.description, Status: r.status, Amount: r.amount, Project_ID: r.project_id })), ...(records.payments ?? []).map(r => ({ Record: 'Payment', Reference: r.reference, Status: r.status, Amount: r.amount, Project_ID: r.project_id }))];
+    if (key === 'risk') return [...(records.risks ?? []).map(r => ({ Record: 'Risk', Title: r.title, Status: r.status, Severity: r.impact, Project_ID: r.project_id })), ...(records.quality_issues ?? []).map(r => ({ Record: 'Quality issue', Title: r.title, Status: r.status, Severity: r.severity, Project_ID: r.project_id })), ...(records.safety_incidents ?? []).map(r => ({ Record: 'Safety incident', Title: r.title, Status: r.status, Severity: r.severity, Project_ID: r.project_id }))];
+    if (key === 'procurement') return [...(records.purchase_requests ?? []).map(r => ({ Record: 'Request', Reference: r.request_number, Status: r.status, Amount: r.estimated_amount, Project_ID: r.project_id })), ...(records.purchase_orders ?? []).map(r => ({ Record: 'Purchase order', Reference: r.po_number, Status: r.status, Amount: r.total_amount, Project_ID: r.project_id })), ...(records.suppliers ?? []).map(r => ({ Record: 'Supplier', Name: r.name, Status: r.status, Contact: r.contact_name }))];
+    if (key === 'resources') return [...(records.staff ?? []).map(r => ({ Record: 'Staff', Name: [r.first_name, r.last_name].filter(Boolean).join(' '), Role: r.job_title, Status: r.employment_status })), ...(records.equipment ?? []).map(r => ({ Record: 'Equipment', Name: r.name, Asset: r.asset_number, Status: r.status })), ...(records.equipment_assignments ?? []).map(r => ({ Record: 'Equipment assignment', Equipment_ID: r.equipment_id, Staff_ID: r.staff_id, Project_ID: r.project_id, Returned: r.returned_at }))];
+    if (key === 'clients') return (records.clients ?? []).map(r => ({ Client: r.name, Status: r.status, Email: r.email, Phone: r.phone, Linked_Projects: (records.projects ?? []).filter(p => p.client_id === r.id).length }));
+    return [];
+  };
+  const download = (key: string) => {
+    const rows = rowsFor(key);
+    if (!rows.length) return;
+    const headers = [...new Set(rows.flatMap(row => Object.keys(row)))];
+    const csv = [headers.join(','), ...rows.map(row => headers.map(header => '"' + String(row[header] ?? '').replace(/"/g, '""') + '"').join(','))].join('\n');
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }));
+    const anchor = document.createElement('a'); anchor.href = url; anchor.download = 'buildflow-' + key + '-report.csv'; anchor.click(); URL.revokeObjectURL(url);
+  };
+  const selected = reportDefinitions.find(r => r.key === active);
+  const reportRows = active ? rowsFor(active) : [];
+  return <div className="space-y-6">
+    <Card><CardHeader title="Reports" subtitle="Live, permission-filtered organisation reports" />
+      <CardBody><div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {reportDefinitions.map(r => <button type="button" key={r.key} onClick={() => setActive(r.key)} className={`border rounded-xl p-4 text-left transition-all hover:shadow-card-hover ${active === r.key ? 'border-brand-400 bg-brand-50/40' : 'border-gray-200 hover:border-gray-300'}`}>
+          <div className="flex items-start justify-between mb-2"><div className="w-10 h-10 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center"><FileBarChart size={20}/></div><Badge variant="gray">{r.type}</Badge></div>
+          <h3 className="text-sm font-semibold text-gray-800">{r.name}</h3><p className="text-xs text-gray-500 mt-1">{r.desc}</p><p className="text-xs text-brand-600 mt-3">Open report →</p>
+        </button>)}
+      </div></CardBody></Card>
+    {selected && <Card><CardHeader title={selected.name} subtitle={`${reportRows.length} live record(s) available to your role`} action={<div className="flex gap-2"><button type="button" onClick={() => download(active)} disabled={!reportRows.length} className={buttonClass}>Export CSV</button><button type="button" onClick={() => setActive('')} className={secondaryClass}>Close</button></div>}/>
+      <CardBody>{errors.projects && active === 'projects' ? <p className="text-sm text-amber-700">Project data could not be loaded: {errors.projects}</p> : reportRows.length ? <div className="overflow-x-auto"><table className="min-w-full text-sm"><thead><tr>{Object.keys(reportRows[0]).map(k=><th key={k} className="px-3 py-2 text-left text-xs font-semibold uppercase text-gray-500 border-b">{k.replace(/_/g,' ')}</th>)}</tr></thead><tbody>{reportRows.map((row,i)=><tr key={i} className="border-b border-gray-50">{Object.values(row).map((v,j)=><td key={j} className="px-3 py-2 text-gray-700">{String(v ?? '—')}</td>)}</tr>)}</tbody></table></div> : <p className="py-8 text-center text-sm text-gray-500">No live records are available for this report under your current access. The report will populate as authorised records are added.</p>}</CardBody>
+    </Card>}
+  </div>;
 }
