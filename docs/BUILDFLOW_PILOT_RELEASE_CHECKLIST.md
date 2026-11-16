@@ -113,7 +113,7 @@ Workforce, document intelligence, accountability and safety specialist capabilit
 
 Use the latest READY Preview deployment from branch `fix/auth-client-access-stabilisation`:
 - Latest Preview deployment: `dpl_5qiGPPtx2L7y2kf82537fGPz95nB`
-- Preview URL: https://construction-os-git-fix-auth-cl-a2f3ad-aemakazhe-9121s-projects.vercel.app
+- Preview URL: https://construction-mljt45n3v-aemakazhe-9121s-projects.vercel.app
 
 Execute and record each case with account/role, date, expected result, actual result, pass/fail and evidence reference:
 
@@ -228,3 +228,34 @@ BuildFlow is currently a **supervised Preview candidate**, not a generally avail
 - [ ] Native application audit events for user-created and user-approved actions remain to be verified/implemented where absent.
 
 Dataset details and reset safeguards: [docs/BUILDFLOW_PILOT_DATASET.md](./BUILDFLOW_PILOT_DATASET.md).
+
+
+## Development checkpoint — 16 November 2026, 08:50 UTC
+
+### Latest verified application Preview
+- Vercel Preview for commit `f04a15943c8b0d25c8b83af1c5edaf3b5afe01e6` is READY: https://construction-mljt45n3v-aemakazhe-9121s-projects.vercel.app
+- The subsequent documentation-only commit is building; do not replace the READY URL until its deployment reports READY.
+- Pull Request #3 remains Draft and unmerged.
+
+### Native audit trail
+- Development migration `20261116090000_native_business_audit_triggers` is applied.
+- 40 business-table audit triggers are installed. They record authenticated actor, organisation, operation, target, changed columns, status transitions and non-sensitive references in `security_audit_events`.
+- Rollback-only database verification passed for actor attribution and changed-column capture. No permanent test record was left behind.
+
+### VEA v11
+- Development `vea-chat` version 11 is ACTIVE with JWT verification enabled.
+- Version 11 reduces model token budgets and context size, limits per-project record payloads, removes repeated chat history from specialist prompts and does not immediately retry a Groq 429.
+- The latest six-project run before v11 had two specialist 429 failures. A post-v11 six-project runtime test is still required; VEA is not yet accepted.
+
+### Updated Development security/performance review
+- Security: leaked-password protection remains disabled (release gate before broader external access).
+- Performance: 63 unindexed foreign keys and one multiple-permissive-policy warning remain for review.
+- Health: no findings returned.
+
+### Remaining supervised-pilot blockers
+- Browser UAT across operational workflows and all five internal/external role boundaries.
+- Fresh six-project VEA test with all specialists and Executive synthesis successful.
+- Backup/restore exercise through Supabase Dashboard; no backup-creation action is available in the connected Supabase operations.
+- Complete user/admin guides, cleanup procedure and pilot sign-off.
+- Paid-tier subscription/entitlement lifecycle remains out of pilot scope.
+- No Production changes or merges are authorised by this checkpoint.
