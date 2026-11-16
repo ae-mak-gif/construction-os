@@ -20,6 +20,7 @@ import {
   MessageSquare,
   ExternalLink,
   Bot,
+  Sparkles,
   Settings,
   Building2,
   ChevronDown,
@@ -52,6 +53,7 @@ export type PageKey =
   | 'communications'
   | 'client-portal'
   | 'ai-assistant'
+  | 'vea'
   | 'settings';
 
 interface NavItem {
@@ -131,6 +133,11 @@ const navGroups: NavGroup[] = [
     label: 'Client Portal',
     icon: <ExternalLink size={18} />,
     items: [{ key: 'client-portal', label: 'Client Portal', icon: <ExternalLink size={18} /> }],
+  },
+  {
+    label: 'Executive Office',
+    icon: <Sparkles size={18} />,
+    items: [{ key: 'vea', label: 'Virtual Executive Assistant', icon: <Sparkles size={18} /> }],
   },
   {
     label: 'AI Assistant',

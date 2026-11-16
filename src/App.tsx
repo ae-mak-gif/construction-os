@@ -14,6 +14,7 @@ import { HR, Workshop, EquipmentPage, RiskQuality, Reports } from '@/pages/Manag
 import { Communications } from '@/pages/Communications';
 import { ClientPortal } from '@/pages/ClientPortal';
 import { AIAssistant } from '@/pages/AIAssistant';
+import { VEA } from '@/pages/VEA';
 import { Settings } from '@/pages/Settings';
 import { ConstructionModules } from '@/pages/ConstructionModules';
 import { SiteDiaries } from '@/pages/SiteDiaries';
@@ -51,6 +52,7 @@ const pageTitles: Record<PageKey, string> = {
   'communications': 'Communications',
   'client-portal': 'Client Portal',
   'ai-assistant': 'AI Assistant',
+  'vea': 'Executive Office',
   'settings': 'Settings',
 };
 
@@ -173,6 +175,7 @@ function AppContent() {
           {page === 'mgmt-reports' && <Reports />}
           {page === 'communications' && <Communications />}
           {page === 'ai-assistant' && <AIAssistant />}
+          {page === 'vea' && <VEA />}
           {page === 'settings' && <Settings />}
         </main>
       </div>
