@@ -1,0 +1,1 @@
+drop policy if exists "Users can read their own organisation notifications" on public.notifications; drop policy if exists "Users can mark their own notifications as read" on public.notifications;
