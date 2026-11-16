@@ -515,6 +515,7 @@ function SecurityAuditLog() {
 }
 
 export function Settings() {
+  const [selectedIntegration, setSelectedIntegration] = useState<Integration | null>(null);
   const ready = integrations.filter((i) => i.status === 'ready');
   const coming = integrations.filter((i) => i.status === 'coming');
 
@@ -525,7 +526,7 @@ export function Settings() {
       <SecurityAuditLog />
       {/* Ready to connect */}
       <Card>
-        <CardHeader title="Ready to Connect" subtitle={`${ready.length} integrations available`} />
+        <CardHeader title="Integration setup" subtitle={`${ready.length} providers have setup workflows available; external credentials are required before a live connection can be established.`} />
         <CardBody>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {ready.map((i) => (
@@ -534,12 +535,12 @@ export function Settings() {
                   <div className={`w-11 h-11 rounded-lg flex items-center justify-center ${i.color}`}>
                     {i.icon}
                   </div>
-                  <Badge variant="green">Ready</Badge>
+                  <Badge variant="amber">Setup required</Badge>
                 </div>
                 <h3 className="text-sm font-semibold text-gray-800">{i.name}</h3>
                 <p className="text-xs text-gray-400 mt-1">{i.description}</p>
-                <button className="mt-3 w-full flex items-center justify-center gap-1.5 text-sm font-medium text-brand-600 border border-brand-200 rounded-lg py-2 hover:bg-brand-50 transition-colors">
-                  <Plug size={14} /> Connect
+                <button type="button" onClick={() => setSelectedIntegration(i)} className="mt-3 w-full flex items-center justify-center gap-1.5 text-sm font-medium text-brand-600 border border-brand-200 rounded-lg py-2 hover:bg-brand-50 transition-colors">
+                  <Plug size={14} /> View connection setup
                 </button>
               </div>
             ))}
@@ -547,6 +548,21 @@ export function Settings() {
         </CardBody>
       </Card>
 
+      {selectedIntegration && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" role="dialog" aria-modal="true" aria-label={selectedIntegration.name + ' setup'}>
+        <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl">
+          <div className="flex items-start justify-between gap-4"><div><h3 className="text-lg font-semibold text-gray-900">{selectedIntegration.name} connection setup</h3><p className="mt-1 text-sm text-gray-500">{selectedIntegration.description}</p></div><button type="button" onClick={() => setSelectedIntegration(null)} className="text-sm text-gray-500 hover:text-gray-800">Close</button></div>
+          <div className="mt-5 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">This provider is not connected yet. BuildFlow will not report a successful connection until the provider credentials, server-side callback and connection test are completed.</div>
+          <h4 className="mt-5 text-sm font-semibold text-gray-800">What is required</h4>
+          <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-gray-600">
+            <li>A provider account owned by your organisation.</li>
+            <li>Provider-issued OAuth client credentials or API keys, as applicable.</li>
+            <li>Server-side secrets stored in Supabase Edge Function secrets, never in the browser.</li>
+            <li>A verified callback/webhook URL and a successful test before enabling live traffic.</li>
+          </ul>
+          <p className="mt-4 text-xs text-gray-500">The next implementation step is to configure the selected provider's backend adapter and credentials. Existing BuildFlow data and access controls remain unchanged.</p>
+          <button type="button" onClick={() => setSelectedIntegration(null)} className="mt-5 w-full rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white">Close setup guide</button>
+        </div>
+      </div>}
       {/* Coming soon */}
       <Card>
         <CardHeader title="Coming Soon" subtitle={`${coming.length} integrations in development`} />
