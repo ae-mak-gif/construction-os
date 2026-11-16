@@ -13,11 +13,13 @@ export function Communications() {
     const body = content.replace(/^To:.*\\n\\n/, '');
     const channel = row.message_type === 'sms' ? 'SMS' : row.message_type === 'email' ? 'Email' : 'WhatsApp';
     return { id: row.id, channel, from: 'BuildFlow', to: recipientLine, subject: String(row.subject ?? ''), preview: body, time: String(row.created_at ?? '').slice(11, 16), unread: false } as Message;
-  }) : messages;
+  }) : [];
   const [messageItems, setMessageItems] = useState(liveMessages);
   const [recipient, setRecipient] = useState('');
   const [subject, setSubject] = useState('');
   const [messageBody, setMessageBody] = useState('');
+  const [replyBody, setReplyBody] = useState('');
+  const [replySaving, setReplySaving] = useState(false);
   type MessageChannel = 'WhatsApp' | 'SMS' | 'Email';
   type ChannelFilter = 'All' | MessageChannel;
   const channelOptions: ChannelFilter[] = ['All', 'WhatsApp', 'SMS', 'Email'];
@@ -155,11 +157,21 @@ export function Communications() {
                   </div>
                   <div className="flex items-center gap-2 pt-3 border-t border-gray-100">
                     <div className="flex-1 flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
-                      <input placeholder="Type a reply..." className="bg-transparent text-sm outline-none flex-1 text-gray-600" />
+                      <input value={replyBody} onChange={(event) => setReplyBody(event.target.value)} placeholder="Write a reply…" className="bg-transparent text-sm outline-none flex-1 text-gray-600" />
                       <Send size={16} className="text-gray-400" />
                     </div>
-                    <button className="bg-brand-600 text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-brand-700 transition-colors">
-                      Reply
+                    <button disabled={!replyBody.trim() || replySaving} onClick={async () => {
+                      if (!selected || !replyBody.trim()) return;
+                      setReplySaving(true);
+                      try {
+                        const subjectLine = selected.subject.startsWith('Re:') ? selected.subject : 'Re: ' + selected.subject;
+                        const saved = await create('messages', { subject: subjectLine, content: 'To: ' + selected.from + '\n\n' + replyBody.trim(), message_type: selected.channel.toLowerCase(), status: 'draft' });
+                        const item = { id: saved.id, channel: selected.channel, from: 'BuildFlow', to: selected.from, subject: subjectLine, preview: replyBody.trim(), time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), unread: false } as (typeof messages)[number];
+                        setMessageItems(current => [item, ...current]); setSelected(item); setReplyBody('');
+                      } catch (error) { window.alert(error instanceof Error ? error.message : 'Unable to save reply.'); }
+                      finally { setReplySaving(false); }
+                    }} className="bg-brand-600 text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-brand-700 transition-colors disabled:opacity-50">
+                      {replySaving ? 'Saving…' : 'Save reply'}
                     </button>
                   </div>
                 </div>
