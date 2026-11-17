@@ -104,3 +104,11 @@ The user completed the display-name change directly in Supabase Dashboard; a fre
 - Keep BuildFlow Main's project ref stable so the display-name change does not alter application connectivity.
 
 **Next action:** Resolve the older Production project's database connection timeout and complete the side-by-side database, Auth, Storage and function inventory. Confirm whether `organization.manage_members` is the intended permission for integration administration, and enable leaked-password protection in BuildFlow Main Auth settings. Then produce the exact data/configuration transfer manifest and cutover plan.
+
+## Legacy project pause decision (2026-11-17)
+
+The user approved pausing the legacy Supabase project `BuildFlow` (`mlvafrbwaybuehlzcniy`) and handling outstanding BuildFlow work in **BuildFlow Main**. A fresh project metadata read reported `ACTIVE_HEALTHY`, but the Supabase pause operation rejected the request with: `Cannot pause project while it is currently hibernating. Please reach out to support.`
+
+No pause occurred; the legacy project has not been deleted or modified. Supabase's project-pausing documentation states that paused Free Plan projects preserve data/configuration, stop compute charges and do not count toward the Free Plan two-project limit; restoration is available for 90 days. However, Supabase support intervention is required before this particular hibernating project can be paused. Do not retry pause/restore blindly. After Supabase support resolves the hibernation state, pause the legacy project and verify its paused status before creating the separate InsurAssist project in the same Free Plan organisation.
+
+The legacy project remains a recovery source while it is inaccessible. Outstanding BuildFlow development and fixes should continue against BuildFlow Main; do not attempt legacy cutover or data reconciliation unless the user later requests it.
