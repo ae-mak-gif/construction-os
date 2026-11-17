@@ -63,3 +63,41 @@ jobs:
 
       - name: Dependency security audit
         run: npm audit --audit-level=high
+
+  refresh-lockfile:
+    if: github.event_name == 'pull_request' && github.event.pull_request.number == 3 && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
+          ref: ${{ github.event.pull_request.head.ref }}
+          persist-credentials: true
+
+      - name: Set up Node.js
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - name: Apply compatible dependency security updates
+        run: npm audit fix --package-lock-only
+
+      - name: Commit updated lockfile to the PR branch
+        env:
+          PR_BRANCH: ${{ github.event.pull_request.head.ref }}
+        run: |
+          if git diff --quiet -- package-lock.json; then
+            echo "Dependency lockfile is already current."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package-lock.json
+          git commit -m "chore(deps): apply npm audit fixes"
+          git push origin "HEAD:${PR_BRANCH}"
+
