@@ -5,13 +5,13 @@
 **Branch:** `fix/auth-client-access-stabilisation`  
 **Decision under implementation:** Promote the existing Development Supabase project to the authoritative BuildFlow backend, displayed as **BuildFlow Main**. The Supabase project reference, API URL, database host, application code identifiers and Vercel project name are not to be changed as part of a display-name change.
 
-> **Status: PARTIAL — Production comparison blocked by database connection timeouts.** A Development-only security migration has now been applied and verified. No Production, authentication-user, Storage-object, Edge Function, Vercel environment, project-name, pause or deletion changes were made.
+> **Status: PARTIAL — Production comparison blocked by database connection timeouts.** The Development project has been renamed in the Dashboard to **BuildFlow Main** (display name only). Two Development-only security migrations have been applied and verified. The latest CI run passed dependency security, lint, type-check and production build. No Production cutover, data transfer, pause or deletion has been performed.
 
 ## 1. Project identity
 
 | Role | Supabase project name | Project ref | Region | Project-list status |
 |---|---|---|---|---|
-| Proposed BuildFlow Main | `buildflow-dev` | `amqknbijdjpcapwkeyyh` | `eu-west-2` | ACTIVE_HEALTHY |
+| BuildFlow Main | `BuildFlow Main` | `amqknbijdjpcapwkeyyh` | `eu-west-2` | ACTIVE_HEALTHY |
 | Existing BuildFlow Production candidate | `BuildFlow` | `mlvafrbwaybuehlzcniy` | `eu-west-2` | ACTIVE_HEALTHY |
 
 The Development project is the stronger candidate based on the available schema, migration, integration and VEA evidence. The older project must not be retired until its database can be inspected and its unique data/configuration reconciled.
@@ -39,7 +39,7 @@ The project contains the CRM, project delivery, programme, BOQ, procurement, inv
 Supabase Security Advisor returned these findings:
 
 1. **Resolved: RLS disabled on `private.organization_integration_secrets`.** Reviewed the table grants and all three dependent RPCs (`integration_secret_store`, `integration_secret_read`, `integration_secret_delete`). The table has no direct grants to `anon`, `authenticated` or `service_role`; the three `SECURITY DEFINER` RPCs are owned by `postgres` and explicitly require `request.jwt.claim.role = service_role`. Applied `ENABLE ROW LEVEL SECURITY` without `FORCE ROW LEVEL SECURITY`, preserving the owner-context access used by those RPCs. Post-change SQL verified `rls_enabled=true`, `force_rls=false`, and zero direct application-role grants. Supabase Advisor now reports this as an informational RLS-enabled/no-policy finding, not an RLS-disabled exposure. Migration: `supabase/migrations/20261117104131_secure_organization_integration_secrets.sql`. Enabling RLS without the intended policies could break integration secret access.
-2. **Warning: `public.user_can_manage_integrations(uuid)` is SECURITY DEFINER and executable by authenticated users.** Its body delegates to `private.has_org_permission`, which checks the caller's `auth.uid()`, active organisation membership and the assigned role permission. It currently checks `organization.manage_members`; confirm whether that is the intended permission for integration administration and inspect application callers before changing the grant or permission key.
+2. **Resolved: `public.user_can_manage_integrations(uuid)` was unnecessarily SECURITY DEFINER.** It is now SECURITY INVOKER; it still delegates to the private SECURITY DEFINER permission-check helper, which checks the caller's `auth.uid()`, active organisation membership and assigned role permission. `authenticated` retains EXECUTE; `anon` does not. Its permission key remains `organization.manage_members` pending confirmation that this is the intended integration-administration capability.
 3. **Info: `private.google_oauth_states` has RLS enabled but no policies.** Its grants are restricted to `postgres` and `service_role`, with no direct `anon` or `authenticated` grants. This is consistent with a service-role-only state store; retain no client-facing policies unless a documented access requirement emerges.
 4. **Warning: leaked-password protection is disabled.** Enable through Auth settings after confirming the intended password policy and then verify.
 
@@ -71,7 +71,7 @@ Before cutover, verify the effective deployment values without exposing secrets 
 
 The active implementation branch is `fix/auth-client-access-stabilisation`. The consolidation audit and the RLS remediation migration have been committed to this branch; see its current head for the latest SHA.
 
-The repository contains the initial numbered SQL migrations and timestamped follow-up migrations. The Development project has 59 migration ledger entries. The new RLS migration filename matches the migration version recorded by Supabase. A migration-by-migration filename, checksum, dependency and execution-state reconciliation is still required before any migration is replayed or applied elsewhere.
+The repository contains the initial numbered SQL migrations and timestamped follow-up migrations. The Development project has 60 migration ledger entries. Both new security migration filenames match the versions recorded by Supabase: `20261117104131_secure_organization_integration_secrets.sql` and `20261117105154_make_integration_permission_wrapper_invoker.sql`. A migration-by-migration filename, checksum, dependency and execution-state reconciliation is still required before any migration is replayed or applied elsewhere.
 
 The existing roadmap explicitly warns against blindly replaying historical migrations against a live database. Preserve that rule.
 
@@ -81,7 +81,7 @@ The existing roadmap explicitly warns against blindly replaying historical migra
 |---|---|---|---|
 | 1 | Database schema and migration reconciliation | In progress | Full side-by-side schema, migration ledger and drift report |
 | 2 | Authentication and multi-tenancy | Partial | User/identity comparison, organisation membership and role mapping; tenant-isolation tests |
-| 3 | RLS, grants, functions and security | In progress | Integration-secret RLS remediated; confirm integration-admin permission semantics and enable leaked-password protection |
+| 3 | RLS, grants, functions and security | In progress | Integration-secret RLS remediated; permission wrapper changed to invoker; confirm permission semantics and enable leaked-password protection |
 | 4 | Storage and documents | Partial | Bucket/policy comparison, object inventory and verified transfer if needed |
 | 5 | Edge Functions and secrets | Partial | Function source/version comparison, environment secret inventory and redeployment plan |
 | 6 | External integrations and OAuth | Partial | Provider configuration, OAuth redirect URIs, webhook destinations and credential re-provisioning |
@@ -90,9 +90,9 @@ The existing roadmap explicitly warns against blindly replaying historical migra
 
 ## 8. Naming and compatibility
 
-The intended Supabase Dashboard display name is **BuildFlow Main**. A project display-name change is distinct from its project ref and API endpoint. Keep `amqknbijdjpcapwkeyyh` and `https://amqknbijdjpcapwkeyyh.supabase.co` unchanged; do not rename code folders, environment variable keys, Vercel project identifiers, OAuth callback paths or GitHub repository identifiers for this display-name distinction.
+The Supabase Dashboard display name has been changed to **BuildFlow Main**. This is distinct from the project ref and API endpoint. Keep `amqknbijdjpcapwkeyyh` and `https://amqknbijdjpcapwkeyyh.supabase.co` unchanged; do not rename code folders, environment variable keys, Vercel project identifiers, OAuth callback paths or GitHub repository identifiers for this display-name distinction.
 
-The connected Supabase operations available in this workspace expose project listing and metadata but do not expose a project-rename operation. Therefore the Dashboard display-name change remains pending and must be performed in Supabase Dashboard project settings. No rename was attempted through an unsupported operation.
+The user completed the display-name change directly in Supabase Dashboard; a fresh project metadata read confirms the name is `BuildFlow Main`.
 
 ## 9. Safety gates
 
@@ -103,4 +103,4 @@ The connected Supabase operations available in this workspace expose project lis
 - Do not copy synthetic UAT data into a live customer dataset.
 - Keep BuildFlow Main's project ref stable so the display-name change does not alter application connectivity.
 
-**Next action:** Resolve the older Production project's hibernation/connection timeout and complete the side-by-side database, Auth, Storage and function inventory. In parallel, verify the integration-management permission semantics and leaked-password protection setting on BuildFlow Main. Only then produce the exact data/configuration transfer manifest and cutover plan.
+**Next action:** Resolve the older Production project's database connection timeout and complete the side-by-side database, Auth, Storage and function inventory. Confirm whether `organization.manage_members` is the intended permission for integration administration, and enable leaked-password protection in BuildFlow Main Auth settings. Then produce the exact data/configuration transfer manifest and cutover plan.
