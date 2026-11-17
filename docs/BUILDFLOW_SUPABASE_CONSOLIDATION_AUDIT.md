@@ -5,7 +5,7 @@
 **Branch:** `fix/auth-client-access-stabilisation`  
 **Decision under implementation:** Promote the existing Development Supabase project to the authoritative BuildFlow backend, displayed as **BuildFlow Main**. The Supabase project reference, API URL, database host, application code identifiers and Vercel project name are not to be changed as part of a display-name change.
 
-> **Status: PARTIAL — Production comparison blocked by database connection timeouts.** No database, authentication, Storage, Edge Function, Vercel environment, project-name, pause, deletion or Production changes were made during this audit checkpoint.
+> **Status: PARTIAL — Production comparison blocked by database connection timeouts.** A Development-only security migration has now been applied and verified. No Production, authentication-user, Storage-object, Edge Function, Vercel environment, project-name, pause or deletion changes were made.
 
 ## 1. Project identity
 
@@ -30,7 +30,7 @@ Read-only inspection of `amqknbijdjpcapwkeyyh` returned:
 - 0 Storage objects and 0 project-document register rows at the time of inspection.
 - 0 rows in `organization_integrations` at the time of inspection.
 - 4 active Edge Functions: `vea-context` v4, `vea-chat` v13, `integration-manager` v1 and `google-oauth` v2.
-- 58 recorded database migrations, latest `20261116110659_google_oauth_state_service_rpcs`.
+- 59 recorded database migrations, latest `20261117104131_secure_organization_integration_secrets` (new Development-only RLS remediation).
 
 The project contains the CRM, project delivery, programme, BOQ, procurement, inventory, finance, HR, equipment, workshop, risk, quality, safety, communications, client-portal and VEA foundations. Table existence and seed counts are not proof of complete browser workflows or release acceptance.
 
@@ -38,16 +38,16 @@ The project contains the CRM, project delivery, programme, BOQ, procurement, inv
 
 Supabase Security Advisor returned these findings:
 
-1. **Critical: RLS disabled on `private.organization_integration_secrets`.** The table currently has 0 rows, but the security configuration is not acceptable. The advisor supplied an `ENABLE ROW LEVEL SECURITY` remediation; it has deliberately not been applied because the correct service-only access model and required policies must be reviewed first. Enabling RLS without the intended policies could break integration secret access.
-2. **Warning: `public.user_can_manage_integrations(uuid)` is SECURITY DEFINER and executable by authenticated users.** Inspect the function body, grants and caller requirements before changing it. Do not blindly revoke access.
-3. **Info: `private.google_oauth_states` has RLS enabled but no policies.** Verify that it is intentionally service-role-only and that no client access is expected.
+1. **Resolved: RLS disabled on `private.organization_integration_secrets`.** Reviewed the table grants and all three dependent RPCs (`integration_secret_store`, `integration_secret_read`, `integration_secret_delete`). The table has no direct grants to `anon`, `authenticated` or `service_role`; the three `SECURITY DEFINER` RPCs are owned by `postgres` and explicitly require `request.jwt.claim.role = service_role`. Applied `ENABLE ROW LEVEL SECURITY` without `FORCE ROW LEVEL SECURITY`, preserving the owner-context access used by those RPCs. Post-change SQL verified `rls_enabled=true`, `force_rls=false`, and zero direct application-role grants. Supabase Advisor now reports this as an informational RLS-enabled/no-policy finding, not an RLS-disabled exposure. Migration: `supabase/migrations/20261117104131_secure_organization_integration_secrets.sql`. Enabling RLS without the intended policies could break integration secret access.
+2. **Warning: `public.user_can_manage_integrations(uuid)` is SECURITY DEFINER and executable by authenticated users.** Its body delegates to `private.has_org_permission`, which checks the caller's `auth.uid()`, active organisation membership and the assigned role permission. It currently checks `organization.manage_members`; confirm whether that is the intended permission for integration administration and inspect application callers before changing the grant or permission key.
+3. **Info: `private.google_oauth_states` has RLS enabled but no policies.** Its grants are restricted to `postgres` and `service_role`, with no direct `anon` or `authenticated` grants. This is consistent with a service-role-only state store; retain no client-facing policies unless a documented access requirement emerges.
 4. **Warning: leaked-password protection is disabled.** Enable through Auth settings after confirming the intended password policy and then verify.
 
 Performance Advisor reported 35 unindexed foreign keys and numerous unused indexes. These require workload/query-plan review; do not bulk-create or delete indexes based only on advisor counts.
 
 ## 4. Existing Production project inspection
 
-The project listing and project metadata endpoint identify `mlvafrbwaybuehlzcniy` as ACTIVE_HEALTHY. However, database operations repeatedly failed with connection timeouts and a hibernation response.
+The project listing and project metadata endpoint identify `mlvafrbwaybuehlzcniy` as ACTIVE_HEALTHY. A separate advisor call reported that the project was hibernated and would wake on a supported request; subsequent database requests continued to time out.
 
 - Migration inventory: unavailable due to connection timeout.
 - Table inventory: unavailable due to connection timeout.
@@ -69,9 +69,9 @@ Before cutover, verify the effective deployment values without exposing secrets 
 
 ## 6. Git and migration source of truth
 
-The active implementation branch is `fix/auth-client-access-stabilisation`, currently at commit `39ccfb6f3464a23fd53c6e3e367bebe4ce62144d`.
+The active implementation branch is `fix/auth-client-access-stabilisation`. The consolidation audit and the RLS remediation migration have been committed to this branch; see its current head for the latest SHA.
 
-The repository contains the initial numbered SQL migrations and timestamped follow-up migrations. The Development project has 58 migration ledger entries. A migration-by-migration filename, checksum, dependency and execution-state reconciliation is still required before any migration is replayed or applied elsewhere.
+The repository contains the initial numbered SQL migrations and timestamped follow-up migrations. The Development project has 59 migration ledger entries. The new RLS migration filename matches the migration version recorded by Supabase. A migration-by-migration filename, checksum, dependency and execution-state reconciliation is still required before any migration is replayed or applied elsewhere.
 
 The existing roadmap explicitly warns against blindly replaying historical migrations against a live database. Preserve that rule.
 
@@ -81,7 +81,7 @@ The existing roadmap explicitly warns against blindly replaying historical migra
 |---|---|---|---|
 | 1 | Database schema and migration reconciliation | In progress | Full side-by-side schema, migration ledger and drift report |
 | 2 | Authentication and multi-tenancy | Partial | User/identity comparison, organisation membership and role mapping; tenant-isolation tests |
-| 3 | RLS, grants, functions and security | Blocked on remediation review | RLS policy/grant matrix, SECURITY DEFINER review, leaked-password protection |
+| 3 | RLS, grants, functions and security | In progress | Integration-secret RLS remediated; confirm integration-admin permission semantics and enable leaked-password protection |
 | 4 | Storage and documents | Partial | Bucket/policy comparison, object inventory and verified transfer if needed |
 | 5 | Edge Functions and secrets | Partial | Function source/version comparison, environment secret inventory and redeployment plan |
 | 6 | External integrations and OAuth | Partial | Provider configuration, OAuth redirect URIs, webhook destinations and credential re-provisioning |
@@ -99,8 +99,8 @@ The connected Supabase operations available in this workspace expose project lis
 - Keep both Supabase projects intact until the comparison and backup/recovery checks pass.
 - Do not pause or delete the existing Production project during this audit.
 - Do not alter Production schema, data, Auth, Storage, Edge Functions or environment variables until a separate cutover approval is recorded.
-- Do not blindly enable RLS on the integration-secret table without reviewing its access model and adding correct policies/grants.
+- Keep integration-secret access restricted to the existing service-role-guarded RPCs; do not grant direct table access to application roles.
 - Do not copy synthetic UAT data into a live customer dataset.
 - Keep BuildFlow Main's project ref stable so the display-name change does not alter application connectivity.
 
-**Next action:** Restore/read the older Production project's database access, complete the side-by-side inventory, then produce the exact data/configuration transfer manifest and cutover plan.
+**Next action:** Resolve the older Production project's hibernation/connection timeout and complete the side-by-side database, Auth, Storage and function inventory. In parallel, verify the integration-management permission semantics and leaked-password protection setting on BuildFlow Main. Only then produce the exact data/configuration transfer manifest and cutover plan.
