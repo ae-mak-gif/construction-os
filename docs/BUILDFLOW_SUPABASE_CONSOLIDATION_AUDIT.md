@@ -30,7 +30,7 @@ Read-only inspection of `amqknbijdjpcapwkeyyh` returned:
 - 0 Storage objects and 0 project-document register rows at the time of inspection.
 - 0 rows in `organization_integrations` at the time of inspection.
 - 4 active Edge Functions: `vea-context` v4, `vea-chat` v13, `integration-manager` v1 and `google-oauth` v2.
-- 59 recorded database migrations, latest `20261117104131_secure_organization_integration_secrets` (new Development-only RLS remediation).
+- 60 recorded database migrations, latest `20261117105154_make_integration_permission_wrapper_invoker` (Development-only security-definer reduction).
 
 The project contains the CRM, project delivery, programme, BOQ, procurement, inventory, finance, HR, equipment, workshop, risk, quality, safety, communications, client-portal and VEA foundations. Table existence and seed counts are not proof of complete browser workflows or release acceptance.
 
