@@ -117,7 +117,7 @@ Deno.serve(async (request: Request) => {
   if (rateError) return json({ error: "Unable to verify the assistant usage limit." }, 503);
   if ((count ?? 0) >= RATE_LIMIT) return json({ error: "You've reached the short-term VEA message limit. Please wait a minute and try again." }, 429);
 
-  let conversation: any = null;
+  let conversation: any;
   if (suppliedConversationId) {
     const { data, error } = await admin.from("vea_conversations").select("id,title,status").eq("id", suppliedConversationId).eq("organization_id", organizationId).eq("created_by", userId).maybeSingle();
     if (error || !data) return json({ error: "That conversation is unavailable to this account." }, 404);
