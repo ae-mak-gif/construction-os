@@ -1,15 +1,16 @@
 name: Temporary dependency lock refresh
 
 on:
-  push:
+  pull_request:
     branches:
-      - fix/auth-client-access-stabilisation
+      - fix/auth-profile-schema-alignment
 
 permissions:
   contents: read
 
 jobs:
   refresh-lockfile:
+    if: github.event.pull_request.number == 3
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
