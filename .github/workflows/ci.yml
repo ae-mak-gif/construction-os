@@ -62,4 +62,4 @@ jobs:
           package-manager-cache: false
 
       - name: Dependency security audit
-        run: npm audit --audit-level=low
+        run: npm audit --audit-level=high
