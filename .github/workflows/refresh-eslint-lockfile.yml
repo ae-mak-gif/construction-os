@@ -1,4 +1,5 @@
 name: One-time ESLint 10 lockfile refresh
+# Trigger corrected @eslint/js 10.0.1 lockfile generation
 
 on:
   push:
