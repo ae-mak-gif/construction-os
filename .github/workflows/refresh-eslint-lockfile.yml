@@ -4,13 +4,14 @@ on:
   push:
     branches:
       - fix/auth-client-access-stabilisation
+    paths:
+      - .github/workflows/refresh-eslint-lockfile.yml
 
 permissions:
   contents: read
 
 jobs:
   refresh:
-    if: startsWith(github.event.head_commit.message, 'chore: refresh ESLint 10 lockfile')
     runs-on: ubuntu-latest
     timeout-minutes: 25
     permissions:
