@@ -1,29 +1,57 @@
-import { useState } from 'react';
+import { lazy, Suspense, useState } from 'react';
 import { AuthProvider, useAuth } from '@/context/AuthContext';
 import { BuildFlowDataProvider, useBuildFlowData } from '@/context/BuildFlowDataContext';
 import { LoginPage } from '@/pages/Login';
 import { ResetPasswordPage } from '@/pages/ResetPassword';
 import { Sidebar, type PageKey } from '@/components/layout/Sidebar';
 import { TopBar } from '@/components/layout/TopBar';
-import { Dashboard } from '@/pages/Dashboard';
-import { Enquiries, Clients } from '@/pages/CRM';
-import { Projects, ProjectDetail } from '@/pages/Projects';
-import { TasksCalendar, BOQEstimates, Suppliers, Inventory } from '@/pages/Operations';
-import { ProcurementWorkspace as Procurement } from '@/pages/ProcurementWorkspace';
-import { Finance } from '@/pages/Finance';
-import { HR, Workshop, EquipmentPage, RiskQuality, Reports } from '@/pages/Management';
-import { Communications } from '@/pages/Communications';
-import { ClientPortal } from '@/pages/ClientPortal';
-import { AIAssistant } from '@/pages/AIAssistant';
-import { Settings } from '@/pages/Settings';
-import { ConstructionModules } from '@/pages/ConstructionModules';
-import { SiteDiaries } from '@/pages/SiteDiaries';
-import { ProjectSchedule } from '@/pages/ProjectSchedule';
-import { CostControl } from '@/pages/CostControl';
-import { ConstructionRegisters } from '@/pages/ConstructionRegisters';
-import { ProjectDocuments } from '@/pages/ProjectDocuments';
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 import type { Project } from '@/data/mockData';
 import { Loader2, Building2 } from 'lucide-react';
+
+const Dashboard = lazy(() => import('@/pages/Dashboard').then((module) => ({ default: module.Dashboard })));
+const Enquiries = lazy(() => import('@/pages/CRM').then((module) => ({ default: module.Enquiries })));
+const Clients = lazy(() => import('@/pages/CRM').then((module) => ({ default: module.Clients })));
+const Projects = lazy(() => import('@/pages/Projects').then((module) => ({ default: module.Projects })));
+const ProjectDetail = lazy(() => import('@/pages/Projects').then((module) => ({ default: module.ProjectDetail })));
+const TasksCalendar = lazy(() => import('@/pages/Operations').then((module) => ({ default: module.TasksCalendar })));
+const BOQEstimates = lazy(() => import('@/pages/Operations').then((module) => ({ default: module.BOQEstimates })));
+const Suppliers = lazy(() => import('@/pages/Operations').then((module) => ({ default: module.Suppliers })));
+const Inventory = lazy(() => import('@/pages/Operations').then((module) => ({ default: module.Inventory })));
+const Procurement = lazy(() => import('@/pages/ProcurementWorkspace').then((module) => ({ default: module.ProcurementWorkspace })));
+const Finance = lazy(() => import('@/pages/Finance').then((module) => ({ default: module.Finance })));
+const HR = lazy(() => import('@/pages/Management').then((module) => ({ default: module.HR })));
+const Workshop = lazy(() => import('@/pages/Management').then((module) => ({ default: module.Workshop })));
+const EquipmentPage = lazy(() => import('@/pages/Management').then((module) => ({ default: module.EquipmentPage })));
+const RiskQuality = lazy(() => import('@/pages/Management').then((module) => ({ default: module.RiskQuality })));
+const Reports = lazy(() => import('@/pages/Management').then((module) => ({ default: module.Reports })));
+const Communications = lazy(() => import('@/pages/Communications').then((module) => ({ default: module.Communications })));
+const ClientPortal = lazy(() => import('@/pages/ClientPortal').then((module) => ({ default: module.ClientPortal })));
+const AIAssistant = lazy(() => import('@/pages/AIAssistant').then((module) => ({ default: module.AIAssistant })));
+const Settings = lazy(() => import('@/pages/Settings').then((module) => ({ default: module.Settings })));
+const ConstructionModules = lazy(() => import('@/pages/ConstructionModules').then((module) => ({ default: module.ConstructionModules })));
+const SiteDiaries = lazy(() => import('@/pages/SiteDiaries').then((module) => ({ default: module.SiteDiaries })));
+const ProjectSchedule = lazy(() => import('@/pages/ProjectSchedule').then((module) => ({ default: module.ProjectSchedule })));
+const CostControl = lazy(() => import('@/pages/CostControl').then((module) => ({ default: module.CostControl })));
+const ConstructionRegisters = lazy(() => import('@/pages/ConstructionRegisters').then((module) => ({ default: module.ConstructionRegisters })));
+const ProjectDocuments = lazy(() => import('@/pages/ProjectDocuments').then((module) => ({ default: module.ProjectDocuments })));
+
 
 const pageTitles: Record<PageKey, string> = {
   dashboard: 'Dashboard',
@@ -142,6 +170,7 @@ function AppContent() {
       <div className="flex-1 flex flex-col min-w-0">
         <TopBar title={pageTitles[page]} onMenuClick={() => setMobileSidebarOpen(true)} onNavigate={(nextPage) => handleNavigate(nextPage as PageKey)} />
         <main className="flex-1 p-4 lg:p-6 overflow-x-hidden">
+          <Suspense fallback={<div className="flex min-h-64 items-center justify-center text-sm text-gray-500">Loading workspace...</div>}>
           {dataErrorCount > 0 && (
             <div role="alert" aria-live="polite" className="mb-4 flex flex-col gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-900 sm:flex-row sm:items-center sm:justify-between">
               <div>
@@ -176,6 +205,7 @@ function AppContent() {
           {page === 'communications' && <Communications />}
           {page === 'ai-assistant' && <AIAssistant />}
           {page === 'settings' && <Settings />}
+          </Suspense>
         </main>
       </div>
     </div>
