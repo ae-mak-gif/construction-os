@@ -64,3 +64,4 @@ jobs:
 
       - name: Dependency security audit
         run: npm audit --audit-level=low
+# Revalidate PR #3 against the refreshed auth-profile-schema-alignment base (4ccf989).
