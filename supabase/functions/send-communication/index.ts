@@ -37,7 +37,9 @@ Deno.serve(async (req) => {
   if (!apiKey.startsWith("re_") || !emailPattern.test(sender)) return json({ error: "The saved Resend sender configuration is invalid. Reconnect the provider." }, 409);
 
   let messageId: string | null = isUuid(body.message_id) ? body.message_id : null;
-  let recipient = "", subject = "", content = "";
+  let recipient: string;
+  let subject: string;
+  let content: string;
   if (messageId) {
     const { data: saved, error } = await admin.from("messages").select("id,sender_user_id,organization_id,message_type,status,subject,content")
       .eq("id", messageId).eq("organization_id", orgId).eq("sender_user_id", auth.user.id).maybeSingle();

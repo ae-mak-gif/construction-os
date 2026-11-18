@@ -75,12 +75,13 @@ Deno.serve(async (request) => {
     let accountLabel = "";
     try {
       switch (provider) {
-        case "resend_email":
+        case "resend_email": {
           if (!required(credentials.apiKey, "Resend API key").startsWith("re_")) throw new Error("Enter a valid Resend API key.");
           const senderEmail = extractEmail(credentials.fromEmail);
           if (!validEmail(senderEmail)) throw new Error("Enter a valid sender email address, optionally using Name <email@domain.com>.");
           accountLabel = senderEmail;
           break;
+        }
         case "meta_whatsapp":
           required(credentials.accessToken, "Meta access token");
           accountLabel = "WhatsApp Business · " + required(credentials.phoneNumberId, "Phone number ID");
