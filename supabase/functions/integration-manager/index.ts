@@ -10,6 +10,11 @@ type Provider = typeof providers[number];
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), {
   status, headers: { ...cors, "Content-Type": "application/json" },
 });
+const extractEmail = (value: unknown) => {
+  if (typeof value !== "string") return "";
+  const angleAddress = value.match(/<([^<>]+)>/);
+  return (angleAddress?.[1] ?? value).trim();
+};
 const validEmail = (value: unknown) => typeof value === "string" && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 const required = (value: unknown, label: string) => {
   if (typeof value !== "string" || value.trim().length < 3) throw new Error(label + " is required.");
@@ -72,8 +77,9 @@ Deno.serve(async (request) => {
       switch (provider) {
         case "resend_email":
           if (!required(credentials.apiKey, "Resend API key").startsWith("re_")) throw new Error("Enter a valid Resend API key.");
-          if (!validEmail(credentials.fromEmail)) throw new Error("Enter a valid verified sender email address.");
-          accountLabel = String(credentials.fromEmail);
+          const senderEmail = extractEmail(credentials.fromEmail);
+          if (!validEmail(senderEmail)) throw new Error("Enter a valid sender email address, optionally using Name <email@domain.com>.");
+          accountLabel = senderEmail;
           break;
         case "meta_whatsapp":
           required(credentials.accessToken, "Meta access token");
@@ -125,6 +131,92 @@ Deno.serve(async (request) => {
       metadata: { provider, status: "pending_setup" },
     });
     return json({ success: true, status: "pending_setup", message: "Credentials encrypted and saved. The provider still needs a connection test before it can be marked active." });
+  }
+
+
+  if (action === "test_connection") {
+    if (!provider) return json({ error: "Choose a provider to test." }, 400);
+    if (provider === "google_calendar" || provider === "google_drive") {
+      return json({ error: "Google connections are verified during the OAuth authorisation flow." }, 409);
+    }
+    if (provider === "paynow_payments") {
+      return json({ error: "Paynow Payments cannot be safely verified without creating a transaction. Keep it pending until the sandbox payment and callback workflow is implemented." }, 409);
+    }
+    const { data: storedSecret, error: readError } = await admin.rpc("integration_secret_read", {
+      target_organization_id: organizationId, target_provider: provider,
+    });
+    if (readError || !storedSecret) return json({ error: "No stored credentials were found. Configure this provider first." }, 404);
+    let credentials: Record<string, unknown>;
+    try {
+      const raw = typeof storedSecret === "string" ? storedSecret : (storedSecret as { secret?: string }).secret;
+      credentials = typeof raw === "string" ? JSON.parse(raw) : {};
+    } catch {
+      return json({ error: "Stored provider credentials could not be read." }, 500);
+    }
+    const testedAt = new Date().toISOString();
+    let accountLabel = "";
+    try {
+      if (provider === "resend_email") {
+        const apiKey = required(credentials.apiKey, "Resend API key");
+        const senderEmail = extractEmail(credentials.fromEmail);
+        if (!validEmail(senderEmail)) throw new Error("The configured sender email is invalid.");
+        const response = await fetch("https://api.resend.com/domains", {
+          headers: { Authorization: "Bearer " + apiKey }, signal: AbortSignal.timeout(10000),
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(response.status === 401 ? "Resend rejected the API key." : "Resend could not verify the connection.");
+        const domain = senderEmail.split("@")[1].toLowerCase();
+        const verified = Array.isArray(payload.data) && payload.data.some((item: { name?: string; status?: string }) =>
+          typeof item.name === "string" && item.name.toLowerCase() === domain && item.status === "verified");
+        if (!verified) throw new Error("The Resend API key is valid, but the sender domain is not verified in this account.");
+        accountLabel = senderEmail;
+      } else if (provider === "meta_whatsapp") {
+        const accessToken = required(credentials.accessToken, "Meta access token");
+        const phoneNumberId = required(credentials.phoneNumberId, "WhatsApp phone number ID");
+        const endpoint = "https://graph.facebook.com/v27.0/" + encodeURIComponent(phoneNumberId) + "?fields=verified_name,display_phone_number,quality_rating";
+        const response = await fetch(endpoint, {
+          headers: { Authorization: "Bearer " + accessToken }, signal: AbortSignal.timeout(10000),
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error("Meta could not verify the access token and phone number ID. Check token permissions and phone number ID.");
+        accountLabel = typeof payload.verified_name === "string" ? payload.verified_name :
+          (typeof payload.display_phone_number === "string" ? payload.display_phone_number : "WhatsApp Business account");
+      } else if (provider === "paynow_sms") {
+        const username = required(credentials.username, "TXT API username");
+        const password = required(credentials.password, "TXT API password");
+        const host = String(credentials.host);
+        if (!["usd.txt.co.zw", "www.txt.co.zw"].includes(host)) throw new Error("Choose a supported Paynow TXT host.");
+        const response = await fetch("https://" + host + "/Remote/AccountBalance", {
+          headers: { Authorization: "Basic " + btoa(username + ":" + password) }, signal: AbortSignal.timeout(10000),
+        });
+        const balance = (await response.text()).trim();
+        if (!response.ok || /^ERROR\s*:/i.test(balance) || !balance) {
+          throw new Error("Paynow TXT could not verify these credentials. Confirm the REMOTE user and selected currency host.");
+        }
+        accountLabel = "Paynow TXT · " + host;
+      }
+      const { error: updateError } = await admin.from("organization_integrations").update({
+        status: "connected", account_label: accountLabel, last_tested_at: testedAt, last_error: null,
+        metadata: { connection_test: "passed", tested_at: testedAt }, updated_at: testedAt,
+      }).eq("organization_id", organizationId).eq("provider", provider);
+      if (updateError) return json({ error: "Provider verified, but its connection status could not be updated." }, 500);
+      await admin.from("security_audit_events").insert({
+        organization_id: organizationId, actor_id: auth.user.id, action: "integration.connection_test_passed",
+        target_type: "organization_integration", metadata: { provider, tested_at: testedAt },
+      });
+      return json({ success: true, status: "connected", message: "Connection verified successfully. No message, payment or customer notification was sent." });
+    } catch (error) {
+      const safeError = (error instanceof Error ? error.message : "The provider connection test failed.").slice(0, 240);
+      const { error: updateError } = await admin.from("organization_integrations").update({
+        status: "error", last_tested_at: testedAt, last_error: safeError,
+        metadata: { connection_test: "failed", tested_at: testedAt }, updated_at: testedAt,
+      }).eq("organization_id", organizationId).eq("provider", provider);
+      await admin.from("security_audit_events").insert({
+        organization_id: organizationId, actor_id: auth.user.id, action: "integration.connection_test_failed",
+        target_type: "organization_integration", metadata: { provider, tested_at: testedAt, error: safeError },
+      });
+      return json({ success: false, status: "error", error: updateError ? safeError + " Connection status could not be saved." : safeError });
+    }
   }
 
   if (action === "disconnect") {
