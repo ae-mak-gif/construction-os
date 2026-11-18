@@ -32,6 +32,7 @@ export function Communications() {
   const [composeOpen, setComposeOpen] = useState(false);
   const [composeChannel, setComposeChannel] = useState<'WhatsApp' | 'SMS' | 'Email'>('WhatsApp');
   const [composeError, setComposeError] = useState('');
+  const [retryMessageId, setRetryMessageId] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
 
   const filtered = messageItems.filter(
@@ -199,9 +200,9 @@ export function Communications() {
                 <p className="text-xs text-slate-700">{composeChannel === 'Email' ? 'This sends a real email using your organisation’s connected Resend account.' : `${composeChannel} is saved as a draft; external delivery is not enabled yet.`}</p>
               </div>
               {composeError && <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">{composeError}</p>}
-              <input value={recipient} onChange={(event) => setRecipient(event.target.value)} placeholder="To: recipient name or number" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-brand-400" />
-              <input value={subject} onChange={(event) => setSubject(event.target.value)} placeholder="Subject" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-brand-400" />
-              <textarea value={messageBody} onChange={(event) => setMessageBody(event.target.value)} placeholder="Type your message..." rows={4} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-brand-400 resize-none" />
+              <input value={recipient} onChange={(event) => { setRecipient(event.target.value); setRetryMessageId(null); }} placeholder="To: recipient name or number" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-brand-400" />
+              <input value={subject} onChange={(event) => { setSubject(event.target.value); setRetryMessageId(null); }} placeholder="Subject" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-brand-400" />
+              <textarea value={messageBody} onChange={(event) => { setMessageBody(event.target.value); setRetryMessageId(null); }} placeholder="Type your message..." rows={4} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-brand-400 resize-none" />
               <div className="flex items-center justify-end gap-2">
                 <button onClick={() => setComposeOpen(false)} className="text-sm font-medium text-gray-500 px-4 py-2 rounded-lg border border-gray-200 hover:bg-gray-50">Cancel</button>
                 <button disabled={sending || !recipient.trim() || !messageBody.trim()} onClick={async () => {
@@ -212,11 +213,13 @@ export function Communications() {
                     setSending(true);
                     try {
                       const { data, error: invokeError } = await supabase.functions.invoke('send-communication', {
-                        body: { organization_id: membership.organization_id, recipient: recipient.trim(), subject: subject.trim() || 'BuildFlow message', content: messageBody.trim() },
+                        body: retryMessageId
+                          ? { organization_id: membership.organization_id, message_id: retryMessageId }
+                          : { organization_id: membership.organization_id, recipient: recipient.trim(), subject: subject.trim() || 'BuildFlow message', content: messageBody.trim() },
                       });
-                      if (invokeError || data?.error) { setComposeError(data?.error || invokeError?.message || 'Email could not be sent.'); return; }
+                      if (invokeError || data?.error) { setRetryMessageId(data?.message_id ?? null); setComposeError(data?.error || invokeError?.message || 'Email could not be sent.'); return; }
                       const item = { id: data.message_id, channel: 'Email', from: 'BuildFlow', to: recipient.trim(), subject: subject.trim() || 'BuildFlow message', preview: messageBody.trim(), time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), unread: false } as (typeof messages)[number];
-                      setMessageItems(current => [item, ...current]); setSelected(item);
+                      setMessageItems(current => [item, ...current.filter(existing => existing.id !== item.id)]); setSelected(item); setRetryMessageId(null);
                       setRecipient(''); setSubject(''); setMessageBody(''); setComposeOpen(false);
                     } catch (error) { setComposeError(error instanceof Error ? error.message : 'Email could not be sent.'); }
                     finally { setSending(false); }
@@ -229,7 +232,7 @@ export function Communications() {
                     setRecipient(''); setSubject(''); setMessageBody(''); setComposeOpen(false);
                   } catch (error) { setComposeError(error instanceof Error ? error.message : 'Unable to save this draft.'); }
                 }} className="flex items-center gap-1.5 bg-brand-600 text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-brand-700 disabled:opacity-50">
-                  <Send size={14} /> {sending ? 'Sending…' : composeChannel === 'Email' ? 'Send email' : `Save ${composeChannel} draft`}
+                  <Send size={14} /> {sending ? 'Sending…' : composeChannel === 'Email' ? (retryMessageId ? 'Retry email' : 'Send email') : `Save ${composeChannel} draft`}
                 </button>
               </div>
             </div>
