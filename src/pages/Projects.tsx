@@ -660,6 +660,9 @@ function ProjectTabContent({
         <OverviewTab
           project={project}
           onProgressChange={onProgressChange}
+          progressSaving={progressSaving}
+          progressError={progressError}
+          canPersistProgress={canPersistProgress}
         />
       );
 
@@ -1077,9 +1080,15 @@ function ProjectTabContent({
 function OverviewTab({
   project,
   onProgressChange,
+  progressSaving,
+  progressError,
+  canPersistProgress,
 }: {
   project: Project;
   onProgressChange?: (progress: number) => void;
+  progressSaving?: boolean;
+  progressError?: string;
+  canPersistProgress?: boolean;
 }) {
   const costSegments = [
     {
