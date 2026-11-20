@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import {
   Plus,
@@ -24,12 +24,13 @@ import { useBuildFlowData } from '@/context/BuildFlowDataContext';
 // ── Tasks & Calendar ──────────────────────────────────────────
 export function TasksCalendar() {
   const { create, update, records } = useBuildFlowData();
-  const projectById = new Map((records.projects ?? []).map((row) => [row.id, row]));
-  const liveTasks: Task[] = (records.tasks ?? []).map((row) => ({ id: row.id, title: String(row.title ?? ''), project: String(projectById.get(String(row.project_id))?.name ?? 'Unassigned project'), assignee: 'Unassigned', dueDate: String(row.due_date ?? ''), priority: row.priority === 'high' || row.priority === 'urgent' ? 'High' : row.priority === 'low' ? 'Low' : 'Medium', status: row.status === 'completed' ? 'Done' : row.status === 'in_progress' ? 'In Progress' : row.status === 'blocked' ? 'Review' : 'To Do' } as Task));
-  const liveCalendarEvents = (records.calendar_events ?? []).map((row) => ({ id: row.id, title: String(row.title ?? ''), date: String(row.start_at ?? '').slice(0, 10), time: String(row.start_at ?? '').slice(11, 16), type: row.event_type === 'inspection' ? 'inspection' : row.event_type === 'deadline' ? 'deadline' : row.event_type === 'client-meeting' ? 'client-meeting' : row.event_type === 'site-meeting' ? 'site-meeting' : 'project-meeting', project: String(projectById.get(String(row.project_id))?.name ?? 'General') } as (typeof calendarEvents)[number]));
+  const projectById = useMemo(() => new Map((records.projects ?? []).map((row) => [row.id, row])), [records.projects]);
+  const liveTasks = useMemo<Task[]>(() => (records.tasks ?? []).map((row) => ({ id: row.id, title: String(row.title ?? ''), project: String(projectById.get(String(row.project_id))?.name ?? 'Unassigned project'), assignee: 'Unassigned', dueDate: String(row.due_date ?? ''), priority: row.priority === 'high' || row.priority === 'urgent' ? 'High' : row.priority === 'low' ? 'Low' : 'Medium', status: row.status === 'completed' ? 'Done' : row.status === 'in_progress' ? 'In Progress' : row.status === 'blocked' ? 'Review' : 'To Do' } as Task)), [records.tasks, projectById]);
+  const liveCalendarEvents = useMemo(() => (records.calendar_events ?? []).map((row) => ({ id: row.id, title: String(row.title ?? ''), date: String(row.start_at ?? '').slice(0, 10), time: String(row.start_at ?? '').slice(11, 16), type: row.event_type === 'inspection' ? 'inspection' : row.event_type === 'deadline' ? 'deadline' : row.event_type === 'client-meeting' ? 'client-meeting' : row.event_type === 'site-meeting' ? 'site-meeting' : 'project-meeting', project: String(projectById.get(String(row.project_id))?.name ?? 'General') } as (typeof calendarEvents)[number])), [records.calendar_events, projectById]);
   const [tab, setTab] = useState<'tasks' | 'calendar'>('tasks');
   const [statusFilter, setStatusFilter] = useState<string>('All');
   const [taskItems, setTaskItems] = useState(liveTasks);
+  useEffect(() => { setTaskItems(liveTasks); }, [liveTasks]);
   const [showTaskModal, setShowTaskModal] = useState(false);
   const [taskTitle, setTaskTitle] = useState('');
   const [taskProject, setTaskProject] = useState('');
@@ -478,10 +479,11 @@ function CalendarView({
 // ── BOQ & Estimates ───────────────────────────────────────────
 export function BOQEstimates() {
   const { records, create, update, remove } = useBuildFlowData();
-  const projectById = new Map((records.projects ?? []).map((row) => [row.id, row]));
-  const liveBoqItems = (records.boq_items ?? []).map((row) => ({ id: row.id, item: String(row.item_code ?? row.description ?? ''), description: String(row.description ?? ''), qty: Number(row.quantity ?? 1), unit: String(row.unit ?? ''), unitCost: Number(row.unit_rate ?? 0), category: String(row.category ?? 'Materials'), project: String(projectById.get(String(row.project_id))?.name ?? 'Unassigned project') } as (typeof mockBoqItems)[number]));
+  const projectById = useMemo(() => new Map((records.projects ?? []).map((row) => [row.id, row])), [records.projects]);
+  const liveBoqItems = useMemo(() => (records.boq_items ?? []).map((row) => ({ id: row.id, item: String(row.item_code ?? row.description ?? ''), description: String(row.description ?? ''), qty: Number(row.quantity ?? 1), unit: String(row.unit ?? ''), unitCost: Number(row.unit_rate ?? 0), category: String(row.category ?? 'Materials'), project: String(projectById.get(String(row.project_id))?.name ?? 'Unassigned project') } as (typeof mockBoqItems)[number])), [records.boq_items, projectById]);
   const [projectFilter, setProjectFilter] = useState('All');
   const [items, setItems] = useState(liveBoqItems);
+  useEffect(() => { setItems(liveBoqItems); }, [liveBoqItems]);
   const [showBoqForm,setShowBoqForm]=useState(false); const [editingBoqId,setEditingBoqId]=useState<string|null>(null);
   const [boqProjectId,setBoqProjectId]=useState(''); const [boqItemCode,setBoqItemCode]=useState(''); const [boqDescription,setBoqDescription]=useState(''); const [boqQty,setBoqQty]=useState('1'); const [boqUnit,setBoqUnit]=useState('item'); const [boqRate,setBoqRate]=useState('0'); const [boqCategory,setBoqCategory]=useState('Materials'); const [boqError,setBoqError]=useState(''); const [boqSaving,setBoqSaving]=useState(false);
 
@@ -635,10 +637,11 @@ export function BOQEstimates() {
 // ── Procurement ──────────────────────────────────────────────
 export function Procurement() {
   const { create, records } = useBuildFlowData();
-  const projectById = new Map((records.projects ?? []).map((row) => [row.id, row]));
-  const liveRequests = (records.purchase_requests ?? []).map((row) => ({ id: String(row.request_number ?? row.id), item: String(row.description ?? ''), project: String(projectById.get(String(row.project_id))?.name ?? 'Unassigned project'), qty: 1, unit: 'item', estCost: Number(row.estimated_amount ?? 0), requestedBy: 'Team member', date: String(row.created_at ?? '').slice(0, 10), status: row.status === 'approved' ? 'Approved' : row.status === 'ordered' ? 'PO Issued' : row.status === 'delivered' ? 'Delivered' : row.status === 'rejected' ? 'Rejected' : 'Requested', supplier: 'Pending' } as PurchaseRequest));
+  const projectById = useMemo(() => new Map((records.projects ?? []).map((row) => [row.id, row])), [records.projects]);
+  const liveRequests = useMemo<PurchaseRequest[]>(() => (records.purchase_requests ?? []).map((row) => ({ id: String(row.request_number ?? row.id), item: String(row.description ?? ''), project: String(projectById.get(String(row.project_id))?.name ?? 'Unassigned project'), qty: 1, unit: 'item', estCost: Number(row.estimated_amount ?? 0), requestedBy: 'Team member', date: String(row.created_at ?? '').slice(0, 10), status: row.status === 'approved' ? 'Approved' : row.status === 'ordered' ? 'PO Issued' : row.status === 'delivered' ? 'Delivered' : row.status === 'rejected' ? 'Rejected' : 'Requested', supplier: 'Pending' } as PurchaseRequest)), [records.purchase_requests, projectById]);
   const [statusFilter, setStatusFilter] = useState('All');
   const [requests, setRequests] = useState(liveRequests);
+  useEffect(() => { setRequests(liveRequests); }, [liveRequests]);
   const [showModal, setShowModal] = useState(false);
 
   const [item, setItem] = useState('');
