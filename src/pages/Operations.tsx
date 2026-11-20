@@ -33,10 +33,13 @@ export function TasksCalendar() {
   useEffect(() => { setTaskItems(liveTasks); }, [liveTasks]);
   const [showTaskModal, setShowTaskModal] = useState(false);
   const [taskTitle, setTaskTitle] = useState('');
-  const [taskProject, setTaskProject] = useState('');
-  const [taskAssignee, setTaskAssignee] = useState('');
+  const [taskProjectId, setTaskProjectId] = useState('');
+  const [taskAssigneeId, setTaskAssigneeId] = useState('');
   const [taskDueDate, setTaskDueDate] = useState('');
   const [taskPriority, setTaskPriority] = useState<Task['priority']>('Medium');
+  const [taskError, setTaskError] = useState('');
+  const [taskSaving, setTaskSaving] = useState(false);
+  const [taskActionError, setTaskActionError] = useState('');
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [showEventModal, setShowEventModal] = useState(false);
   const [eventTitle, setEventTitle] = useState('');
@@ -68,35 +71,61 @@ export function TasksCalendar() {
   const doneCount = taskItems.filter((t) => t.status === 'Done').length;
 
   const createTask = async () => {
-    if (!taskTitle.trim()) return;
+    const title = taskTitle.trim();
+    const linkedProject = (records.projects ?? []).find((project) => project.id === taskProjectId);
+    const linkedStaff = taskAssigneeId
+      ? (records.staff ?? []).find((member) => member.id === taskAssigneeId)
+      : undefined;
 
-    const newTask: Task = {
-      id: `T${String(taskItems.length + 1).padStart(3, '0')}`,
-      title: taskTitle.trim(),
-      project: taskProject || 'Riverside Office Development',
-      assignee: taskAssignee || 'Unassigned',
-      dueDate: taskDueDate || new Date().toISOString().slice(0, 10),
-      priority: taskPriority,
-      status: 'To Do',
-    };
-
-    try {
-      const linkedProject = (records.projects ?? []).find((p) => String(p.name) === newTask.project);
-      const linkedStaff = (records.staff ?? []).find((member) => `${member.first_name ?? ''} ${member.last_name ?? ''}`.trim() === newTask.assignee);
-      const saved = await create('tasks', { title: newTask.title, project_id: linkedProject?.id ?? null, assigned_to: linkedStaff?.id ?? null, status: 'todo', priority: newTask.priority.toLowerCase(), due_date: newTask.dueDate });
-      newTask.id = saved.id;
-    } catch (error) {
-      console.error('Unable to save task:', error);
-      window.alert(error instanceof Error ? error.message : 'Unable to save this task.');
+    if (!title) {
+      setTaskError('Enter a task title.');
       return;
     }
-    setTaskItems([newTask, ...taskItems]);
-    setTaskTitle('');
-    setTaskProject('');
-    setTaskAssignee('');
-    setTaskDueDate('');
-    setTaskPriority('Medium');
-    setShowTaskModal(false);
+    if (!linkedProject) {
+      setTaskError('Select a valid project from your organisation.');
+      return;
+    }
+    if (taskAssigneeId && !linkedStaff) {
+      setTaskError('The selected assignee is no longer available. Refresh the page and try again.');
+      return;
+    }
+
+    const dueDate = taskDueDate || (() => {
+      const today = new Date();
+      return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    })();
+    setTaskSaving(true);
+    setTaskError('');
+    try {
+      const saved = await create('tasks', {
+        title,
+        project_id: linkedProject.id,
+        assigned_to: linkedStaff?.id ?? null,
+        status: 'todo',
+        priority: taskPriority.toLowerCase(),
+        due_date: dueDate,
+      });
+      const newTask: Task = {
+        id: saved.id,
+        title,
+        project: String(linkedProject.name),
+        assignee: linkedStaff ? `${linkedStaff.first_name ?? ''} ${linkedStaff.last_name ?? ''}`.trim() || 'Assigned user' : 'Unassigned',
+        dueDate,
+        priority: taskPriority,
+        status: 'To Do',
+      };
+      setTaskItems((current) => [newTask, ...current]);
+      setTaskTitle('');
+      setTaskProjectId('');
+      setTaskAssigneeId('');
+      setTaskDueDate('');
+      setTaskPriority('Medium');
+      setShowTaskModal(false);
+    } catch (error) {
+      setTaskError(error instanceof Error ? error.message : 'Unable to save this task. Please try again.');
+    } finally {
+      setTaskSaving(false);
+    }
   };
 
   const advanceTask = async (id: string) => {
@@ -106,12 +135,13 @@ export function TasksCalendar() {
     const currentIndex = stages.indexOf(selectedTask.status);
     if (currentIndex < 0 || currentIndex >= stages.length - 1) return;
     const next = stages[currentIndex + 1];
+    setTaskActionError('');
     try {
       if (!/^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(id)) throw new Error('This task is not linked to a saved database record. Refresh the task list before editing.');
       await update('tasks', id, { status: next === 'Done' ? 'completed' : next === 'Review' ? 'blocked' : next.toLowerCase().replace(' ', '_') });
       setTaskItems(current => current.map(task => task.id === id ? { ...task, status: next } : task));
     } catch (error) {
-      window.alert(error instanceof Error ? error.message : 'Task status could not be updated.');
+      setTaskActionError(error instanceof Error ? error.message : 'Task status could not be updated.');
     }
   };
 
@@ -161,6 +191,8 @@ export function TasksCalendar() {
       </div>
 
       {tab === 'tasks' ? (
+        <>
+        {taskActionError && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{taskActionError}</p>}
         <Card>
           <CardHeader
             title="All Tasks"
@@ -236,6 +268,7 @@ export function TasksCalendar() {
             </Table>
           </CardBody>
         </Card>
+        </>
       ) : (
         <CalendarView
           currentMonth={currentMonth}
@@ -266,6 +299,7 @@ export function TasksCalendar() {
             </div>
 
             <div className="p-6 space-y-4">
+              {taskError && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{taskError}</p>}
               <input
                 value={taskTitle}
                 onChange={(e) => setTaskTitle(e.target.value)}
@@ -273,19 +307,36 @@ export function TasksCalendar() {
                 className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-brand-400"
               />
 
-              <input
-                value={taskProject}
-                onChange={(e) => setTaskProject(e.target.value)}
-                placeholder="Project"
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-brand-400"
-              />
+              <label className="block text-sm text-gray-600">
+                Project
+                <select
+                  value={taskProjectId}
+                  onChange={(e) => setTaskProjectId(e.target.value)}
+                  className="mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-brand-400"
+                  required
+                >
+                  <option value="">Select a project</option>
+                  {(records.projects ?? []).map((project) => (
+                    <option key={project.id} value={project.id}>{String(project.name)}</option>
+                  ))}
+                </select>
+              </label>
 
-              <input
-                value={taskAssignee}
-                onChange={(e) => setTaskAssignee(e.target.value)}
-                placeholder="Assignee"
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-brand-400"
-              />
+              <label className="block text-sm text-gray-600">
+                Assignee (optional)
+                <select
+                  value={taskAssigneeId}
+                  onChange={(e) => setTaskAssigneeId(e.target.value)}
+                  className="mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-brand-400"
+                >
+                  <option value="">Unassigned</option>
+                  {(records.staff ?? []).map((member) => (
+                    <option key={member.id} value={member.id}>
+                      {`${member.first_name ?? ''} ${member.last_name ?? ''}`.trim() || 'Staff member'}
+                    </option>
+                  ))}
+                </select>
+              </label>
 
               <input
                 type="date"
@@ -314,11 +365,11 @@ export function TasksCalendar() {
               </button>
 
               <button
-                onClick={createTask}
-                disabled={!taskTitle.trim()}
+                onClick={() => void createTask()}
+                disabled={taskSaving || !taskTitle.trim() || !taskProjectId}
                 className="px-4 py-2 text-sm font-medium bg-brand-600 text-white rounded-lg disabled:opacity-40"
               >
-                Create Task
+                {taskSaving ? 'Saving…' : 'Create Task'}
               </button>
             </div>
           </div>
