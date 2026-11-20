@@ -110,11 +110,12 @@ Scope:
 - Accounting integration only after core operational flows are stable.
 
 n8n boundary:
-- Start with self-hosted Community Edition for internal Development experimentation only.
+- The selected orchestration tool is n8n Cloud, with the current instance `buildflow-automation` used for internal Development experimentation only.
+- Keep the Cloud subscription/trial and usage costs under review; do not add paid tiers or external services without a separate cost decision.
 - n8n must not become a competing data store, auth provider or tenant permission authority.
 - Use authenticated, narrowly scoped BuildFlow endpoints/Edge Functions; do not expose Supabase service-role credentials to the browser or put unrestricted database keys into n8n.
 - Keep Development credentials separate; Production credentials and Production activation remain disconnected until separately reviewed and approved.
-- Export workflow definitions to version control with secrets excluded; document manual backup/import because Community Edition does not include the paid Git version-control feature.
+- Export workflow definitions to version control with secrets excluded and maintain a documented backup/export process.
 - Do not expose the n8n editor, workflow configuration, API or MCP to BuildFlow customers. Do not white-label or resell n8n. Seek written licensing clarification before any customer-configurable or customer-credential-dependent n8n-backed feature.
 - BuildFlow-native customer-facing automation should use BuildFlow-owned services and permission checks.
 
