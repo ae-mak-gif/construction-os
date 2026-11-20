@@ -22,6 +22,9 @@ export function Finance() {
   const { membership } = useAuth();
   const [canCreateFinance, setCanCreateFinance] = useState(false);
   const [canApproveFinance, setCanApproveFinance] = useState(false);
+  const [permissionError, setPermissionError] = useState('');
+  const [actionError, setActionError] = useState('');
+  const [actionNotice, setActionNotice] = useState('');
   const [activeForm, setActiveForm] = useState<FinanceForm>(null);
   const [saving, setSaving] = useState(false);
   const [invoiceForm, setInvoiceForm] = useState({
@@ -51,22 +54,40 @@ export function Finance() {
 
   useEffect(() => {
     let cancelled = false;
+    const organizationId = membership?.organization_id;
+    setCanCreateFinance(false);
+    setCanApproveFinance(false);
+    setPermissionError('');
+
+    if (!organizationId) return () => { cancelled = true; };
+
     async function loadFinancePermissions() {
-      if (!membership?.organization_id) return;
-      const [createPermission, approvePermission] = await Promise.all([
-        supabase.rpc('has_org_permission', {
-          target_organization_id: membership.organization_id,
-          target_permission_key: 'finance.create',
-        }),
-        supabase.rpc('has_org_permission', {
-          target_organization_id: membership.organization_id,
-          target_permission_key: 'finance.approve',
-        }),
-      ]);
-      if (cancelled) return;
-      setCanCreateFinance(Boolean(createPermission.data));
-      setCanApproveFinance(Boolean(approvePermission.data));
+      try {
+        const [createPermission, approvePermission] = await Promise.all([
+          supabase.rpc('has_org_permission', {
+            target_organization_id: organizationId,
+            target_permission_key: 'finance.create',
+          }),
+          supabase.rpc('has_org_permission', {
+            target_organization_id: organizationId,
+            target_permission_key: 'finance.approve',
+          }),
+        ]);
+        if (cancelled) return;
+        if (createPermission.error || approvePermission.error) {
+          throw new Error('Finance permissions could not be verified. Refresh the page or contact your organisation administrator.');
+        }
+        setCanCreateFinance(createPermission.data === true);
+        setCanApproveFinance(approvePermission.data === true);
+      } catch {
+        if (!cancelled) {
+          setCanCreateFinance(false);
+          setCanApproveFinance(false);
+          setPermissionError('Finance permissions could not be verified. Finance actions are temporarily unavailable.');
+        }
+      }
     }
+
     void loadFinancePermissions();
     return () => { cancelled = true; };
   }, [membership?.organization_id]);
@@ -190,14 +211,16 @@ export function Finance() {
     const subtotal = Number(invoiceForm.subtotal);
     const taxAmount = Number(invoiceForm.taxAmount || 0);
     if (!invoiceForm.invoiceNumber.trim() || !clientId || !invoiceForm.issueDate || !invoiceForm.dueDate || !Number.isFinite(subtotal) || subtotal <= 0 || !Number.isFinite(taxAmount) || taxAmount < 0) {
-      window.alert('Enter an invoice number, client, valid dates and a positive subtotal.');
+      setActionError('Enter an invoice number, client, valid dates and a positive subtotal.');
       return;
     }
     if (invoiceForm.dueDate < invoiceForm.issueDate) {
-      window.alert('The due date cannot be earlier than the issue date.');
+      setActionError('The due date cannot be earlier than the issue date.');
       return;
     }
     setSaving(true);
+    setActionError('');
+    setActionNotice('');
     try {
       await create('invoices', {
         invoice_number: invoiceForm.invoiceNumber.trim(),
@@ -213,7 +236,7 @@ export function Finance() {
       setInvoiceForm({ invoiceNumber: '', clientId: '', projectId: '', issueDate: todayValue(), dueDate: dueDateValue(), subtotal: '', taxAmount: '0' });
       setActiveForm(null);
     } catch (error) {
-      window.alert(error instanceof Error ? error.message : 'Unable to create the invoice.');
+      setActionError(error instanceof Error ? error.message : 'Unable to create the invoice.');
     } finally {
       setSaving(false);
     }
@@ -223,10 +246,12 @@ export function Finance() {
     const invoice = invoiceRows.find((row) => row.id === paymentForm.invoiceId);
     const amount = Number(paymentForm.amount);
     if (!invoice || ['Draft', 'Cancelled', 'Paid'].includes(invoice.status) || amount <= 0 || amount > invoice.balance) {
-      window.alert('Select an issued invoice and enter a payment not greater than its outstanding balance.');
+      setActionError('Select an issued invoice and enter a payment not greater than its outstanding balance.');
       return;
     }
     setSaving(true);
+    setActionError('');
+    setActionNotice('');
     try {
       await create('payments', {
         invoice_id: invoice.id,
@@ -241,7 +266,7 @@ export function Finance() {
       setPaymentForm({ invoiceId: '', amount: '', paymentDate: todayValue(), paymentMethod: 'Bank transfer', paymentReference: '' });
       setActiveForm(null);
     } catch (error) {
-      window.alert(error instanceof Error ? error.message : 'Unable to record the payment.');
+      setActionError(error instanceof Error ? error.message : 'Unable to record the payment.');
     } finally {
       setSaving(false);
     }
@@ -250,10 +275,12 @@ export function Finance() {
   async function createExpense() {
     const amount = Number(expenseForm.amount);
     if (!expenseForm.description.trim() || !expenseForm.category.trim() || !Number.isFinite(amount) || amount <= 0 || !expenseForm.expenseDate) {
-      window.alert('Enter an expense description, category, positive amount and date.');
+      setActionError('Enter an expense description, category, positive amount and date.');
       return;
     }
     setSaving(true);
+    setActionError('');
+    setActionNotice('');
     try {
       await create('expenses', {
         project_id: expenseForm.projectId || null,
@@ -267,46 +294,54 @@ export function Finance() {
       setExpenseForm({ projectId: '', supplierId: '', category: 'Materials', description: '', amount: '', expenseDate: todayValue() });
       setActiveForm(null);
     } catch (error) {
-      window.alert(error instanceof Error ? error.message : 'Unable to record the expense.');
+      setActionError(error instanceof Error ? error.message : 'Unable to record the expense.');
     } finally {
       setSaving(false);
     }
   }
 
   async function issueInvoice(invoiceId: string) {
+    setActionError('');
+    setActionNotice('');
     try {
       await update('invoices', invoiceId, { status: 'sent' });
     } catch (error) {
-      window.alert(error instanceof Error ? error.message : 'Unable to issue this invoice.');
+      setActionError(error instanceof Error ? error.message : 'Unable to issue this invoice.');
     }
   }
 
   async function confirmPayment(paymentId: string) {
+    setActionError('');
+    setActionNotice('');
     try {
       const { error } = await supabase.rpc('confirm_invoice_payment', { p_payment_id: paymentId });
       if (error) throw error;
       await refresh();
     } catch (error) {
-      window.alert(error instanceof Error ? error.message : 'Unable to confirm this payment.');
+      setActionError(error instanceof Error ? error.message : 'Unable to confirm this payment.');
     }
   }
 
   async function reversePayment(paymentId: string) {
     if (!window.confirm('Reverse this received payment? The reversal will remain in the payment history.')) return;
+    setActionError('');
+    setActionNotice('');
     try {
       const { error } = await supabase.rpc('reverse_invoice_payment', { p_payment_id: paymentId });
       if (error) throw error;
       await refresh();
     } catch (error) {
-      window.alert(error instanceof Error ? error.message : 'Unable to reverse this payment.');
+      setActionError(error instanceof Error ? error.message : 'Unable to reverse this payment.');
     }
   }
 
   async function markExpensePaid(expenseId: string) {
+    setActionError('');
+    setActionNotice('');
     try {
       await update('expenses', expenseId, { payment_status: 'paid' });
     } catch (error) {
-      window.alert(error instanceof Error ? error.message : 'Unable to update the expense payment status.');
+      setActionError(error instanceof Error ? error.message : 'Unable to update the expense payment status.');
     }
   }
 
@@ -325,6 +360,10 @@ export function Finance() {
           </div>
         )}
       </div>
+
+      {permissionError && <p role="alert" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">{permissionError}</p>}
+      {actionError && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{actionError}</p>}
+      {actionNotice && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700">{actionNotice}</p>}
 
       <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
         <StatCard label="Contract Value" value={formatCurrency(totalContract)} icon={<FileText size={20} />} accent="blue" />
