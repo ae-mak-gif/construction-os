@@ -498,10 +498,30 @@ export function ProjectDetail({
   const { update } = useBuildFlowData();
   const [tab, setTab] = useState<ProjectTab>('overview');
   const [projectProgress, setProjectProgress] = useState(project.progress);
-  const handleProgressChange = (progress: number) => {
+  const [progressSaving, setProgressSaving] = useState(false);
+  const [progressError, setProgressError] = useState('');
+  const canPersistProgress = /^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(project.id);
+
+  useEffect(() => {
+    setProjectProgress(project.progress);
+    setProgressError('');
+  }, [project.id, project.progress]);
+
+  const handleProgressChange = async (progress: number) => {
+    if (!canPersistProgress || progressSaving) return;
+
+    const previousProgress = projectProgress;
     setProjectProgress(progress);
-    if (/^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(project.id)) {
-      void update('projects', project.id, { progress_percent: progress }).catch((error) => window.alert(error.message));
+    setProgressSaving(true);
+    setProgressError('');
+
+    try {
+      await update('projects', project.id, { progress_percent: progress });
+    } catch (error) {
+      setProjectProgress(previousProgress);
+      setProgressError(error instanceof Error ? error.message : 'Could not save project progress.');
+    } finally {
+      setProgressSaving(false);
     }
   };
 
@@ -557,6 +577,9 @@ export function ProjectDetail({
           progress: projectProgress,
         }}
         onProgressChange={handleProgressChange}
+        progressSaving={progressSaving}
+        progressError={progressError}
+        canPersistProgress={canPersistProgress}
       />
     </div>
   );
@@ -566,10 +589,16 @@ function ProjectTabContent({
   tab,
   project,
   onProgressChange,
+  progressSaving,
+  progressError,
+  canPersistProgress,
 }: {
   tab: ProjectTab;
   project: Project;
   onProgressChange?: (progress: number) => void;
+  progressSaving?: boolean;
+  progressError?: string;
+  canPersistProgress?: boolean;
 }) {
   const { records, create, update } = useBuildFlowData();
   const [documentError, setDocumentError] = useState('');
@@ -1172,8 +1201,10 @@ function OverviewTab({
               </p>
 
               <p className="text-xs text-gray-400">
-                Demo control — changes are reflected immediately
+                {canPersistProgress ? 'Changes are saved to the project record.' : 'Progress updates are unavailable for demo records.'}
               </p>
+              {progressSaving && <p className="text-xs text-blue-600" role="status">Saving progress…</p>}
+              {progressError && <p className="text-xs text-red-600" role="alert">{progressError}</p>}
             </div>
 
             <div className="flex items-center gap-2">
@@ -1185,7 +1216,8 @@ function OverviewTab({
                       Math.min(100, project.progress + step)
                     )
                   }
-                  className="px-2.5 py-1.5 text-xs font-medium rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"
+                  disabled={!canPersistProgress || progressSaving || project.progress >= 100}
+                  className="px-2.5 py-1.5 text-xs font-medium rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   +{step}%
                 </button>
