@@ -52,7 +52,7 @@ export function Projects({
   onOpenProject: (id: string) => void;
 }) {
   const { records, refresh } = useBuildFlowData();
-  const { membership } = useAuth();
+  const { membership, user, profile } = useAuth();
   const [search, setSearch] = useState('');
   const [view, setView] = useState<'grid' | 'table'>('grid');
   const [canCreateProject, setCanCreateProject] = useState(false);
@@ -100,12 +100,15 @@ export function Projects({
 
   const clientById = new Map((records.clients ?? []).map((row) => [row.id, row]));
   const managerNameById = new Map(memberDirectory.map((member) => [member.user_id, member.display_name]));
+  const currentUserName = profile?.display_name?.trim() || profile?.full_name?.trim() || user?.email || 'You';
   const projectRows: Project[] = (records.projects ?? []).map((row) => ({
     id: row.id,
     name: String(row.name ?? ''),
     client: String(clientById.get(String(row.client_id))?.name ?? 'Client'),
     clientCompany: String(clientById.get(String(row.client_id))?.name ?? 'Client'),
-    manager: managerNameById.get(String(row.project_manager_id ?? '')) ?? (row.project_manager_id ? 'Assigned' : 'Unassigned'),
+    manager: row.project_manager_id && String(row.project_manager_id) === user?.id
+      ? currentUserName
+      : managerNameById.get(String(row.project_manager_id ?? '')) ?? (row.project_manager_id ? 'Assigned' : 'Unassigned'),
     progress: Number(row.progress_percent ?? 0),
     budget: Number(row.contract_value ?? 0),
     actualCost: (records.project_budgets ?? []).filter((budget) => budget.project_id === row.id).reduce((sum, budget) => sum + Number(budget.actual_amount ?? 0), 0),
