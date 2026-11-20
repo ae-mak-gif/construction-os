@@ -56,7 +56,7 @@ function useOrgPermission(permissionKey: string) {
           allowed: !error && data === true,
         });
       }
-    }).catch(() => {
+    }, () => {
       if (active) setPermissionState({ organizationId, permissionKey, allowed: false });
     });
 
