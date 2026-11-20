@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Building2, LogOut, Loader2, MapPin, CalendarDays, RefreshCw, AlertCircle, CheckCircle2 } from 'lucide-react';
 import type { ClientAccess } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabase';
@@ -47,6 +47,7 @@ export function ClientPortal({ clientAccess, onSignOut }: {
   const [loadingUpdates, setLoadingUpdates] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [updatesError, setUpdatesError] = useState<string | null>(null);
+  const updatesRequestId = useRef(0);
 
   const loadProjects = useCallback(async () => {
     setLoadingProjects(true);
@@ -69,18 +70,27 @@ export function ClientPortal({ clientAccess, onSignOut }: {
   }, []);
 
   const loadUpdates = useCallback(async (projectId: string) => {
+    const requestId = ++updatesRequestId.current;
     setLoadingUpdates(true);
+    setUpdates([]);
     setUpdatesError(null);
-    const { data, error: queryError } = await supabase.rpc('get_client_portal_updates', {
-      target_project_id: projectId,
-    });
-    if (queryError) {
-      setUpdates([]);
-      setUpdatesError('Project updates are temporarily unavailable.');
-    } else {
-      setUpdates((data ?? []) as SharedUpdate[]);
+    try {
+      const { data, error: queryError } = await supabase.rpc('get_client_portal_updates', {
+        target_project_id: projectId,
+      });
+      if (requestId !== updatesRequestId.current) return;
+      if (queryError) {
+        setUpdatesError('Project updates are temporarily unavailable.');
+      } else {
+        setUpdates((data ?? []) as SharedUpdate[]);
+      }
+    } catch {
+      if (requestId === updatesRequestId.current) {
+        setUpdatesError('Project updates are temporarily unavailable.');
+      }
+    } finally {
+      if (requestId === updatesRequestId.current) setLoadingUpdates(false);
     }
-    setLoadingUpdates(false);
   }, []);
 
   useEffect(() => { void loadProjects(); }, [loadProjects]);
@@ -88,8 +98,15 @@ export function ClientPortal({ clientAccess, onSignOut }: {
   const selectedProject = projects.find((project) => project.project_id === selectedProjectId) ?? null;
 
   useEffect(() => {
-    if (selectedProject?.can_view_updates) void loadUpdates(selectedProject.project_id);
-    else setUpdates([]);
+    if (selectedProject?.can_view_updates) {
+      void loadUpdates(selectedProject.project_id);
+    } else {
+      updatesRequestId.current += 1;
+      setUpdates([]);
+      setUpdatesError(null);
+      setLoadingUpdates(false);
+    }
+    return () => { updatesRequestId.current += 1; };
   }, [selectedProject?.project_id, selectedProject?.can_view_updates, loadUpdates]);
 
   return (
