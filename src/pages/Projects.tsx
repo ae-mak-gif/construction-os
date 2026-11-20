@@ -57,6 +57,7 @@ export function Projects({
   const [view, setView] = useState<'grid' | 'table'>('grid');
   const [canCreateProject, setCanCreateProject] = useState(false);
   const [canManageProjectMembers, setCanManageProjectMembers] = useState(false);
+  const [projectPermissionError, setProjectPermissionError] = useState('');
   const [memberDirectory, setMemberDirectory] = useState<Array<{ user_id: string; display_name: string; status: string }>>([]);
   const [showCreate, setShowCreate] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -67,33 +68,56 @@ export function Projects({
 
   useEffect(() => {
     let cancelled = false;
+    const organizationId = membership?.organization_id;
+    setCanCreateProject(false);
+    setCanManageProjectMembers(false);
+    setMemberDirectory([]);
+    setProjectPermissionError('');
+
+    if (!organizationId) return () => { cancelled = true; };
+
     async function loadProjectPermissions() {
-      if (!membership?.organization_id) return;
-      const [createPermission, memberPermission] = await Promise.all([
-        supabase.rpc('has_org_permission', {
-          target_organization_id: membership.organization_id,
-          target_permission_key: 'projects.create',
-        }),
-        supabase.rpc('has_org_permission', {
-          target_organization_id: membership.organization_id,
-          target_permission_key: 'project_members.manage',
-        }),
-      ]);
-      if (cancelled) return;
-      setCanCreateProject(Boolean(createPermission.data));
-      setCanManageProjectMembers(Boolean(memberPermission.data));
-      if (memberPermission.data) {
-        const { data } = await supabase.rpc('get_project_access_admin_data', {
-          target_organization_id: membership.organization_id,
-        });
-        if (!cancelled) {
-          const members = Array.isArray(data?.members) ? data.members : [];
-          setMemberDirectory(members.filter((member: { status?: string }) => member.status === 'active'));
+      try {
+        const [createPermission, memberPermission] = await Promise.all([
+          supabase.rpc('has_org_permission', {
+            target_organization_id: organizationId,
+            target_permission_key: 'projects.create',
+          }),
+          supabase.rpc('has_org_permission', {
+            target_organization_id: organizationId,
+            target_permission_key: 'project_members.manage',
+          }),
+        ]);
+        if (cancelled) return;
+        if (createPermission.error || memberPermission.error) {
+          throw new Error('Project permissions could not be verified. Project administration actions are temporarily unavailable.');
         }
-      } else {
-        setMemberDirectory([]);
+
+        const canCreate = createPermission.data === true;
+        const canManageMembers = memberPermission.data === true;
+        setCanCreateProject(canCreate);
+        setCanManageProjectMembers(canManageMembers);
+
+        if (canManageMembers) {
+          const { data, error } = await supabase.rpc('get_project_access_admin_data', {
+            target_organization_id: organizationId,
+          });
+          if (error) throw error;
+          if (!cancelled) {
+            const members = Array.isArray(data?.members) ? data.members : [];
+            setMemberDirectory(members.filter((member: { status?: string }) => member.status === 'active'));
+          }
+        }
+      } catch {
+        if (!cancelled) {
+          setCanCreateProject(false);
+          setCanManageProjectMembers(false);
+          setMemberDirectory([]);
+          setProjectPermissionError('Project permissions could not be verified. Project administration actions are temporarily unavailable.');
+        }
       }
     }
+
     void loadProjectPermissions();
     return () => { cancelled = true; };
   }, [membership?.organization_id]);
@@ -158,6 +182,7 @@ export function Projects({
 
   return (
     <div className="space-y-6">
+      {projectPermissionError && <p role="alert" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">{projectPermissionError}</p>}
       <Card>
         <CardHeader
           title="Projects"
