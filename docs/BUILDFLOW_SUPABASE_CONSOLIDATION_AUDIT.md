@@ -112,3 +112,20 @@ The user approved pausing the legacy Supabase project `BuildFlow` (`mlvafrbwaybu
 No pause occurred; the legacy project has not been deleted or modified. Supabase's project-pausing documentation states that paused Free Plan projects preserve data/configuration, stop compute charges and do not count toward the Free Plan two-project limit; restoration is available for 90 days. However, Supabase support intervention is required before this particular hibernating project can be paused. Do not retry pause/restore blindly. After Supabase support resolves the hibernation state, pause the legacy project and verify its paused status before creating the separate InsurAssist project in the same Free Plan organisation.
 
 The legacy project remains a recovery source while it is inaccessible. Outstanding BuildFlow development and fixes should continue against BuildFlow Main; do not attempt legacy cutover or data reconciliation unless the user later requests it.
+
+
+## Current checkpoint update — 20 November 2026
+
+**Roadmap position:** Stage 1 — Application foundation and security. PR #3 remains open and Draft; it has not been merged.
+
+- Current development commit: `42a63de9cf7fde7e883f7c57fd44dd9e5a583792` — [commit](https://github.com/ae-mak-gif/construction-os/commit/42a63de9cf7fde7e883f7c57fd44dd9e5a583792).
+- GitHub Actions run [#44705016285](https://github.com/ae-mak-gif/construction-os/actions/runs/44705016285) passed dependency security, ESLint, TypeScript and production build.
+- Vercel Preview deployment [dpl_DGo5S2rZUf5AaLJaoxN2puZq2t2B](https://vercel.com/aemakazhe-9121s-projects/construction-os/DGo5S2rZUf5AaLJaoxN2puZq2t2B) is READY: https://construction-juwdyylag-aemakazhe-9121s-projects.vercel.app.
+- The Management permission lookup now fails closed immediately when the active organisation or permission key changes, and rejects stale asynchronous permission results. Automated checks pass; browser acceptance of organisation switching and role boundaries remains outstanding.
+- Supabase Development is **BuildFlow Main** (`amqknbijdjpcapwkeyyh`), ACTIVE_HEALTHY. Read-only checks confirm 57/57 public tables have RLS enabled and none are missing policies. Five Edge Functions are ACTIVE: `vea-context` v4, `vea-chat` v13, `integration-manager` v2, `google-oauth` v2 and `send-communication` v1.
+- Security Advisor still reports leaked-password protection disabled. Two private-schema tables have RLS enabled without client policies; read-only grant checks confirm no direct SELECT/INSERT grants to `anon` or `authenticated`. Performance Advisor reports 35 unindexed foreign keys; review against real query plans before changing indexes.
+- Migration reconciliation is a release blocker: the repository contains 67 migration SQL files while the Development ledger contains 70 entries. Name matching identifies four ledger entries without a same-name SQL file and one repository file absent from the ledger; multiple file prefixes also differ from recorded ledger versions. Do not replay, rename or apply migrations until the exact SQL, version, dependency and execution history is reconciled.
+- Vercel has branch-scoped Preview entries and separate Production-target entries for the Supabase URL and publishable key. The values are encrypted and could not be independently inspected; effective endpoint separation is therefore **not yet proven**. Verify the effective values in Vercel before any interactive Preview testing with sensitive data.
+- Latest Production deployment remains READY on `main` at `1a1e2e8`. No Production deployment, environment variable, database schema or data was changed during this checkpoint.
+
+**Remaining Stage 1 acceptance:** prove effective Preview/Production Supabase endpoint separation; complete migration-ledger reconciliation; address or formally accept the leaked-password protection limitation; and complete authenticated browser tests for all five internal/external roles. Do not advance to Stage 2 until these gates are accepted.
