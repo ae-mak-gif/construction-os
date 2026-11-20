@@ -29,19 +29,44 @@ function RecordEditor({ title, fields, initial, saving, onSave, onCancel }: { ti
 
 function useOrgPermission(permissionKey: string) {
   const { membership } = useAuth();
-  const [allowed, setAllowed] = useState(false);
+  const organizationId = membership?.organization_id ?? null;
+  const [permissionState, setPermissionState] = useState<{
+    organizationId: string | null;
+    permissionKey: string;
+    allowed: boolean;
+  }>({ organizationId: null, permissionKey, allowed: false });
+
   useEffect(() => {
     let active = true;
-    if (!membership?.organization_id) { setAllowed(false); return; }
+    // Fail closed immediately when the organisation or requested permission changes.
+    setPermissionState({ organizationId, permissionKey, allowed: false });
+
+    if (!organizationId) {
+      return () => { active = false; };
+    }
+
     void supabase.rpc('has_org_permission', {
-      target_organization_id: membership.organization_id,
+      target_organization_id: organizationId,
       target_permission_key: permissionKey,
     }).then(({ data, error }) => {
-      if (active) setAllowed(!error && Boolean(data));
+      if (active) {
+        setPermissionState({
+          organizationId,
+          permissionKey,
+          allowed: !error && data === true,
+        });
+      }
+    }).catch(() => {
+      if (active) setPermissionState({ organizationId, permissionKey, allowed: false });
     });
+
     return () => { active = false; };
-  }, [membership?.organization_id, permissionKey]);
-  return allowed;
+  }, [organizationId, permissionKey]);
+
+  // Never expose a previous tenant's permission while a new lookup is pending.
+  return permissionState.organizationId === organizationId
+    && permissionState.permissionKey === permissionKey
+    && permissionState.allowed;
 }
 function NoAccess({ message = 'You do not have permission to view this register.' }: { message?: string }) {
   return <div role="status" className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">{message}</div>;
