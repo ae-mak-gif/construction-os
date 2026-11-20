@@ -14,8 +14,18 @@ import { formatCurrency, formatFullCurrency, formatDate } from '@/utils/format';
 
 type FinanceForm = 'invoice' | 'payment' | 'expense' | null;
 
-const todayValue = () => new Date().toISOString().slice(0, 10);
-const dueDateValue = () => new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+const toLocalDateInputValue = (date: Date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+const todayValue = () => toLocalDateInputValue(new Date());
+const dueDateValue = () => {
+  const dueDate = new Date();
+  dueDate.setDate(dueDate.getDate() + 30);
+  return toLocalDateInputValue(dueDate);
+};
 
 export function Finance() {
   const { records, create, update, refresh } = useBuildFlowData();
