@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
 import { MessageSquare, Mail, Smartphone, Send, Search } from 'lucide-react';
@@ -10,14 +10,14 @@ import { useBuildFlowData } from '@/context/BuildFlowDataContext';
 export function Communications() {
   const { create, records } = useBuildFlowData();
   const { membership } = useAuth();
-  const liveMessages: Message[] = records.messages?.length ? records.messages.map((row) => {
+  const liveMessages = useMemo<Message[]>(() => records.messages?.length ? records.messages.map((row) => {
     const content = String(row.content ?? '');
     const recipientLine = content.match(/^To:\s*(.+)$/m)?.[1] ?? 'BuildFlow';
     const body = content.replace(/^To:[^\r\n]*(?:\r?\n){2}/, '');
     const channel = row.message_type === 'sms' ? 'SMS' : row.message_type === 'email' ? 'Email' : 'WhatsApp';
     return { id: row.id, channel, from: 'BuildFlow', to: recipientLine, subject: String(row.subject ?? ''), preview: body, time: String(row.created_at ?? '').slice(11, 16), unread: false } as Message;
-  }) : [];
-  const [messageItems, setMessageItems] = useState(liveMessages);
+  }) : [], [records.messages]);
+  const [messageItems, setMessageItems] = useState<Message[]>([]);
   const [recipient, setRecipient] = useState('');
   const [subject, setSubject] = useState('');
   const [messageBody, setMessageBody] = useState('');
@@ -28,7 +28,13 @@ export function Communications() {
   const channelOptions: ChannelFilter[] = ['All', 'WhatsApp', 'SMS', 'Email'];
   const [channel, setChannel] = useState<ChannelFilter>('All');
   const [search, setSearch] = useState('');
-  const [selected, setSelected] = useState(liveMessages[0]);
+  const [selected, setSelected] = useState<Message | undefined>(undefined);
+  useEffect(() => {
+    setMessageItems(liveMessages);
+    setSelected((current) => current && liveMessages.some((message) => message.id === current.id)
+      ? liveMessages.find((message) => message.id === current.id)
+      : liveMessages[0]);
+  }, [liveMessages]);
   const [composeOpen, setComposeOpen] = useState(false);
   const [composeChannel, setComposeChannel] = useState<'WhatsApp' | 'SMS' | 'Email'>('WhatsApp');
   const [composeError, setComposeError] = useState('');
