@@ -43,6 +43,16 @@ const activityColors: Record<string, string> = {
 export function Dashboard({ onNavigate }: { onNavigate: (page: PageKey) => void }) {
   const { records } = useBuildFlowData();
   const clientsById = new Map((records.clients ?? []).map((row) => [row.id, row]));
+  const staffNameByUserId = new Map(
+    (records.staff ?? [])
+      .filter((row) => typeof row.user_id === 'string' && row.user_id.length > 0)
+      .map((row) => [
+        String(row.user_id),
+        [row.first_name, row.last_name]
+          .filter((part): part is string => typeof part === 'string' && part.length > 0)
+          .join(' '),
+      ] as const),
+  );
   const projects: Project[] = (records.projects ?? []).map((row) => ({
     id: row.id,
     name: String(row.name ?? 'Untitled project'),
@@ -70,7 +80,7 @@ export function Dashboard({ onNavigate }: { onNavigate: (page: PageKey) => void 
       id: row.id,
       title: String(row.title ?? ''),
       project: projectById.get(String(row.project_id))?.name ?? 'Unassigned project',
-      assignee: 'Team member',
+      assignee: row.assigned_to ? staffNameByUserId.get(String(row.assigned_to)) || 'Assigned user' : 'Unassigned',
       dueDate: String(row.due_date ?? ''),
       priority: String(row.priority ?? 'medium').toLowerCase() === 'high' || String(row.priority).toLowerCase() === 'urgent' ? 'High' : String(row.priority).toLowerCase() === 'low' ? 'Low' : 'Medium',
       status: row.status === 'completed' ? 'Done' : isOverdue ? 'Overdue' : row.status === 'in_progress' ? 'In Progress' : row.status === 'blocked' ? 'Review' : 'To Do',
@@ -109,7 +119,7 @@ export function Dashboard({ onNavigate }: { onNavigate: (page: PageKey) => void 
     type: row.entity_type === 'task' ? 'task' : row.entity_type === 'invoice' || row.entity_type === 'payment' ? 'finance' : row.entity_type === 'purchase_order' ? 'procurement' : row.entity_type === 'client' ? 'client' : row.entity_type === 'risk' ? 'risk' : 'project',
     message: String(row.title ?? row.description ?? ''),
     time: String(row.created_at ?? ''),
-    user: 'Team member',
+    user: row.actor_user_id ? staffNameByUserId.get(String(row.actor_user_id)) || 'Account user' : 'System',
   } as Activity));
   const monthlyFinancialData = Array.from({ length: 7 }, (_, index) => {
     const monthDate = new Date();
