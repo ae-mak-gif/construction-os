@@ -16,7 +16,10 @@ type PurchaseOrderRow = {
   supplier: string; status: string; total: number; expectedDate: string; requestId: string;
 };
 
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () => {
+  const date = new Date();
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+};
 const parseQuantity = (notes: string) => {
   const match = notes.match(/Quantity:\s*([0-9.]+)/i);
   return match ? Number(match[1]) : 1;
@@ -39,18 +42,41 @@ export function ProcurementWorkspace() {
 
   useEffect(() => {
     let cancelled = false;
+    const organizationId = membership?.organization_id;
+    setCanCreate(false);
+    setCanApprove(false);
+    setCanReceive(false);
+    setError('');
+
+    if (!organizationId) return () => { cancelled = true; };
+
     async function loadPermissions() {
-      if (!membership?.organization_id) return;
-      const keys = ['procurement.create', 'procurement.approve', 'inventory.update'];
-      const results = await Promise.all(keys.map((key) => supabase.rpc('has_org_permission', {
-        target_organization_id: membership.organization_id,
-        target_permission_key: key,
-      })));
-      if (cancelled) return;
-      setCanCreate(Boolean(results[0].data));
-      setCanApprove(Boolean(results[1].data));
-      setCanReceive(Boolean(results[1].data && results[2].data));
+      try {
+        const keys = ['procurement.create', 'procurement.approve', 'inventory.update'];
+        const results = await Promise.all(keys.map((key) => supabase.rpc('has_org_permission', {
+          target_organization_id: organizationId,
+          target_permission_key: key,
+        })));
+        if (cancelled) return;
+        if (results.some((result) => result.error)) {
+          throw new Error('Procurement permissions could not be verified. Procurement actions are temporarily unavailable.');
+        }
+        const canCreateRequests = results[0].data === true;
+        const canApproveRequests = results[1].data === true;
+        const canUpdateInventory = results[2].data === true;
+        setCanCreate(canCreateRequests);
+        setCanApprove(canApproveRequests);
+        setCanReceive(canApproveRequests && canUpdateInventory);
+      } catch {
+        if (!cancelled) {
+          setCanCreate(false);
+          setCanApprove(false);
+          setCanReceive(false);
+          setError('Procurement permissions could not be verified. Procurement actions are temporarily unavailable.');
+        }
+      }
     }
+
     void loadPermissions();
     return () => { cancelled = true; };
   }, [membership?.organization_id]);
