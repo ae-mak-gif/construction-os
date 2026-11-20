@@ -182,6 +182,7 @@ export function Projects({
 
   return (
     <div className="space-y-6">
+      {projectPermissionError && <p role="alert" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">{projectPermissionError}</p>}
       <Card>
         <CardHeader
           title="Projects"
@@ -927,7 +928,6 @@ function ProjectTabContent({
     case 'risks':
       return (
         <div className="space-y-6">
-        {projectPermissionError && <p role="alert" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">{projectPermissionError}</p>}
           <Card>
             <CardHeader
               title="Risk Register"
