@@ -45,6 +45,19 @@ Important clarification: `src/data/mockData.ts` gates sample arrays behind `VITE
 6. **Test workflow gaps:** no browser E2E test runner was identified in the inspected package scripts. Add a repeatable authenticated browser test approach before MVP UAT; lint/typecheck/build alone are insufficient.
 7. **Cross-module integrity remains unproven:** BOQ → purchase request → approval → PO → receiving → stock/material use → actual cost → project reporting needs a complete persisted workflow test.
 
+## Follow-up remediation workstreams (20 November 2026)
+
+The following focused frontend remediation branches have been created as draft PRs. They are deliberately separate and **not merged**. CI and Preview build success demonstrate source/build validation only; the new branches do not yet have confirmed branch-scoped Development Supabase environment configuration or authenticated runtime/UAT evidence.
+
+| PR | Workstream | Change | CI / Preview evidence | Remaining proof |
+|---|---|---|---|---|
+| [#14](https://github.com/ae-mak-gif/construction-os/pull/14) | Finance permissions and feedback | Permission checks fail closed; organisation switch resets permissions; inline error feedback; local calendar date defaults. | Latest commit CI passed; Preview READY. | Configure Development-only Preview variables with approval; test finance.create/approve roles, invoice/payment/expense persistence and organisation switching. |
+| [#15](https://github.com/ae-mak-gif/construction-os/pull/15) | Task project/assignee integrity | Select actual organisation projects/staff by ID; require a valid project; remove hard-coded project fallback; inline task errors. | CI passed; Preview READY. | Configure Development-only Preview variables with approval; test project/staff selectors, task creation and status updates under multiple roles. |
+| [#16](https://github.com/ae-mak-gif/construction-os/pull/16) | Project permission scope | Fail closed on permission lookup errors; reset access on organisation switch; scope member directory to permitted organisation. | Initial Preview build failed due an unused-variable lint error; corrected. Latest CI passed and corrected Preview is READY. | Configure Development-only Preview variables with approval; test permitted/denied roles, organisation switching and member administration. |
+| [#17](https://github.com/ae-mak-gif/construction-os/pull/17) | Procurement permission scope | Fail closed on permission errors; reset permissions on organisation switch; local calendar date defaults. | CI passed; Preview READY. | Configure Development-only Preview variables with approval; test request creation, approval, receiving, inventory permission combinations and data persistence. |
+
+These workstreams improve the reliability of existing MVP modules but do not prove the integrated construction workflow. They remain draft PRs pending review, runtime testing and sequential checkpoint governance.
+
 ## Required next audit pass
 
 - Reconcile the PR dependency chain and establish one candidate branch containing reviewed changes without merging to Production.
