@@ -18,12 +18,6 @@ export function Communications() {
     return { id: row.id, channel, from: 'BuildFlow', to: recipientLine, subject: String(row.subject ?? ''), preview: body, time: String(row.created_at ?? '').slice(11, 16), unread: false } as Message;
   }) : [], [records.messages]);
   const [messageItems, setMessageItems] = useState<Message[]>([]);
-  useEffect(() => {
-    setMessageItems(liveMessages);
-    setSelected((current) => current && liveMessages.some((message) => message.id === current.id)
-      ? liveMessages.find((message) => message.id === current.id)
-      : liveMessages[0]);
-  }, [liveMessages]);
   const [recipient, setRecipient] = useState('');
   const [subject, setSubject] = useState('');
   const [messageBody, setMessageBody] = useState('');
@@ -35,6 +29,12 @@ export function Communications() {
   const [channel, setChannel] = useState<ChannelFilter>('All');
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<Message | undefined>(undefined);
+  useEffect(() => {
+    setMessageItems(liveMessages);
+    setSelected((current) => current && liveMessages.some((message) => message.id === current.id)
+      ? liveMessages.find((message) => message.id === current.id)
+      : liveMessages[0]);
+  }, [liveMessages]);
   const [composeOpen, setComposeOpen] = useState(false);
   const [composeChannel, setComposeChannel] = useState<'WhatsApp' | 'SMS' | 'Email'>('WhatsApp');
   const [composeError, setComposeError] = useState('');
