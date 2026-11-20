@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/context/AuthContext';
 import { MessageSquare, Mail, Smartphone, Send, Search } from 'lucide-react';
 import { Card, CardHeader, CardBody } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
@@ -7,17 +9,20 @@ import { useBuildFlowData } from '@/context/BuildFlowDataContext';
 
 export function Communications() {
   const { create, records } = useBuildFlowData();
+  const { membership } = useAuth();
   const liveMessages: Message[] = records.messages?.length ? records.messages.map((row) => {
     const content = String(row.content ?? '');
     const recipientLine = content.match(/^To:\s*(.+)$/m)?.[1] ?? 'BuildFlow';
-    const body = content.replace(/^To:.*\\n\\n/, '');
+    const body = content.replace(/^To:[^\r\n]*(?:\r?\n){2}/, '');
     const channel = row.message_type === 'sms' ? 'SMS' : row.message_type === 'email' ? 'Email' : 'WhatsApp';
     return { id: row.id, channel, from: 'BuildFlow', to: recipientLine, subject: String(row.subject ?? ''), preview: body, time: String(row.created_at ?? '').slice(11, 16), unread: false } as Message;
-  }) : messages;
+  }) : [];
   const [messageItems, setMessageItems] = useState(liveMessages);
   const [recipient, setRecipient] = useState('');
   const [subject, setSubject] = useState('');
   const [messageBody, setMessageBody] = useState('');
+  const [replyBody, setReplyBody] = useState('');
+  const [replySaving, setReplySaving] = useState(false);
   type MessageChannel = 'WhatsApp' | 'SMS' | 'Email';
   type ChannelFilter = 'All' | MessageChannel;
   const channelOptions: ChannelFilter[] = ['All', 'WhatsApp', 'SMS', 'Email'];
@@ -26,6 +31,9 @@ export function Communications() {
   const [selected, setSelected] = useState(liveMessages[0]);
   const [composeOpen, setComposeOpen] = useState(false);
   const [composeChannel, setComposeChannel] = useState<'WhatsApp' | 'SMS' | 'Email'>('WhatsApp');
+  const [composeError, setComposeError] = useState('');
+  const [retryMessageId, setRetryMessageId] = useState<string | null>(null);
+  const [sending, setSending] = useState(false);
 
   const filtered = messageItems.filter(
     (m) =>
@@ -49,11 +57,9 @@ export function Communications() {
 
   return (
     <div className="space-y-6">
-      {/* Demo mode banner */}
-      <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg px-4 py-2.5">
-        <div className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
-        <p className="text-sm text-amber-700 font-medium">Demo Mode</p>
-        <p className="text-xs text-amber-600">— Messages are saved to the outbox; external delivery integrations are not connected.</p>
+      <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5">
+        <div className="w-2 h-2 rounded-full bg-slate-500" />
+        <p className="text-xs text-slate-600">Email sends through the organisation’s verified Resend connection. WhatsApp and SMS remain draft-only until their delivery adapters are enabled.</p>
       </div>
 
       {/* Channel filter + compose buttons */}
@@ -73,19 +79,19 @@ export function Communications() {
         </div>
         <div className="flex items-center gap-2">
           <button
-            onClick={() => { setComposeChannel('WhatsApp'); setComposeOpen(true); }}
+            onClick={() => { setComposeError(''); setComposeChannel('WhatsApp'); setComposeOpen(true); }}
             className="flex items-center gap-1.5 bg-emerald-600 text-white text-sm font-medium px-3 py-1.5 rounded-lg hover:bg-emerald-700 transition-colors"
           >
             <MessageSquare size={14} /> Send WhatsApp
           </button>
           <button
-            onClick={() => { setComposeChannel('SMS'); setComposeOpen(true); }}
+            onClick={() => { setComposeError(''); setComposeChannel('SMS'); setComposeOpen(true); }}
             className="flex items-center gap-1.5 bg-blue-600 text-white text-sm font-medium px-3 py-1.5 rounded-lg hover:bg-blue-700 transition-colors"
           >
             <Smartphone size={14} /> Send SMS
           </button>
           <button
-            onClick={() => { setComposeChannel('Email'); setComposeOpen(true); }}
+            onClick={() => { setComposeError(''); setComposeChannel('Email'); setComposeOpen(true); }}
             className="flex items-center gap-1.5 bg-orange-500 text-white text-sm font-medium px-3 py-1.5 rounded-lg hover:bg-orange-600 transition-colors"
           >
             <Mail size={14} /> Send Email
@@ -155,11 +161,21 @@ export function Communications() {
                   </div>
                   <div className="flex items-center gap-2 pt-3 border-t border-gray-100">
                     <div className="flex-1 flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
-                      <input placeholder="Type a reply..." className="bg-transparent text-sm outline-none flex-1 text-gray-600" />
+                      <input value={replyBody} onChange={(event) => setReplyBody(event.target.value)} placeholder="Write a reply…" className="bg-transparent text-sm outline-none flex-1 text-gray-600" />
                       <Send size={16} className="text-gray-400" />
                     </div>
-                    <button className="bg-brand-600 text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-brand-700 transition-colors">
-                      Reply
+                    <button disabled={!replyBody.trim() || replySaving} onClick={async () => {
+                      if (!selected || !replyBody.trim()) return;
+                      setReplySaving(true);
+                      try {
+                        const subjectLine = selected.subject.startsWith('Re:') ? selected.subject : 'Re: ' + selected.subject;
+                        const saved = await create('messages', { subject: subjectLine, content: 'To: ' + selected.from + '\n\n' + replyBody.trim(), message_type: selected.channel.toLowerCase(), status: 'draft' });
+                        const item = { id: saved.id, channel: selected.channel, from: 'BuildFlow', to: selected.from, subject: subjectLine, preview: replyBody.trim(), time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), unread: false } as (typeof messages)[number];
+                        setMessageItems(current => [item, ...current]); setSelected(item); setReplyBody('');
+                      } catch (error) { window.alert(error instanceof Error ? error.message : 'Unable to save reply.'); }
+                      finally { setReplySaving(false); }
+                    }} className="bg-brand-600 text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-brand-700 transition-colors disabled:opacity-50">
+                      {replySaving ? 'Saving…' : 'Save reply'}
                     </button>
                   </div>
                 </div>
@@ -179,29 +195,44 @@ export function Communications() {
               <button onClick={() => setComposeOpen(false)} className="text-gray-400 hover:text-gray-600 text-sm">Cancel</button>
             </div>
             <div className="p-5 space-y-3">
-              <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-                <div className="w-2 h-2 rounded-full bg-amber-500" />
-                <p className="text-xs text-amber-700 font-medium">Saved as a draft/outbox item. External delivery is not connected yet.</p>
+              <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">
+                <div className="w-2 h-2 rounded-full bg-slate-500" />
+                <p className="text-xs text-slate-700">{composeChannel === 'Email' ? 'This sends a real email using your organisation’s connected Resend account.' : `${composeChannel} is saved as a draft; external delivery is not enabled yet.`}</p>
               </div>
-              <input value={recipient} onChange={(event) => setRecipient(event.target.value)} placeholder="To: recipient name or number" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-brand-400" />
-              <input value={subject} onChange={(event) => setSubject(event.target.value)} placeholder="Subject" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-brand-400" />
-              <textarea value={messageBody} onChange={(event) => setMessageBody(event.target.value)} placeholder="Type your message..." rows={4} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-brand-400 resize-none" />
+              {composeError && <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">{composeError}</p>}
+              <input value={recipient} onChange={(event) => { setRecipient(event.target.value); setRetryMessageId(null); }} placeholder="To: recipient name or number" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-brand-400" />
+              <input value={subject} onChange={(event) => { setSubject(event.target.value); setRetryMessageId(null); }} placeholder="Subject" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-brand-400" />
+              <textarea value={messageBody} onChange={(event) => { setMessageBody(event.target.value); setRetryMessageId(null); }} placeholder="Type your message..." rows={4} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-brand-400 resize-none" />
               <div className="flex items-center justify-end gap-2">
                 <button onClick={() => setComposeOpen(false)} className="text-sm font-medium text-gray-500 px-4 py-2 rounded-lg border border-gray-200 hover:bg-gray-50">Cancel</button>
-                <button onClick={async () => {
+                <button disabled={sending || !recipient.trim() || !messageBody.trim()} onClick={async () => {
                   if (!recipient.trim() || !messageBody.trim()) return;
+                  setComposeError('');
+                  if (composeChannel === 'Email') {
+                    if (!membership?.organization_id) { setComposeError('An active organisation membership is required to send email.'); return; }
+                    setSending(true);
+                    try {
+                      const { data, error: invokeError } = await supabase.functions.invoke('send-communication', {
+                        body: retryMessageId
+                          ? { organization_id: membership.organization_id, message_id: retryMessageId }
+                          : { organization_id: membership.organization_id, recipient: recipient.trim(), subject: subject.trim() || 'BuildFlow message', content: messageBody.trim() },
+                      });
+                      if (invokeError || data?.error) { setRetryMessageId(data?.message_id ?? null); setComposeError(data?.error || invokeError?.message || 'Email could not be sent.'); return; }
+                      const item = { id: data.message_id, channel: 'Email', from: 'BuildFlow', to: recipient.trim(), subject: subject.trim() || 'BuildFlow message', preview: messageBody.trim(), time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), unread: false } as (typeof messages)[number];
+                      setMessageItems(current => [item, ...current.filter(existing => existing.id !== item.id)]); setSelected(item); setRetryMessageId(null);
+                      setRecipient(''); setSubject(''); setMessageBody(''); setComposeOpen(false);
+                    } catch (error) { setComposeError(error instanceof Error ? error.message : 'Email could not be sent.'); }
+                    finally { setSending(false); }
+                    return;
+                  }
                   try {
                     const saved = await create('messages', { subject: subject.trim() || `${composeChannel} message`, content: `To: ${recipient.trim()}\\n\\n${messageBody.trim()}`, message_type: composeChannel.toLowerCase(), status: 'draft' });
                     const item = { id: saved.id, channel: composeChannel, from: 'BuildFlow', to: recipient.trim(), subject: subject.trim() || `${composeChannel} message`, preview: messageBody.trim(), time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), unread: false } as (typeof messages)[number];
-                    setMessageItems((current) => [item, ...current]);
-                    setSelected(item);
+                    setMessageItems(current => [item, ...current]); setSelected(item);
                     setRecipient(''); setSubject(''); setMessageBody(''); setComposeOpen(false);
-                  } catch (error) {
-                    console.error('Unable to save communication:', error);
-                    window.alert(error instanceof Error ? error.message : 'Unable to save this message.');
-                  }
-                }} className="flex items-center gap-1.5 bg-brand-600 text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-brand-700">
-                  <Send size={14} /> Send {composeChannel}
+                  } catch (error) { setComposeError(error instanceof Error ? error.message : 'Unable to save this draft.'); }
+                }} className="flex items-center gap-1.5 bg-brand-600 text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-brand-700 disabled:opacity-50">
+                  <Send size={14} /> {sending ? 'Sending…' : composeChannel === 'Email' ? (retryMessageId ? 'Retry email' : 'Send email') : `Save ${composeChannel} draft`}
                 </button>
               </div>
             </div>

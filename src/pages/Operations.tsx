@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { supabase } from '@/lib/supabase';
 import {
   Plus,
   ChevronLeft,
@@ -12,12 +13,8 @@ import { Card, CardHeader, CardBody, StatCard } from '@/components/ui/Card';
 import { Table, Th, Td, Tr } from '@/components/ui/Table';
 import { StatusBadge, Badge } from '@/components/ui/Badge';
 import {
-  tasks as mockTasks,
   calendarEvents,
   boqItems as mockBoqItems,
-  purchaseRequests as mockPurchaseRequests,
-  suppliers as mockSuppliers,
-  inventory as mockInventory,
   type Task,
   type PurchaseRequest,
 } from '@/data/mockData';
@@ -28,8 +25,8 @@ import { useBuildFlowData } from '@/context/BuildFlowDataContext';
 export function TasksCalendar() {
   const { create, update, records } = useBuildFlowData();
   const projectById = new Map((records.projects ?? []).map((row) => [row.id, row]));
-  const liveTasks: Task[] = records.tasks?.length ? records.tasks.map((row) => ({ id: row.id, title: String(row.title ?? ''), project: String(projectById.get(String(row.project_id))?.name ?? 'Unassigned project'), assignee: 'Unassigned', dueDate: String(row.due_date ?? ''), priority: row.priority === 'high' || row.priority === 'urgent' ? 'High' : row.priority === 'low' ? 'Low' : 'Medium', status: row.status === 'completed' ? 'Done' : row.status === 'in_progress' ? 'In Progress' : row.status === 'blocked' ? 'Review' : 'To Do' } as Task)) : mockTasks;
-  const liveCalendarEvents = records.calendar_events?.length ? records.calendar_events.map((row) => ({ id: row.id, title: String(row.title ?? ''), date: String(row.start_at ?? '').slice(0, 10), time: String(row.start_at ?? '').slice(11, 16), type: row.event_type === 'inspection' ? 'inspection' : row.event_type === 'deadline' ? 'deadline' : row.event_type === 'client-meeting' ? 'client-meeting' : row.event_type === 'site-meeting' ? 'site-meeting' : 'project-meeting', project: String(projectById.get(String(row.project_id))?.name ?? 'General') } as (typeof calendarEvents)[number])) : calendarEvents;
+  const liveTasks: Task[] = (records.tasks ?? []).map((row) => ({ id: row.id, title: String(row.title ?? ''), project: String(projectById.get(String(row.project_id))?.name ?? 'Unassigned project'), assignee: 'Unassigned', dueDate: String(row.due_date ?? ''), priority: row.priority === 'high' || row.priority === 'urgent' ? 'High' : row.priority === 'low' ? 'Low' : 'Medium', status: row.status === 'completed' ? 'Done' : row.status === 'in_progress' ? 'In Progress' : row.status === 'blocked' ? 'Review' : 'To Do' } as Task));
+  const liveCalendarEvents = (records.calendar_events ?? []).map((row) => ({ id: row.id, title: String(row.title ?? ''), date: String(row.start_at ?? '').slice(0, 10), time: String(row.start_at ?? '').slice(11, 16), type: row.event_type === 'inspection' ? 'inspection' : row.event_type === 'deadline' ? 'deadline' : row.event_type === 'client-meeting' ? 'client-meeting' : row.event_type === 'site-meeting' ? 'site-meeting' : 'project-meeting', project: String(projectById.get(String(row.project_id))?.name ?? 'General') } as (typeof calendarEvents)[number]));
   const [tab, setTab] = useState<'tasks' | 'calendar'>('tasks');
   const [statusFilter, setStatusFilter] = useState<string>('All');
   const [taskItems, setTaskItems] = useState(liveTasks);
@@ -39,7 +36,24 @@ export function TasksCalendar() {
   const [taskAssignee, setTaskAssignee] = useState('');
   const [taskDueDate, setTaskDueDate] = useState('');
   const [taskPriority, setTaskPriority] = useState<Task['priority']>('Medium');
-  const [currentMonth, setCurrentMonth] = useState(new Date(2026, 8, 1));
+  const [currentMonth, setCurrentMonth] = useState(new Date());
+  const [showEventModal, setShowEventModal] = useState(false);
+  const [eventTitle, setEventTitle] = useState('');
+  const [eventStart, setEventStart] = useState('');
+  const [eventEnd, setEventEnd] = useState('');
+  const [eventProject, setEventProject] = useState('');
+  const [eventType, setEventType] = useState('project-meeting');
+  const [eventError, setEventError] = useState('');
+  const [eventSaving, setEventSaving] = useState(false);
+  const createCalendarEvent = async () => {
+    if (!eventTitle.trim() || !eventStart) { setEventError('Enter an event title and start date/time.'); return; }
+    setEventSaving(true); setEventError('');
+    try {
+      await create('calendar_events', { title: eventTitle.trim(), start_at: new Date(eventStart).toISOString(), end_at: eventEnd ? new Date(eventEnd).toISOString() : null, project_id: eventProject || null, event_type: eventType });
+      setEventTitle(''); setEventStart(''); setEventEnd(''); setEventProject(''); setShowEventModal(false);
+    } catch (error) { setEventError(error instanceof Error ? error.message : 'Calendar event could not be saved.'); }
+    finally { setEventSaving(false); }
+  };
 
   const filteredTasks =
     statusFilter === 'All'
@@ -60,7 +74,7 @@ export function TasksCalendar() {
       title: taskTitle.trim(),
       project: taskProject || 'Riverside Office Development',
       assignee: taskAssignee || 'Unassigned',
-      dueDate: taskDueDate || '2026-09-30',
+      dueDate: taskDueDate || new Date().toISOString().slice(0, 10),
       priority: taskPriority,
       status: 'To Do',
     };
@@ -87,23 +101,17 @@ export function TasksCalendar() {
   const advanceTask = async (id: string) => {
     const stages: Task['status'][] = ['To Do', 'In Progress', 'Review', 'Done'];
     const selectedTask = taskItems.find((task) => task.id === id);
-    if (selectedTask && /^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(selectedTask.id)) {
-      const next = stages[stages.indexOf(selectedTask.status) + 1];
-      if (next) void update('tasks', id, { status: next === 'Done' ? 'completed' : next === 'Review' ? 'blocked' : next.toLowerCase().replace(' ', '_') }).catch((error) => window.alert(error.message));
+    if (!selectedTask) return;
+    const currentIndex = stages.indexOf(selectedTask.status);
+    if (currentIndex < 0 || currentIndex >= stages.length - 1) return;
+    const next = stages[currentIndex + 1];
+    try {
+      if (!/^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(id)) throw new Error('This task is not linked to a saved database record. Refresh the task list before editing.');
+      await update('tasks', id, { status: next === 'Done' ? 'completed' : next === 'Review' ? 'blocked' : next.toLowerCase().replace(' ', '_') });
+      setTaskItems(current => current.map(task => task.id === id ? { ...task, status: next } : task));
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : 'Task status could not be updated.');
     }
-    setTaskItems(
-      taskItems.map((task) => {
-        if (task.id !== id) return task;
-
-        const currentIndex = stages.indexOf(task.status);
-        if (currentIndex === -1 || currentIndex === stages.length - 1) return task;
-
-        return {
-          ...task,
-          status: stages[currentIndex + 1],
-        };
-      })
-    );
   };
 
   return (
@@ -232,9 +240,11 @@ export function TasksCalendar() {
           currentMonth={currentMonth}
           setCurrentMonth={setCurrentMonth}
           events={liveCalendarEvents}
+          onAddEvent={() => setShowEventModal(true)}
         />
       )}
 
+      {showEventModal && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"><div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl"><h3 className="text-lg font-semibold">Create calendar event</h3>{eventError && <p role="alert" className="mt-3 text-sm text-red-600">{eventError}</p>}<div className="mt-4 space-y-3"><input value={eventTitle} onChange={e=>setEventTitle(e.target.value)} placeholder="Event title" className="w-full rounded-lg border px-3 py-2 text-sm"/><label className="block text-sm">Start date/time<input type="datetime-local" value={eventStart} onChange={e=>setEventStart(e.target.value)} className="mt-1 w-full rounded-lg border px-3 py-2"/></label><label className="block text-sm">End date/time (optional)<input type="datetime-local" value={eventEnd} onChange={e=>setEventEnd(e.target.value)} className="mt-1 w-full rounded-lg border px-3 py-2"/></label><label className="block text-sm">Project<select value={eventProject} onChange={e=>setEventProject(e.target.value)} className="mt-1 w-full rounded-lg border px-3 py-2"><option value="">Organisation-wide</option>{(records.projects ?? []).map(p=><option key={p.id} value={p.id}>{String(p.name)}</option>)}</select></label><label className="block text-sm">Event type<select value={eventType} onChange={e=>setEventType(e.target.value)} className="mt-1 w-full rounded-lg border px-3 py-2"><option value="project-meeting">Project meeting</option><option value="site-meeting">Site meeting</option><option value="inspection">Inspection</option><option value="deadline">Deadline</option><option value="client-meeting">Client meeting</option></select></label></div><div className="mt-5 flex justify-end gap-2"><button type="button" onClick={()=>setShowEventModal(false)} className="rounded-lg border px-4 py-2 text-sm">Cancel</button><button type="button" disabled={eventSaving} onClick={()=>void createCalendarEvent()} className="rounded-lg bg-brand-600 px-4 py-2 text-sm text-white">{eventSaving?'Saving…':'Save event'}</button></div></div></div>}
       {showTaskModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div className="w-full max-w-lg bg-white rounded-2xl shadow-xl">
@@ -321,10 +331,12 @@ function CalendarView({
   currentMonth,
   setCurrentMonth,
   events,
+  onAddEvent,
 }: {
   currentMonth: Date;
   setCurrentMonth: (d: Date) => void;
   events: (typeof calendarEvents);
+  onAddEvent: () => void;
 }) {
   const year = currentMonth.getFullYear();
   const month = currentMonth.getMonth();
@@ -369,12 +381,13 @@ function CalendarView({
             </button>
 
             <button
-              onClick={() => setCurrentMonth(new Date(2026, 8, 1))}
+              onClick={() => setCurrentMonth(new Date())}
               className="text-sm font-medium text-brand-600 px-3 py-1"
             >
               Today
             </button>
 
+            <button type="button" onClick={onAddEvent} className="rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-medium text-white">Add event</button>
             <button
               onClick={() => setCurrentMonth(new Date(year, month + 1, 1))}
               className="w-8 h-8 rounded-lg border border-gray-200 flex items-center justify-center text-gray-500 hover:bg-gray-50"
@@ -403,7 +416,8 @@ function CalendarView({
               return <div key={i} className="min-h-20 rounded-lg" />;
 
             const dayEvents = eventsForDay(d);
-            const isToday = d === 11 && month === 8 && year === 2026;
+            const today = new Date();
+            const isToday = d === today.getDate() && month === today.getMonth() && year === today.getFullYear();
 
             return (
               <div
@@ -463,11 +477,13 @@ function CalendarView({
 
 // ── BOQ & Estimates ───────────────────────────────────────────
 export function BOQEstimates() {
-  const { records, create, remove } = useBuildFlowData();
+  const { records, create, update, remove } = useBuildFlowData();
   const projectById = new Map((records.projects ?? []).map((row) => [row.id, row]));
-  const liveBoqItems = records.boq_items?.length ? records.boq_items.map((row) => ({ id: row.id, item: String(row.item_code ?? row.description ?? ''), description: String(row.description ?? ''), qty: Number(row.quantity ?? 1), unit: String(row.unit ?? ''), unitCost: Number(row.unit_rate ?? 0), category: String(row.category ?? 'Materials'), project: String(projectById.get(String(row.project_id))?.name ?? 'Unassigned project') } as (typeof mockBoqItems)[number])) : mockBoqItems;
+  const liveBoqItems = (records.boq_items ?? []).map((row) => ({ id: row.id, item: String(row.item_code ?? row.description ?? ''), description: String(row.description ?? ''), qty: Number(row.quantity ?? 1), unit: String(row.unit ?? ''), unitCost: Number(row.unit_rate ?? 0), category: String(row.category ?? 'Materials'), project: String(projectById.get(String(row.project_id))?.name ?? 'Unassigned project') } as (typeof mockBoqItems)[number]));
   const [projectFilter, setProjectFilter] = useState('All');
   const [items, setItems] = useState(liveBoqItems);
+  const [showBoqForm,setShowBoqForm]=useState(false); const [editingBoqId,setEditingBoqId]=useState<string|null>(null);
+  const [boqProjectId,setBoqProjectId]=useState(''); const [boqItemCode,setBoqItemCode]=useState(''); const [boqDescription,setBoqDescription]=useState(''); const [boqQty,setBoqQty]=useState('1'); const [boqUnit,setBoqUnit]=useState('item'); const [boqRate,setBoqRate]=useState('0'); const [boqCategory,setBoqCategory]=useState('Materials'); const [boqError,setBoqError]=useState(''); const [boqSaving,setBoqSaving]=useState(false);
 
   const projects = [
     'All',
@@ -491,28 +507,23 @@ export function BOQEstimates() {
     Subcontractors: 'purple',
   };
 
-  const removeItem = (id: string) => {
-    setItems(items.filter((i) => i.id !== id));
-    if (/^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(id)) void remove('boq_items', id).catch((error) => window.alert(error.message));
-  };
-
-  const addItem = async () => {
-    const newId = `B${String(items.length + 1).padStart(3, '0')}`;
-
-    const projectName = projectFilter === 'All' ? 'Riverside Office Development' : projectFilter;
-    const linkedProject = (records.projects ?? []).find((row) => row.name === projectName);
-    const item = { id: newId, item: 'New Item', description: 'Enter description', qty: 1, unit: 'pcs', unitCost: 0, category: 'Materials' as const, project: projectName };
-    if (linkedProject) {
-      try {
-        const saved = await create('boq_items', { project_id: linkedProject.id, item_code: newId, description: item.description, quantity: 1, unit: 'pcs', unit_rate: 0, total_amount: 0, category: 'Materials', status: 'planned' });
-        item.id = saved.id;
-      } catch (error) { window.alert(error instanceof Error ? error.message : 'Unable to save BOQ item.'); return; }
-    }
-    setItems((current) => [...current, item]);
-  };
+  const resetBoqForm=()=>{setShowBoqForm(false);setEditingBoqId(null);setBoqProjectId('');setBoqItemCode('');setBoqDescription('');setBoqQty('1');setBoqUnit('item');setBoqRate('0');setBoqCategory('Materials');setBoqError('');};
+  const openNewBoqForm=()=>{setEditingBoqId(null);setBoqProjectId(projectFilter==='All'?'':String((records.projects??[]).find(p=>p.name===projectFilter)?.id??''));setBoqItemCode('');setBoqDescription('');setBoqQty('1');setBoqUnit('item');setBoqRate('0');setBoqCategory('Materials');setBoqError('');setShowBoqForm(true);};
+  const openEditBoqForm=(item:typeof liveBoqItems[number])=>{const source=(records.boq_items??[]).find(row=>row.id===item.id);if(!source)return;setEditingBoqId(item.id);setBoqProjectId(String(source.project_id));setBoqItemCode(String(source.item_code??''));setBoqDescription(String(source.description??''));setBoqQty(String(source.quantity??1));setBoqUnit(String(source.unit??'item'));setBoqRate(String(source.unit_rate??0));setBoqCategory(String(source.category??'Materials'));setBoqError('');setShowBoqForm(true);};
+  const saveBoqItem=async()=>{const qty=Number(boqQty),rate=Number(boqRate);if(!boqProjectId||!boqDescription.trim()||!Number.isFinite(qty)||qty<=0||!Number.isFinite(rate)||rate<0){setBoqError('Select a project, enter a description, a quantity greater than zero and a non-negative unit rate.');return;}setBoqSaving(true);setBoqError('');try{const values={project_id:boqProjectId,item_code:boqItemCode.trim()||null,description:boqDescription.trim(),quantity:qty,unit:boqUnit.trim()||null,unit_rate:rate,total_amount:qty*rate,category:boqCategory,status:'planned'};const saved=editingBoqId?await update('boq_items',editingBoqId,values):await create('boq_items',values);const projectName=String((records.projects??[]).find(p=>p.id===boqProjectId)?.name??'Project');const next={id:saved.id,item:String(saved.item_code??saved.description??''),description:String(saved.description??''),qty:Number(saved.quantity??1),unit:String(saved.unit??''),unitCost:Number(saved.unit_rate??0),category:String(saved.category??'Materials'),project:projectName} as typeof liveBoqItems[number];setItems(current=>editingBoqId?current.map(row=>row.id===editingBoqId?next:row):[...current,next]);resetBoqForm();}catch(error){setBoqError(error instanceof Error?error.message:'BOQ item could not be saved.');}finally{setBoqSaving(false);}};
+  const removeItem=async(id:string)=>{if(!/^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(id)){window.alert('This item is not a saved database record.');return;}try{await remove('boq_items',id);setItems(current=>current.filter(item=>item.id!==id));}catch(error){window.alert(error instanceof Error?error.message:'BOQ item could not be removed.');}};
 
   return (
     <div className="space-y-6">
+      {showBoqForm && <Card><CardHeader title={editingBoqId?'Edit BOQ line item':'Add BOQ line item'}/><CardBody><div className="grid gap-3 md:grid-cols-2">
+        <label className="text-sm">Project<select value={boqProjectId} onChange={e=>setBoqProjectId(e.target.value)} className="mt-1 w-full rounded-lg border px-3 py-2"><option value="">Select project</option>{(records.projects??[]).map(p=><option key={p.id} value={p.id}>{String(p.name)}</option>)}</select></label>
+        <label className="text-sm">Item code<input value={boqItemCode} onChange={e=>setBoqItemCode(e.target.value)} className="mt-1 w-full rounded-lg border px-3 py-2"/></label>
+        <label className="text-sm md:col-span-2">Description<input value={boqDescription} onChange={e=>setBoqDescription(e.target.value)} className="mt-1 w-full rounded-lg border px-3 py-2"/></label>
+        <label className="text-sm">Quantity<input type="number" min="0.001" step="any" value={boqQty} onChange={e=>setBoqQty(e.target.value)} className="mt-1 w-full rounded-lg border px-3 py-2"/></label>
+        <label className="text-sm">Unit<input value={boqUnit} onChange={e=>setBoqUnit(e.target.value)} className="mt-1 w-full rounded-lg border px-3 py-2"/></label>
+        <label className="text-sm">Unit rate<input type="number" min="0" step="any" value={boqRate} onChange={e=>setBoqRate(e.target.value)} className="mt-1 w-full rounded-lg border px-3 py-2"/></label>
+        <label className="text-sm">Category<select value={boqCategory} onChange={e=>setBoqCategory(e.target.value)} className="mt-1 w-full rounded-lg border px-3 py-2">{['Materials','Labour','Equipment','Subcontractors'].map(v=><option key={v}>{v}</option>)}</select></label>
+      </div>{boqError&&<p role="alert" className="mt-3 text-sm text-red-600">{boqError}</p>}<div className="mt-4 flex gap-2"><button type="button" disabled={boqSaving} onClick={()=>void saveBoqItem()} className="rounded-lg bg-brand-600 px-4 py-2 text-sm text-white">{boqSaving?'Saving…':'Save BOQ item'}</button><button type="button" onClick={resetBoqForm} className="rounded-lg border px-4 py-2 text-sm">Cancel</button></div></CardBody></Card>}
       <Card>
         <CardHeader
           title="Bill of Quantities"
@@ -532,7 +543,7 @@ export function BOQEstimates() {
               </select>
 
               <button
-                onClick={addItem}
+                onClick={openNewBoqForm}
                 className="flex items-center gap-1.5 bg-brand-600 text-white text-sm font-medium px-3 py-1.5 rounded-lg hover:bg-brand-700 transition-colors"
               >
                 <Plus size={16} /> Add Item
@@ -576,14 +587,7 @@ export function BOQEstimates() {
                   <Td className="font-semibold text-gray-700">
                     {formatFullCurrency(i.qty * i.unitCost)}
                   </Td>
-                  <Td>
-                    <button
-                      onClick={() => removeItem(i.id)}
-                      className="text-gray-300 hover:text-red-500 transition-colors"
-                    >
-                      <X size={14} />
-                    </button>
-                  </Td>
+                  <Td><div className="flex gap-2"><button type="button" onClick={()=>openEditBoqForm(i)} className="text-xs text-brand-600">Edit</button><button type="button" onClick={()=>void removeItem(i.id)} className="text-gray-300 hover:text-red-500"><X size={14}/></button></div></Td>
                 </Tr>
               ))}
             </tbody>
@@ -632,7 +636,7 @@ export function BOQEstimates() {
 export function Procurement() {
   const { create, records } = useBuildFlowData();
   const projectById = new Map((records.projects ?? []).map((row) => [row.id, row]));
-  const liveRequests = records.purchase_requests?.length ? records.purchase_requests.map((row) => ({ id: String(row.request_number ?? row.id), item: String(row.description ?? ''), project: String(projectById.get(String(row.project_id))?.name ?? 'Unassigned project'), qty: 1, unit: 'item', estCost: Number(row.estimated_amount ?? 0), requestedBy: 'Team member', date: String(row.created_at ?? '').slice(0, 10), status: row.status === 'approved' ? 'Approved' : row.status === 'ordered' ? 'PO Issued' : row.status === 'delivered' ? 'Delivered' : row.status === 'rejected' ? 'Rejected' : 'Requested', supplier: 'Pending' } as PurchaseRequest)) : mockPurchaseRequests;
+  const liveRequests = (records.purchase_requests ?? []).map((row) => ({ id: String(row.request_number ?? row.id), item: String(row.description ?? ''), project: String(projectById.get(String(row.project_id))?.name ?? 'Unassigned project'), qty: 1, unit: 'item', estCost: Number(row.estimated_amount ?? 0), requestedBy: 'Team member', date: String(row.created_at ?? '').slice(0, 10), status: row.status === 'approved' ? 'Approved' : row.status === 'ordered' ? 'PO Issued' : row.status === 'delivered' ? 'Delivered' : row.status === 'rejected' ? 'Rejected' : 'Requested', supplier: 'Pending' } as PurchaseRequest));
   const [statusFilter, setStatusFilter] = useState('All');
   const [requests, setRequests] = useState(liveRequests);
   const [showModal, setShowModal] = useState(false);
@@ -898,107 +902,83 @@ export function Procurement() {
   );
 }
 export function Suppliers() {
-  const { records } = useBuildFlowData();
-  const supplierRows = records.suppliers?.length ? records.suppliers.map((row) => ({ id: row.id, name: String(row.name ?? ''), category: 'Supplier', contact: String(row.contact_name ?? ''), phone: String(row.phone ?? ''), email: String(row.email ?? ''), rating: 0, totalOrders: 0, outstandingBalance: 0, status: row.status === 'inactive' ? 'Inactive' : 'Active' } as (typeof mockSuppliers)[number])) : mockSuppliers;
-  return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold text-gray-900">Suppliers</h1>
-        <p className="mt-1 text-sm text-gray-500">
-          Manage suppliers and procurement contacts.
-        </p>
-      </div>
-
-      <Card>
-        <CardHeader title="Supplier Directory" />
-        <CardBody>
-          <div className="overflow-x-auto">
-            <Table>
-              <thead>
-                <tr>
-                  <Th>Supplier</Th>
-                  <Th>Contact</Th>
-                  <Th>Status</Th>
-                </tr>
-              </thead>
-              <tbody>
-                {supplierRows.map((supplier) => (
-                  <Tr key={supplier.id}>
-                    <Td>
-                      <div className="font-medium text-gray-900">
-                        {supplier.name}
-                      </div>
-                    </Td>
-                    <Td>
-                      {supplier.email || supplier.phone || supplier.contact || '—'}
-                    </Td>
-                    <Td>
-                      <Badge>
-                        {supplier.status || 'Active'}
-                      </Badge>
-                    </Td>
-                  </Tr>
-                ))}
-              </tbody>
-            </Table>
-          </div>
-        </CardBody>
-      </Card>
-    </div>
-  );
+  const { records, create, update } = useBuildFlowData();
+  const rows = records.suppliers ?? [];
+  const [editing, setEditing] = useState<string | null>(null);
+  const [showForm, setShowForm] = useState(false);
+  const [name, setName] = useState('');
+  const [contact, setContact] = useState('');
+  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
+  const [address, setAddress] = useState('');
+  const [paymentTerms, setPaymentTerms] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const reset = () => { setName(''); setContact(''); setEmail(''); setPhone(''); setAddress(''); setPaymentTerms(''); setEditing(null); setShowForm(false); };
+  const beginEdit = (row: typeof rows[number]) => { setEditing(row.id); setName(String(row.name ?? '')); setContact(String(row.contact_name ?? '')); setEmail(String(row.email ?? '')); setPhone(String(row.phone ?? '')); setAddress(String(row.address ?? '')); setPaymentTerms(String(row.payment_terms ?? '')); setShowForm(true); };
+  const save = async () => {
+    if (!name.trim()) return;
+    setBusy(true); setError('');
+    try {
+      const values = { name: name.trim(), contact_name: contact.trim() || null, email: email.trim() || null, phone: phone.trim() || null, address: address.trim() || null, payment_terms: paymentTerms.trim() || null, status: 'active' };
+      if (editing) await update('suppliers', editing, values); else await create('suppliers', values);
+      reset();
+    } catch (e) { setError(e instanceof Error ? e.message : 'Supplier could not be saved.'); }
+    finally { setBusy(false); }
+  };
+  return <div className="space-y-6">
+    <div className="flex items-start justify-between"><div><h1 className="text-2xl font-semibold text-gray-900">Suppliers</h1><p className="mt-1 text-sm text-gray-500">Manage supplier master data and procurement contacts.</p></div><button type="button" onClick={() => { reset(); setShowForm(true); }} className="flex items-center gap-2 rounded-lg bg-brand-600 px-3 py-2 text-sm font-medium text-white"><Plus size={15}/> Add supplier</button></div>
+    {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</p>}
+    {showForm && <Card><CardHeader title={editing ? 'Edit supplier' : 'Add supplier'} /><CardBody><div className="grid gap-3 md:grid-cols-2">
+      <label className="text-sm">Supplier name<input required value={name} onChange={e=>setName(e.target.value)} className="mt-1 w-full rounded-lg border px-3 py-2"/></label>
+      <label className="text-sm">Contact person<input value={contact} onChange={e=>setContact(e.target.value)} className="mt-1 w-full rounded-lg border px-3 py-2"/></label>
+      <label className="text-sm">Email<input type="email" value={email} onChange={e=>setEmail(e.target.value)} className="mt-1 w-full rounded-lg border px-3 py-2"/></label>
+      <label className="text-sm">Phone<input value={phone} onChange={e=>setPhone(e.target.value)} className="mt-1 w-full rounded-lg border px-3 py-2"/></label>
+      <label className="text-sm">Address<input value={address} onChange={e=>setAddress(e.target.value)} className="mt-1 w-full rounded-lg border px-3 py-2"/></label>
+      <label className="text-sm">Payment terms<input value={paymentTerms} onChange={e=>setPaymentTerms(e.target.value)} placeholder="e.g. 30 days" className="mt-1 w-full rounded-lg border px-3 py-2"/></label>
+    </div><div className="mt-4 flex gap-2"><button type="button" disabled={busy || !name.trim()} onClick={()=>void save()} className="rounded-lg bg-brand-600 px-4 py-2 text-sm text-white disabled:opacity-50">{busy?'Saving…':'Save supplier'}</button><button type="button" onClick={reset} className="rounded-lg border px-4 py-2 text-sm">Cancel</button></div></CardBody></Card>}
+    <Card><CardHeader title="Supplier Directory" subtitle={rows.length + ' live supplier records'}/><CardBody><div className="overflow-x-auto"><Table><thead><tr><Th>Supplier</Th><Th>Contact</Th><Th>Status</Th><Th>Payment terms</Th><Th>Action</Th></tr></thead><tbody>{rows.map(row=><Tr key={row.id}><Td><div className="font-medium text-gray-900">{String(row.name)}</div><div className="text-xs text-gray-400">{String(row.address ?? '')}</div></Td><Td>{String(row.contact_name ?? '—')}<div className="text-xs text-gray-500">{String(row.email ?? row.phone ?? '')}</div></Td><Td><Badge>{String(row.status ?? 'active')}</Badge></Td><Td>{String(row.payment_terms ?? '—')}</Td><Td><button type="button" onClick={()=>beginEdit(row)} className="text-sm font-medium text-brand-600">Edit</button></Td></Tr>)}</tbody></Table>{!rows.length && <p className="p-6 text-sm text-gray-500">No suppliers registered yet. Add your first supplier.</p>}</div></CardBody></Card>
+  </div>;
 }
 
 export function Inventory() {
-  const { records } = useBuildFlowData();
-  const inventoryRows = records.inventory_items?.length ? records.inventory_items.map((row) => ({ id: row.id, material: String(row.name ?? ''), category: String(row.category ?? ''), stock: Number(row.quantity_on_hand ?? 0), allocated: 0, reorderLevel: Number(row.reorder_level ?? 0), unit: String(row.unit ?? ''), unitCost: Number(row.unit_cost ?? 0) } as (typeof mockInventory)[number])) : mockInventory;
-  return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold text-gray-900">Inventory</h1>
-        <p className="mt-1 text-sm text-gray-500">
-          Track materials, stock levels and inventory movements.
-        </p>
-      </div>
-
-      <Card>
-        <CardHeader title="Inventory" />
-        <CardBody>
-          <div className="overflow-x-auto">
-            <Table>
-              <thead>
-                <tr>
-                  <Th>Item</Th>
-                  <Th>Quantity</Th>
-                  <Th>Unit</Th>
-                  <Th>Status</Th>
-                </tr>
-              </thead>
-              <tbody>
-                {inventoryRows.map((item) => (
-                  <Tr key={item.id}>
-                    <Td>
-                      <div className="font-medium text-gray-900">
-                        {item.material}
-                      </div>
-                    </Td>
-                    <Td>
-                      {item.stock}
-                    </Td>
-                    <Td>
-                      {item.unit}
-                    </Td>
-                    <Td>
-                      <Badge>
-                        {item.stock > 0 ? 'In Stock' : 'Out of Stock'}
-                      </Badge>
-                    </Td>
-                  </Tr>
-                ))}
-              </tbody>
-            </Table>
-          </div>
-        </CardBody>
-      </Card>
-    </div>
-  );
+  const { records, create, refresh } = useBuildFlowData();
+  const rows = records.inventory_items ?? [];
+  const projects = records.projects ?? [];
+  const [showNew, setShowNew] = useState(false);
+  const [showMovement, setShowMovement] = useState(false);
+  const [selectedItem, setSelectedItem] = useState('');
+  const [name, setName] = useState('');
+  const [category, setCategory] = useState('');
+  const [unit, setUnit] = useState('units');
+  const [quantity, setQuantity] = useState('');
+  const [unitCost, setUnitCost] = useState('0');
+  const [projectId, setProjectId] = useState('');
+  const [notes, setNotes] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
+  const addItem = async () => {
+    if (!name.trim() || !unit.trim()) return;
+    setBusy(true); setError('');
+    try { const row = await create('inventory_items', { name: name.trim(), category: category.trim() || null, unit: unit.trim(), quantity_on_hand: 0, reorder_level: 0, unit_cost: Number(unitCost) || 0, status: 'active' }); setSelectedItem(row.id); setName(''); setCategory(''); setShowNew(false); setNotice('Inventory item created. Record an opening receipt to add stock.'); }
+    catch(e) { setError(e instanceof Error ? e.message : 'Inventory item could not be created.'); } finally { setBusy(false); }
+  };
+  const recordMovement = async () => {
+    const qty = Number(quantity);
+    if (!selectedItem || !Number.isFinite(qty) || qty <= 0) { setError('Select an item and enter a quantity greater than zero.'); return; }
+    setBusy(true); setError(''); setNotice('');
+    try {
+      const { error: rpcError } = await supabase.rpc('record_inventory_transaction', { p_inventory_item_id: selectedItem, p_quantity_delta: qty, p_unit_cost: Number(unitCost) || 0, p_notes: notes.trim() || null, p_project_id: projectId || null });
+      if (rpcError) throw new Error(rpcError.message);
+      await refresh(); setQuantity(''); setNotes(''); setProjectId(''); setShowMovement(false); setNotice('Stock receipt recorded and on-hand quantity updated atomically.');
+    } catch(e) { setError(e instanceof Error ? e.message : 'Stock movement could not be recorded.'); } finally { setBusy(false); }
+  };
+  return <div className="space-y-6">
+    <div className="flex items-start justify-between"><div><h1 className="text-2xl font-semibold text-gray-900">Inventory</h1><p className="mt-1 text-sm text-gray-500">Manage stock items and record auditable stock receipts. Issues and returns require their own controlled project workflows.</p></div><div className="flex gap-2"><button type="button" onClick={()=>setShowNew(true)} className="rounded-lg border border-gray-200 px-3 py-2 text-sm">Add item</button><button type="button" onClick={()=>setShowMovement(true)} disabled={!rows.length} className="flex items-center gap-2 rounded-lg bg-brand-600 px-3 py-2 text-sm text-white disabled:opacity-50"><Plus size={15}/> Record receipt</button></div></div>
+    {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</p>}{notice && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700">{notice}</p>}
+    {showNew && <Card><CardHeader title="New inventory item"/><CardBody><div className="grid gap-3 md:grid-cols-3"><label className="text-sm">Item name<input value={name} onChange={e=>setName(e.target.value)} className="mt-1 w-full rounded-lg border px-3 py-2"/></label><label className="text-sm">Category<input value={category} onChange={e=>setCategory(e.target.value)} className="mt-1 w-full rounded-lg border px-3 py-2"/></label><label className="text-sm">Unit<input value={unit} onChange={e=>setUnit(e.target.value)} className="mt-1 w-full rounded-lg border px-3 py-2"/></label></div><div className="mt-3 flex gap-2"><button type="button" disabled={busy || !name.trim()} onClick={()=>void addItem()} className="rounded-lg bg-brand-600 px-4 py-2 text-sm text-white">Save item</button><button type="button" onClick={()=>setShowNew(false)} className="rounded-lg border px-4 py-2 text-sm">Cancel</button></div></CardBody></Card>}
+    {showMovement && <Card><CardHeader title="Record stock receipt"/><CardBody><div className="grid gap-3 md:grid-cols-2"><label className="text-sm">Inventory item<select value={selectedItem} onChange={e=>setSelectedItem(e.target.value)} className="mt-1 w-full rounded-lg border px-3 py-2"><option value="">Select item</option>{rows.map(row=><option key={row.id} value={row.id}>{String(row.name)}</option>)}</select></label><label className="text-sm">Quantity received<input type="number" min="0.001" step="any" value={quantity} onChange={e=>setQuantity(e.target.value)} className="mt-1 w-full rounded-lg border px-3 py-2"/></label><label className="text-sm">Unit cost<input type="number" min="0" step="any" value={unitCost} onChange={e=>setUnitCost(e.target.value)} className="mt-1 w-full rounded-lg border px-3 py-2"/></label><label className="text-sm">Project (optional)<select value={projectId} onChange={e=>setProjectId(e.target.value)} className="mt-1 w-full rounded-lg border px-3 py-2"><option value="">General stock</option>{projects.map(p=><option key={p.id} value={p.id}>{String(p.name)}</option>)}</select></label><label className="text-sm md:col-span-2">Reference / notes<input value={notes} onChange={e=>setNotes(e.target.value)} className="mt-1 w-full rounded-lg border px-3 py-2"/></label></div><div className="mt-3 flex gap-2"><button type="button" disabled={busy} onClick={()=>void recordMovement()} className="rounded-lg bg-brand-600 px-4 py-2 text-sm text-white disabled:opacity-50">{busy?'Saving…':'Record receipt'}</button><button type="button" onClick={()=>setShowMovement(false)} className="rounded-lg border px-4 py-2 text-sm">Cancel</button></div></CardBody></Card>}
+    <Card><CardHeader title="Inventory register" subtitle={rows.length + ' live stock items'}/><CardBody><div className="overflow-x-auto"><Table><thead><tr><Th>Item</Th><Th>Category</Th><Th>Quantity</Th><Th>Unit</Th><Th>Unit cost</Th><Th>Status</Th></tr></thead><tbody>{rows.map(row=><Tr key={row.id}><Td className="font-medium">{String(row.name)}</Td><Td>{String(row.category ?? '—')}</Td><Td>{Number(row.quantity_on_hand ?? 0)}</Td><Td>{String(row.unit)}</Td><Td>{formatFullCurrency(Number(row.unit_cost ?? 0))}</Td><Td><Badge>{Number(row.quantity_on_hand ?? 0) > 0 ? 'In Stock' : 'Out of Stock'}</Badge></Td></Tr>)}</tbody></Table>{!rows.length && <p className="p-6 text-sm text-gray-500">No inventory items registered yet.</p>}</div></CardBody></Card>
+  </div>;
 }

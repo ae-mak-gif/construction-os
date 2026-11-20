@@ -1,4 +1,5 @@
 name: BuildFlow CI
+# Re-trigger PR validation against the updated base-branch CI workflow
 
 on:
   pull_request:
@@ -62,4 +63,5 @@ jobs:
           package-manager-cache: false
 
       - name: Dependency security audit
-        run: npm audit --audit-level=high
+        run: npm audit --audit-level=low
+# Revalidate PR #3 against the refreshed auth-profile-schema-alignment base (4ccf989).

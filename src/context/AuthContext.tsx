@@ -29,11 +29,23 @@ export interface Membership {
   status?: string | null;
 }
 
+export interface ClientAccess {
+  id: string;
+  organization_id: string;
+  client_id: string;
+  user_id: string;
+  client_name: string;
+}
+
+export type AccountType = 'internal' | 'client' | null;
+
 export interface AuthState {
   session: Session | null;
   user: User | null;
   profile: Profile | null;
   membership: Membership | null;
+  clientAccess: ClientAccess | null;
+  accountType: AccountType;
   loading: boolean;
   error: string | null;
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
@@ -42,142 +54,216 @@ export interface AuthState {
 
 const AuthContext = createContext<AuthState | undefined>(undefined);
 
-function getInitials(
-  name: string | null | undefined,
-  email: string | null | undefined
-): string {
+function getInitials(name: string | null | undefined, email: string | null | undefined): string {
   if (name) {
     const parts = name.trim().split(/\s+/);
-    if (parts.length >= 2) {
-      return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-    }
+    if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
     return parts[0].slice(0, 2).toUpperCase();
   }
-  if (email) return email.slice(0, 2).toUpperCase();
-  return 'BF';
+  return email ? email.slice(0, 2).toUpperCase() : 'BF';
 }
-
 export { getInitials };
 
 interface LoadedAuthContext {
   profile: Profile | null;
   membership: Membership | null;
+  clientAccess: ClientAccess | null;
+  accountType: AccountType;
   error: string | null;
 }
 
-async function loadProfileAndMembership(currentUser: User): Promise<LoadedAuthContext> {
-  let profileData: Profile | null = null;
-  let membershipData: Membership | null = null;
-  const loadErrors: string[] = [];
-
-  const { data: prof, error: profError } = await supabase
+async function loadProfile(currentUser: User): Promise<Profile | null> {
+  const { data } = await supabase
     .from('profiles')
     .select('id, first_name, last_name, display_name, phone, avatar_url')
     .eq('id', currentUser.id)
     .maybeSingle();
 
-  if (profError) {
-    loadErrors.push(`Unable to load profile: ${profError.message}`);
-  } else if (prof) {
-    const derivedName = [prof.first_name, prof.last_name]
-      .filter(Boolean)
-      .join(' ')
-      .trim();
-    const displayName = prof.display_name?.trim() || derivedName || null;
-
-    profileData = {
-      id: prof.id,
-      email: currentUser.email ?? '',
-      full_name: displayName,
-      display_name: displayName,
-      avatar_url: prof.avatar_url ?? null,
-      phone: prof.phone ?? null,
-    };
-  } else {
-    profileData = {
+  if (!data) {
+    const name = currentUser.user_metadata?.display_name ?? currentUser.user_metadata?.full_name ?? null;
+    return {
       id: currentUser.id,
       email: currentUser.email ?? '',
-      full_name:
-        currentUser.user_metadata?.display_name ??
-        currentUser.user_metadata?.full_name ??
-        null,
-      display_name:
-        currentUser.user_metadata?.display_name ??
-        currentUser.user_metadata?.full_name ??
-        null,
+      full_name: name,
+      display_name: name,
       avatar_url: null,
       phone: null,
     };
   }
 
+  const derivedName = [data.first_name, data.last_name].filter(Boolean).join(' ').trim();
+  const displayName = data.display_name?.trim() || derivedName || null;
+  return {
+    id: data.id,
+    email: currentUser.email ?? '',
+    full_name: displayName,
+    display_name: displayName,
+    avatar_url: data.avatar_url ?? null,
+    phone: data.phone ?? null,
+  };
+}
+
+async function loadProfileAndAccess(currentUser: User): Promise<LoadedAuthContext> {
+  // Profile information is helpful but not an access-control dependency.
+  const profilePromise = loadProfile(currentUser).catch(() => null);
+
   const { data: memberships, error: membershipError } = await supabase
     .from('organization_members')
     .select(`
-      id,
-      organization_id,
-      user_id,
-      role_id,
-      status,
-      organization:organizations(
-        id,
-        name,
-        slug
-      )
+      id, organization_id, user_id, role_id, status,
+      organization:organizations(id, name, slug)
     `)
     .eq('user_id', currentUser.id)
     .eq('status', 'active')
     .limit(2);
 
   if (membershipError) {
-    loadErrors.push(`Unable to load organization membership: ${membershipError.message}`);
-  } else if (!memberships || memberships.length === 0) {
-    loadErrors.push('Your account does not have an active organisation membership. Please contact your administrator.');
-  } else if (memberships.length > 1) {
-    loadErrors.push('Your account is linked to more than one organisation. Organisation selection must be configured before you can continue.');
-  } else {
+    return {
+      profile: await profilePromise,
+      membership: null,
+      clientAccess: null,
+      accountType: null,
+      error: `Unable to verify organisation membership: ${membershipError.message}`,
+    };
+  }
+
+  const { data: clientLinks, error: clientLinkError } = await supabase
+    .from('client_portal_access')
+    .select('id, organization_id, client_id, user_id')
+    .eq('user_id', currentUser.id)
+    .eq('status', 'active')
+    .limit(2);
+
+  if (clientLinkError) {
+    return {
+      profile: await profilePromise,
+      membership: null,
+      clientAccess: null,
+      accountType: null,
+      error: `Unable to verify client portal access: ${clientLinkError.message}`,
+    };
+  }
+
+  if ((memberships?.length ?? 0) > 1 || (clientLinks?.length ?? 0) > 1) {
+    return {
+      profile: await profilePromise,
+      membership: null,
+      clientAccess: null,
+      accountType: null,
+      error: 'This account has multiple active access assignments. Ask an administrator to resolve the account assignments before signing in.',
+    };
+  }
+
+  if ((memberships?.length ?? 0) === 1 && (clientLinks?.length ?? 0) === 1) {
+    return {
+      profile: await profilePromise,
+      membership: null,
+      clientAccess: null,
+      accountType: null,
+      error: 'This account is configured as both an internal organisation user and an external client. These access types must use separate accounts.',
+    };
+  }
+
+  if (memberships?.length === 1) {
     const member = memberships[0];
-    const organizationData = Array.isArray(member.organization)
-      ? member.organization[0]
-      : member.organization;
+    const organization = Array.isArray(member.organization) ? member.organization[0] : member.organization;
 
-    if (!organizationData?.id) {
-      loadErrors.push('Your active organisation could not be resolved. Please contact your administrator.');
-    } else if (!member.role_id) {
-      loadErrors.push('Your organisation membership has no assigned role. Please contact your administrator.');
-    } else {
-      const { data: role, error: roleError } = await supabase
-        .from('roles')
-        .select('id, name')
-        .eq('id', member.role_id)
-        .eq('organization_id', member.organization_id)
-        .maybeSingle();
-
-      if (roleError) {
-        loadErrors.push(`Unable to load user role: ${roleError.message}`);
-      } else if (!role?.name) {
-        loadErrors.push('Your organisation role could not be resolved. Please contact your administrator.');
-      } else {
-        membershipData = {
-          id: member.id,
-          organization_id: member.organization_id,
-          user_id: member.user_id,
-          role_id: member.role_id,
-          role_name: role.name,
-          status: member.status ?? null,
-          organization: {
-            id: organizationData.id,
-            name: organizationData.name,
-            slug: organizationData.slug ?? null,
-          },
-        };
-      }
+    if (!organization?.id || !member.role_id) {
+      return {
+        profile: await profilePromise,
+        membership: null,
+        clientAccess: null,
+        accountType: null,
+        error: 'Your active organisation membership is incomplete. Ask your administrator to check your organisation and role assignment.',
+      };
     }
+
+    const { data: role, error: roleError } = await supabase
+      .from('roles')
+      .select('id, name')
+      .eq('id', member.role_id)
+      .eq('organization_id', member.organization_id)
+      .maybeSingle();
+
+    if (roleError || !role?.name) {
+      return {
+        profile: await profilePromise,
+        membership: null,
+        clientAccess: null,
+        accountType: null,
+        error: roleError
+          ? `Unable to resolve your organisation role: ${roleError.message}`
+          : 'Your organisation role could not be found. Ask your administrator to check your role assignment.',
+      };
+    }
+
+    return {
+      profile: await profilePromise,
+      membership: {
+        id: member.id,
+        organization_id: member.organization_id,
+        user_id: member.user_id,
+        role_id: member.role_id,
+        role_name: role.name,
+        status: member.status ?? null,
+        organization: { id: organization.id, name: organization.name, slug: organization.slug ?? null },
+      },
+      clientAccess: null,
+      accountType: 'internal',
+      error: null,
+    };
+  }
+
+  if (clientLinks?.length === 1) {
+    const link = clientLinks[0];
+    const { data: clientIdentity, error: clientError } = await supabase.rpc('get_client_portal_identity');
+    const client = clientIdentity as {
+      client_id?: string;
+      organization_id?: string;
+      name?: string;
+      status?: string;
+    } | null;
+
+    if (
+      clientError
+      || !client
+      || client.client_id !== link.client_id
+      || client.organization_id !== link.organization_id
+      || client.status !== 'active'
+      || !client.name
+    ) {
+      return {
+        profile: await profilePromise,
+        membership: null,
+        clientAccess: null,
+        accountType: null,
+        error: clientError
+          ? `Unable to resolve your client account: ${clientError.message}`
+          : 'Your client portal access is not linked to an active client record. Contact the organisation that invited you.',
+      };
+    }
+
+    return {
+      profile: await profilePromise,
+      membership: null,
+      clientAccess: {
+        id: link.id,
+        organization_id: link.organization_id,
+        client_id: link.client_id,
+        user_id: link.user_id,
+        client_name: client.name,
+      },
+      accountType: 'client',
+      error: null,
+    };
   }
 
   return {
-    profile: profileData,
-    membership: membershipData,
-    error: loadErrors.length ? loadErrors.join(' ') : null,
+    profile: await profilePromise,
+    membership: null,
+    clientAccess: null,
+    accountType: null,
+    error: 'Your account has no active BuildFlow organisation or client portal access. Contact the organisation that invited you.',
   };
 }
 
@@ -186,6 +272,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [membership, setMembership] = useState<Membership | null>(null);
+  const [clientAccess, setClientAccess] = useState<ClientAccess | null>(null);
+  const [accountType, setAccountType] = useState<AccountType>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const requestSequence = useRef(0);
@@ -200,6 +288,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(currentSession?.user ?? null);
       setProfile(null);
       setMembership(null);
+      setClientAccess(null);
+      setAccountType(null);
       setError(null);
 
       if (!currentSession?.user) {
@@ -209,33 +299,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       setLoading(true);
       try {
-        const loaded = await loadProfileAndMembership(currentSession.user);
+        const loaded = await loadProfileAndAccess(currentSession.user);
         if (!mounted || requestId !== requestSequence.current) return;
         setProfile(loaded.profile);
         setMembership(loaded.membership);
+        setClientAccess(loaded.clientAccess);
+        setAccountType(loaded.accountType);
         setError(loaded.error);
       } catch (loadError) {
         if (!mounted || requestId !== requestSequence.current) return;
-        setProfile(null);
-        setMembership(null);
-        setError(
-          loadError instanceof Error
-            ? `Unable to restore your BuildFlow account: ${loadError.message}`
-            : 'Unable to restore your BuildFlow account. Please try again.'
-        );
+        setError(loadError instanceof Error
+          ? `Unable to restore your BuildFlow access: ${loadError.message}`
+          : 'Unable to restore your BuildFlow access. Please try again.');
       } finally {
-        if (mounted && requestId === requestSequence.current) {
-          setLoading(false);
-        }
+        if (mounted && requestId === requestSequence.current) setLoading(false);
       }
     };
 
     const { data: authListener } = supabase.auth.onAuthStateChange((_event, currentSession) => {
       authEventReceived = true;
-      // Defer Supabase queries until the auth callback has released its internal lock.
-      window.setTimeout(() => {
-        void applySession(currentSession);
-      }, 0);
+      // Supabase queries must run after the auth callback releases its internal lock.
+      window.setTimeout(() => { void applySession(currentSession); }, 0);
     });
 
     void supabase.auth.getSession()
@@ -250,11 +334,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       })
       .catch((sessionError: unknown) => {
         if (!mounted || authEventReceived) return;
-        setError(
-          sessionError instanceof Error
-            ? `Unable to restore your sign-in session: ${sessionError.message}`
-            : 'Unable to restore your sign-in session. Please try again.'
-        );
+        setError(sessionError instanceof Error
+          ? `Unable to restore your sign-in session: ${sessionError.message}`
+          : 'Unable to restore your sign-in session. Please try again.');
         setLoading(false);
       });
 
@@ -267,34 +349,39 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signIn = async (email: string, password: string) => {
     setError(null);
-    const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
-    return { error: signInError?.message ?? null };
+    try {
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: email.trim().toLowerCase(),
+        password,
+      });
+      return { error: signInError?.message ?? null };
+    } catch (signInError) {
+      return {
+        error: signInError instanceof Error
+          ? signInError.message
+          : 'Unable to reach the sign-in service. Check your connection and try again.',
+      };
+    }
   };
 
   const signOut = async () => {
-    await supabase.auth.signOut();
-    requestSequence.current += 1;
-    setSession(null);
-    setUser(null);
-    setProfile(null);
-    setMembership(null);
-    setError(null);
-    setLoading(false);
+    try { await supabase.auth.signOut(); } finally {
+      requestSequence.current += 1;
+      setSession(null);
+      setUser(null);
+      setProfile(null);
+      setMembership(null);
+      setClientAccess(null);
+      setAccountType(null);
+      setError(null);
+      setLoading(false);
+    }
   };
 
   return (
-    <AuthContext.Provider
-      value={{
-        session,
-        user,
-        profile,
-        membership,
-        loading,
-        error,
-        signIn,
-        signOut,
-      }}
-    >
+    <AuthContext.Provider value={{
+      session, user, profile, membership, clientAccess, accountType, loading, error, signIn, signOut,
+    }}>
       {children}
     </AuthContext.Provider>
   );

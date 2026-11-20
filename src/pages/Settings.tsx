@@ -1,49 +1,9 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabase';
-import {
-  MessageSquare,
-  Smartphone,
-  Mail,
-  Calendar,
-  HardDrive,
-  Calculator,
-  Landmark,
-  CreditCard,
-  ListChecks,
-  Brain,
-  Clock,
-  Plug,
-  ShieldCheck,
-  Plus,
-  LockKeyhole,
-} from 'lucide-react';
+import { IntegrationConnections } from '@/components/settings/IntegrationConnections';
+import { Plus, LockKeyhole, ShieldCheck } from 'lucide-react';
 import { Card, CardHeader, CardBody } from '@/components/ui/Card';
-import { Badge } from '@/components/ui/Badge';
-
-interface Integration {
-  name: string;
-  description: string;
-  icon: React.ReactNode;
-  status: 'ready' | 'coming';
-  category: string;
-  color: string;
-}
-
-const integrations: Integration[] = [
-  { name: 'WhatsApp', description: 'Send and receive WhatsApp messages to clients and team members', icon: <MessageSquare size={22} />, status: 'ready', category: 'Communication', color: 'bg-emerald-50 text-emerald-600' },
-  { name: 'SMS', description: 'Send SMS notifications and alerts', icon: <Smartphone size={22} />, status: 'ready', category: 'Communication', color: 'bg-blue-50 text-blue-600' },
-  { name: 'Email', description: 'Send emails and manage email campaigns', icon: <Mail size={22} />, status: 'ready', category: 'Communication', color: 'bg-orange-50 text-orange-600' },
-  { name: 'Google Calendar', description: 'Sync project meetings, inspections, and deadlines', icon: <Calendar size={22} />, status: 'ready', category: 'Productivity', color: 'bg-purple-50 text-purple-600' },
-  { name: 'Google Drive', description: 'Connect Google Drive to store, organise, preview and share project documents and drawings', icon: <HardDrive size={22} />, status: 'ready', category: 'Storage', color: 'bg-blue-50 text-blue-600' },
-  { name: 'Accounting', description: 'Connect accounting platforms such as Sage / Pastel and QuickBooks for invoices, expenses and reconciliation', icon: <Calculator size={22} />, status: 'ready', category: 'Finance', color: 'bg-indigo-50 text-indigo-600' },
-  { name: 'Banking', description: 'Connect bank accounts for transaction tracking', icon: <Landmark size={22} />, status: 'coming', category: 'Finance', color: 'bg-gray-50 text-gray-500' },
-  { name: 'Online Payments', description: 'Connect payment providers to accept client payments online and reconcile transactions', icon: <CreditCard size={22} />, status: 'ready', category: 'Finance', color: 'bg-emerald-50 text-emerald-600' },
-  { name: 'ClickUp', description: 'Sync tasks and project management with ClickUp', icon: <ListChecks size={22} />, status: 'coming', category: 'Productivity', color: 'bg-gray-50 text-gray-500' },
-  { name: 'Advanced AI', description: 'Connect an AI API for intelligent insights and automation', icon: <Brain size={22} />, status: 'coming', category: 'AI', color: 'bg-gray-50 text-gray-500' },
-  { name: 'Virtual Executive Assistant', description: 'AI executive support for email triage, scheduling, task coordination, follow-ups and workflow execution', icon: <Brain size={22} />, status: 'ready', category: 'AI & Productivity', color: 'bg-violet-50 text-violet-600' },
-];
-
 
 type PermissionItem = { key: string; module: string; description: string };
 type OrganisationRole = { id: string; name: string; description: string | null; is_system: boolean; permissions: Record<string, boolean> };
@@ -426,79 +386,108 @@ function ProjectAccessManagement() {
   );
 }
 
-export function Settings() {
-  const ready = integrations.filter((i) => i.status === 'ready');
-  const coming = integrations.filter((i) => i.status === 'coming');
+type SecurityAuditRow = {
+  id: string;
+  actor_id: string;
+  action: string;
+  target_type: string;
+  target_id: string | null;
+  metadata: Record<string, unknown> | null;
+  created_at: string;
+};
 
+function SecurityAuditLog() {
+  const { membership } = useAuth();
+  const [events, setEvents] = useState<SecurityAuditRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    let active = true;
+    async function load() {
+      if (!membership?.organization_id) {
+        setEvents([]);
+        setLoading(false);
+        return;
+      }
+      setLoading(true);
+      setError('');
+      const { data, error: queryError } = await supabase
+        .from('security_audit_events')
+        .select('id, actor_id, action, target_type, target_id, metadata, created_at')
+        .eq('organization_id', membership.organization_id)
+        .order('created_at', { ascending: false })
+        .limit(50);
+      if (!active) return;
+      if (queryError) {
+        setError('Audit history is restricted to users with audit-view permission, or could not be loaded.');
+        setEvents([]);
+      } else {
+        setEvents((data ?? []) as SecurityAuditRow[]);
+      }
+      setLoading(false);
+    }
+    void load();
+    return () => { active = false; };
+  }, [membership?.organization_id]);
+
+  return (
+    <Card>
+      <CardHeader title="Security & Activity Audit" subtitle="Recent organisation changes and business-record activity. Access is controlled by the audit.view permission." />
+      <CardBody>
+        {loading ? <p className="text-sm text-gray-500">Loading audit history…</p> : error ? (
+          <p role="alert" className="rounded-lg bg-amber-50 p-3 text-xs text-amber-800">{error}</p>
+        ) : events.length === 0 ? (
+          <p className="text-sm text-gray-500">No audit events are available for this organisation.</p>
+        ) : (
+          <div className="divide-y divide-gray-100">
+            {events.map((event) => {
+              const metadata = event.metadata ?? {};
+              const before = metadata.status_before;
+              const after = metadata.status_after;
+              const changed = Array.isArray(metadata.changed_columns) ? metadata.changed_columns.map(String).join(', ') : '';
+              const reference = typeof metadata.reference === 'string' ? metadata.reference : '';
+              return (
+                <div key={event.id} className="py-3 first:pt-0 last:pb-0">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div>
+                      <p className="text-sm font-semibold text-gray-800">{event.action} <span className="font-normal text-gray-500">· {event.target_type}</span></p>
+                      <p className="mt-0.5 text-xs text-gray-500">{reference || event.target_id || 'Record'} · Actor {event.actor_id.slice(0, 8)}</p>
+                    </div>
+                    <time className="text-xs text-gray-400">{new Date(event.created_at).toLocaleString()}</time>
+                  </div>
+                  {(before || after || changed) && (
+                    <p className="mt-1 text-xs text-gray-500">
+                      {before || after ? 'Status: ' + String(before ?? '—') + ' → ' + String(after ?? '—') : ''}
+                      {before || after ? (changed ? ' · ' : '') : ''}
+                      {changed ? 'Changed: ' + changed : ''}
+                    </p>
+                  )}
+                  {typeof metadata.project_id === 'string' && <p className="mt-1 text-[11px] text-gray-400">Project ID: {metadata.project_id}</p>}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </CardBody>
+    </Card>
+  );
+}
+
+export function Settings() {
   return (
     <div className="space-y-6">
       <RoleManagement />
       <ProjectAccessManagement />
-      {/* Ready to connect */}
-      <Card>
-        <CardHeader title="Ready to Connect" subtitle={`${ready.length} integrations available`} />
-        <CardBody>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {ready.map((i) => (
-              <div key={i.name} className="border border-gray-200 rounded-xl p-4 hover:shadow-card-hover transition-all">
-                <div className="flex items-start justify-between mb-3">
-                  <div className={`w-11 h-11 rounded-lg flex items-center justify-center ${i.color}`}>
-                    {i.icon}
-                  </div>
-                  <Badge variant="green">Ready</Badge>
-                </div>
-                <h3 className="text-sm font-semibold text-gray-800">{i.name}</h3>
-                <p className="text-xs text-gray-400 mt-1">{i.description}</p>
-                <button className="mt-3 w-full flex items-center justify-center gap-1.5 text-sm font-medium text-brand-600 border border-brand-200 rounded-lg py-2 hover:bg-brand-50 transition-colors">
-                  <Plug size={14} /> Connect
-                </button>
-              </div>
-            ))}
-          </div>
-        </CardBody>
-      </Card>
-
-      {/* Coming soon */}
-      <Card>
-        <CardHeader title="Coming Soon" subtitle={`${coming.length} integrations in development`} />
-        <CardBody>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {coming.map((i) => (
-              <div key={i.name} className="border border-gray-200 rounded-xl p-4 opacity-70">
-                <div className="flex items-start justify-between mb-3">
-                  <div className={`w-11 h-11 rounded-lg flex items-center justify-center ${i.color}`}>
-                    {i.icon}
-                  </div>
-                  <Badge variant="gray">Coming Soon</Badge>
-                </div>
-                <h3 className="text-sm font-semibold text-gray-800">{i.name}</h3>
-                <p className="text-xs text-gray-400 mt-1">{i.description}</p>
-                <div className="mt-3 w-full flex items-center justify-center gap-1.5 text-sm text-gray-400 border border-gray-200 rounded-lg py-2">
-                  <Clock size={14} /> In Development
-                </div>
-              </div>
-            ))}
-          </div>
-        </CardBody>
-      </Card>
-
-      {/* Platform info */}
+      <SecurityAuditLog />
+      <IntegrationConnections />
       <Card>
         <CardHeader title="Platform" subtitle="Construction OS configuration" />
         <CardBody>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="p-4 border border-gray-200 rounded-lg">
-              <p className="text-xs text-gray-400 font-medium">Platform Name</p>
-              <p className="text-sm text-gray-700 font-semibold mt-1">Construction OS</p>
-            </div>
-            <div className="p-4 border border-gray-200 rounded-lg">
-              <p className="text-xs text-gray-400 font-medium">Version</p>
-              <p className="text-sm text-gray-700 font-semibold mt-1">1.0.0 (Demo)</p>
-            </div>
-            <div className="p-4 border border-gray-200 rounded-lg">
-              <p className="text-xs text-gray-400 font-medium">Powered By</p>
-              <p className="text-sm text-gray-700 font-semibold mt-1">Tishande</p>
-            </div>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+            <div className="rounded-lg border border-gray-200 p-4"><p className="text-xs font-medium text-gray-400">Platform Name</p><p className="mt-1 text-sm font-semibold text-gray-700">Construction OS</p></div>
+            <div className="rounded-lg border border-gray-200 p-4"><p className="text-xs font-medium text-gray-400">Version</p><p className="mt-1 text-sm font-semibold text-gray-700">1.0.0 (Pilot)</p></div>
+            <div className="rounded-lg border border-gray-200 p-4"><p className="text-xs font-medium text-gray-400">Powered By</p><p className="mt-1 text-sm font-semibold text-gray-700">Tishande</p></div>
           </div>
         </CardBody>
       </Card>
