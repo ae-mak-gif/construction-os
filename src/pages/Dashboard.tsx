@@ -21,6 +21,7 @@ import type { Project, Task, Invoice, PurchaseRequest, Activity } from '@/data/m
 import { formatCurrency, formatDateShort } from '@/utils/format';
 import type { PageKey } from '@/components/layout/Sidebar';
 import { useBuildFlowData } from '@/context/BuildFlowDataContext';
+import { useAuth } from '@/context/AuthContext';
 
 const activityIcons: Record<string, React.ReactNode> = {
   project: <FolderKanban size={14} />,
@@ -42,6 +43,7 @@ const activityColors: Record<string, string> = {
 
 export function Dashboard({ onNavigate }: { onNavigate: (page: PageKey) => void }) {
   const { records } = useBuildFlowData();
+  const { user, profile } = useAuth();
   const clientsById = new Map((records.clients ?? []).map((row) => [row.id, row]));
   const staffNameByUserId = new Map(
     (records.staff ?? [])
@@ -53,12 +55,15 @@ export function Dashboard({ onNavigate }: { onNavigate: (page: PageKey) => void 
           .join(' '),
       ] as const),
   );
+  const userNameById = new Map(staffNameByUserId);
+  const signedInName = profile?.display_name?.trim() || profile?.full_name?.trim();
+  if (user?.id && signedInName) userNameById.set(user.id, signedInName);
   const projects: Project[] = (records.projects ?? []).map((row) => ({
     id: row.id,
     name: String(row.name ?? 'Untitled project'),
     client: String(clientsById.get(String(row.client_id))?.name ?? 'Client'),
     clientCompany: String(clientsById.get(String(row.client_id))?.name ?? 'Client'),
-    manager: row.project_manager_id ? 'Assigned' : 'Unassigned',
+    manager: row.project_manager_id ? userNameById.get(String(row.project_manager_id)) || 'Assigned user' : 'Unassigned',
     progress: Number(row.progress_percent ?? 0),
     budget: Number(row.contract_value ?? 0),
     actualCost: (records.project_budgets ?? []).filter((budget) => budget.project_id === row.id).reduce((sum, budget) => sum + Number(budget.actual_amount ?? 0), 0),
@@ -80,7 +85,7 @@ export function Dashboard({ onNavigate }: { onNavigate: (page: PageKey) => void 
       id: row.id,
       title: String(row.title ?? ''),
       project: projectById.get(String(row.project_id))?.name ?? 'Unassigned project',
-      assignee: row.assigned_to ? staffNameByUserId.get(String(row.assigned_to)) || 'Assigned user' : 'Unassigned',
+      assignee: row.assigned_to ? userNameById.get(String(row.assigned_to)) || 'Assigned user' : 'Unassigned',
       dueDate: String(row.due_date ?? ''),
       priority: String(row.priority ?? 'medium').toLowerCase() === 'high' || String(row.priority).toLowerCase() === 'urgent' ? 'High' : String(row.priority).toLowerCase() === 'low' ? 'Low' : 'Medium',
       status: row.status === 'completed' ? 'Done' : isOverdue ? 'Overdue' : row.status === 'in_progress' ? 'In Progress' : row.status === 'blocked' ? 'Review' : 'To Do',
@@ -109,7 +114,7 @@ export function Dashboard({ onNavigate }: { onNavigate: (page: PageKey) => void 
     qty: 1,
     unit: 'item',
     estCost: Number(row.estimated_amount ?? 0),
-    requestedBy: 'Team member',
+    requestedBy: row.requested_by ? userNameById.get(String(row.requested_by)) || 'Account user' : 'Account user',
     date: String(row.created_at ?? '').slice(0, 10),
     status: row.status === 'approved' ? 'Approved' : row.status === 'ordered' ? 'PO Issued' : row.status === 'delivered' ? 'Delivered' : row.status === 'rejected' ? 'Rejected' : 'Requested',
     supplier: 'Pending',
@@ -119,7 +124,7 @@ export function Dashboard({ onNavigate }: { onNavigate: (page: PageKey) => void 
     type: row.entity_type === 'task' ? 'task' : row.entity_type === 'invoice' || row.entity_type === 'payment' ? 'finance' : row.entity_type === 'purchase_order' ? 'procurement' : row.entity_type === 'client' ? 'client' : row.entity_type === 'risk' ? 'risk' : 'project',
     message: String(row.title ?? row.description ?? ''),
     time: String(row.created_at ?? ''),
-    user: row.actor_user_id ? staffNameByUserId.get(String(row.actor_user_id)) || 'Account user' : 'System',
+    user: row.actor_user_id ? userNameById.get(String(row.actor_user_id)) || 'Account user' : 'System',
   } as Activity));
   const monthlyFinancialData = Array.from({ length: 7 }, (_, index) => {
     const monthDate = new Date();
