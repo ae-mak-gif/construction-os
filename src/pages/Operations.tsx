@@ -536,7 +536,7 @@ export function BOQEstimates() {
   const [items, setItems] = useState(liveBoqItems);
   useEffect(() => { setItems(liveBoqItems); }, [liveBoqItems]);
   const [showBoqForm,setShowBoqForm]=useState(false); const [editingBoqId,setEditingBoqId]=useState<string|null>(null);
-  const [boqProjectId,setBoqProjectId]=useState(''); const [boqItemCode,setBoqItemCode]=useState(''); const [boqDescription,setBoqDescription]=useState(''); const [boqQty,setBoqQty]=useState('1'); const [boqUnit,setBoqUnit]=useState('item'); const [boqRate,setBoqRate]=useState('0'); const [boqCategory,setBoqCategory]=useState('Materials'); const [boqError,setBoqError]=useState(''); const [boqSaving,setBoqSaving]=useState(false);
+  const [boqProjectId,setBoqProjectId]=useState(''); const [boqItemCode,setBoqItemCode]=useState(''); const [boqDescription,setBoqDescription]=useState(''); const [boqQty,setBoqQty]=useState('1'); const [boqUnit,setBoqUnit]=useState('item'); const [boqRate,setBoqRate]=useState('0'); const [boqCategory,setBoqCategory]=useState('Materials'); const [boqError,setBoqError]=useState(''); const [boqSaving,setBoqSaving]=useState(false); const [boqActionError,setBoqActionError]=useState(''); const [boqRemovingId,setBoqRemovingId]=useState<string|null>(null);
 
   const projects = [
     'All',
@@ -564,7 +564,7 @@ export function BOQEstimates() {
   const openNewBoqForm=()=>{setEditingBoqId(null);setBoqProjectId(projectFilter==='All'?'':String((records.projects??[]).find(p=>p.name===projectFilter)?.id??''));setBoqItemCode('');setBoqDescription('');setBoqQty('1');setBoqUnit('item');setBoqRate('0');setBoqCategory('Materials');setBoqError('');setShowBoqForm(true);};
   const openEditBoqForm=(item:typeof liveBoqItems[number])=>{const source=(records.boq_items??[]).find(row=>row.id===item.id);if(!source)return;setEditingBoqId(item.id);setBoqProjectId(String(source.project_id));setBoqItemCode(String(source.item_code??''));setBoqDescription(String(source.description??''));setBoqQty(String(source.quantity??1));setBoqUnit(String(source.unit??'item'));setBoqRate(String(source.unit_rate??0));setBoqCategory(String(source.category??'Materials'));setBoqError('');setShowBoqForm(true);};
   const saveBoqItem=async()=>{const qty=Number(boqQty),rate=Number(boqRate);if(!boqProjectId||!boqDescription.trim()||!Number.isFinite(qty)||qty<=0||!Number.isFinite(rate)||rate<0){setBoqError('Select a project, enter a description, a quantity greater than zero and a non-negative unit rate.');return;}setBoqSaving(true);setBoqError('');try{const values={project_id:boqProjectId,item_code:boqItemCode.trim()||null,description:boqDescription.trim(),quantity:qty,unit:boqUnit.trim()||null,unit_rate:rate,total_amount:qty*rate,category:boqCategory,status:'planned'};const saved=editingBoqId?await update('boq_items',editingBoqId,values):await create('boq_items',values);const projectName=String((records.projects??[]).find(p=>p.id===boqProjectId)?.name??'Project');const next={id:saved.id,item:String(saved.item_code??saved.description??''),description:String(saved.description??''),qty:Number(saved.quantity??1),unit:String(saved.unit??''),unitCost:Number(saved.unit_rate??0),category:String(saved.category??'Materials'),project:projectName} as typeof liveBoqItems[number];setItems(current=>editingBoqId?current.map(row=>row.id===editingBoqId?next:row):[...current,next]);resetBoqForm();}catch(error){setBoqError(error instanceof Error?error.message:'BOQ item could not be saved.');}finally{setBoqSaving(false);}};
-  const removeItem=async(id:string)=>{if(!/^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(id)){window.alert('This item is not a saved database record.');return;}try{await remove('boq_items',id);setItems(current=>current.filter(item=>item.id!==id));}catch(error){window.alert(error instanceof Error?error.message:'BOQ item could not be removed.');}};
+  const removeItem=async(id:string)=>{if(boqRemovingId)return;if(!/^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(id)){setBoqActionError('This item is a sample or unsaved record and cannot be deleted.');return;}setBoqActionError('');setBoqRemovingId(id);try{await remove('boq_items',id);setItems(current=>current.filter(item=>item.id!==id));}catch(error){setBoqActionError(error instanceof Error?error.message:'BOQ item could not be removed.');}finally{setBoqRemovingId(null);}};
 
   return (
     <div className="space-y-6">
@@ -577,6 +577,7 @@ export function BOQEstimates() {
         <label className="text-sm">Unit rate<input type="number" min="0" step="any" value={boqRate} onChange={e=>setBoqRate(e.target.value)} className="mt-1 w-full rounded-lg border px-3 py-2"/></label>
         <label className="text-sm">Category<select value={boqCategory} onChange={e=>setBoqCategory(e.target.value)} className="mt-1 w-full rounded-lg border px-3 py-2">{['Materials','Labour','Equipment','Subcontractors'].map(v=><option key={v}>{v}</option>)}</select></label>
       </div>{boqError&&<p role="alert" className="mt-3 text-sm text-red-600">{boqError}</p>}<div className="mt-4 flex gap-2"><button type="button" disabled={boqSaving} onClick={()=>void saveBoqItem()} className="rounded-lg bg-brand-600 px-4 py-2 text-sm text-white">{boqSaving?'Saving…':'Save BOQ item'}</button><button type="button" onClick={resetBoqForm} className="rounded-lg border px-4 py-2 text-sm">Cancel</button></div></CardBody></Card>}
+      {boqActionError && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{boqActionError}</p>}
       <Card>
         <CardHeader
           title="Bill of Quantities"
@@ -640,7 +641,7 @@ export function BOQEstimates() {
                   <Td className="font-semibold text-gray-700">
                     {formatFullCurrency(i.qty * i.unitCost)}
                   </Td>
-                  <Td><div className="flex gap-2"><button type="button" onClick={()=>openEditBoqForm(i)} className="text-xs text-brand-600">Edit</button><button type="button" onClick={()=>void removeItem(i.id)} className="text-gray-300 hover:text-red-500"><X size={14}/></button></div></Td>
+                  <Td><div className="flex gap-2"><button type="button" onClick={()=>openEditBoqForm(i)} className="text-xs text-brand-600">Edit</button><button type="button" disabled={boqRemovingId!==null} onClick={()=>void removeItem(i.id)} aria-label={`Delete BOQ item ${i.item}`} className="text-gray-300 hover:text-red-500 disabled:cursor-not-allowed disabled:opacity-40"><X size={14}/></button></div></Td>
                 </Tr>
               ))}
             </tbody>
@@ -694,6 +695,8 @@ export function Procurement() {
   const [requests, setRequests] = useState(liveRequests);
   useEffect(() => { setRequests(liveRequests); }, [liveRequests]);
   const [showModal, setShowModal] = useState(false);
+  const [requestError, setRequestError] = useState('');
+  const [requestSaving, setRequestSaving] = useState(false);
 
   const [item, setItem] = useState('');
   const [project, setProject] = useState('');
@@ -726,38 +729,45 @@ export function Procurement() {
   ];
 
   const createRequest = async () => {
-    if (!item.trim()) return;
-
-    const newRequest: PurchaseRequest = {
-      id: `PR${String(requests.length + 1).padStart(3, '0')}`,
-      item: item.trim(),
-      project: project || 'Riverside Office Development',
-      qty: Number(qty) || 1,
-      unit,
-      estCost: Number(estCost) || 0,
-      supplier: 'Pending',
-      requestedBy: 'Admin',
-      date: '2026-09-18',
-      status: 'Requested',
-    };
-
-    try {
-      const linkedProject = (records.projects ?? []).find((p) => String(p.name) === newRequest.project);
-      const saved = await create('purchase_requests', { project_id: linkedProject?.id ?? null, description: newRequest.item, status: 'pending', estimated_amount: newRequest.estCost, required_date: new Date().toISOString().slice(0, 10), notes: `Quantity: ${newRequest.qty} ${newRequest.unit}` });
-      newRequest.id = saved.id;
-    } catch (error) {
-      console.error('Unable to save purchase request:', error);
-      window.alert(error instanceof Error ? error.message : 'Unable to save this purchase request.');
+    if (requestSaving) return;
+    const quantity = Number(qty);
+    const estimatedCost = Number(estCost);
+    const linkedProject = (records.projects ?? []).find((row) => row.id === project);
+    if (!item.trim() || !linkedProject || !unit.trim() || !Number.isFinite(quantity) || quantity <= 0 || !estCost.trim() || !Number.isFinite(estimatedCost) || estimatedCost < 0) {
+      setRequestError('Enter an item, select a project, provide a unit, use a quantity greater than zero and enter a valid non-negative estimated cost.');
       return;
     }
-    setRequests([newRequest, ...requests]);
-
-    setItem('');
-    setProject('');
-    setQty('1');
-    setUnit('pcs');
-    setEstCost('');
-    setShowModal(false);
+    setRequestError('');
+    setRequestSaving(true);
+    const today = new Date();
+    const requiredDate = [today.getFullYear(), String(today.getMonth() + 1).padStart(2, '0'), String(today.getDate()).padStart(2, '0')].join('-');
+    try {
+      const saved = await create('purchase_requests', { project_id: linkedProject.id, description: item.trim(), status: 'pending', estimated_amount: estimatedCost, required_date: requiredDate, notes: `Quantity: ${quantity} ${unit.trim()}` });
+      const newRequest: PurchaseRequest = {
+        id: String(saved.request_number ?? saved.id),
+        item: String(saved.description ?? item.trim()),
+        project: String(linkedProject.name),
+        qty: quantity,
+        unit: unit.trim(),
+        estCost: estimatedCost,
+        supplier: 'Pending',
+        requestedBy: 'Team member',
+        date: String(saved.created_at ?? requiredDate).slice(0, 10),
+        status: 'Requested',
+      };
+      setRequests((current) => [newRequest, ...current]);
+      setItem('');
+      setProject('');
+      setQty('1');
+      setUnit('pcs');
+      setEstCost('');
+      setShowModal(false);
+    } catch (error) {
+      console.error('Unable to save purchase request:', error);
+      setRequestError(error instanceof Error ? error.message : 'Unable to save this purchase request.');
+    } finally {
+      setRequestSaving(false);
+    }
   };
 
   return (
@@ -813,7 +823,7 @@ export function Procurement() {
               </select>
 
               <button
-                onClick={() => setShowModal(true)}
+                onClick={() => { setRequestError(''); setShowModal(true); }}
                 className="flex items-center gap-1.5 bg-brand-600 text-white text-sm font-medium px-3 py-1.5 rounded-lg hover:bg-brand-700 transition-colors"
               >
                 <Plus size={16} /> New Request
@@ -893,6 +903,7 @@ export function Procurement() {
             </div>
 
             <div className="p-6 space-y-4">
+              {requestError && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{requestError}</p>}
               <input
                 value={item}
                 onChange={(e) => setItem(e.target.value)}
@@ -900,16 +911,18 @@ export function Procurement() {
                 className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none"
               />
 
-              <input
-                value={project}
-                onChange={(e) => setProject(e.target.value)}
-                placeholder="Project"
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none"
-              />
+              <label className="block text-sm font-medium text-gray-700">Project
+                <select value={project} onChange={(e) => setProject(e.target.value)} className="mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none">
+                  <option value="">Select project</option>
+                  {(records.projects ?? []).map((row) => <option key={row.id} value={row.id}>{String(row.name)}</option>)}
+                </select>
+              </label>
 
               <div className="grid grid-cols-2 gap-3">
                 <input
                   type="number"
+                  min="0.001"
+                  step="any"
                   value={qty}
                   onChange={(e) => setQty(e.target.value)}
                   placeholder="Quantity"
@@ -926,6 +939,8 @@ export function Procurement() {
 
               <input
                 type="number"
+                min="0"
+                step="any"
                 value={estCost}
                 onChange={(e) => setEstCost(e.target.value)}
                 placeholder="Estimated Cost"
@@ -943,10 +958,10 @@ export function Procurement() {
 
               <button
                 onClick={createRequest}
-                disabled={!item.trim()}
+                disabled={requestSaving}
                 className="px-4 py-2 text-sm font-medium bg-brand-600 text-white rounded-lg disabled:opacity-40"
               >
-                Create Request
+                {requestSaving ? 'Saving…' : 'Create Request'}
               </button>
             </div>
           </div>
