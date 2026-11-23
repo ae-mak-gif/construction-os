@@ -1,7 +1,7 @@
 # BuildFlow MVP 1.0 — Preliminary Module Audit
 
 **Status:** Preliminary static-source audit; not UAT and not release approval  
-**Date:** 20 November 2026  
+**Date:** 23 November 2026  
 **Scope baseline:** `buildflow/eight-checkpoint-parallel-workstreams` plus the separately defined MVP scope document. This baseline does not include every later stacked feature PR (#5–#11); findings must be rechecked against the eventual integrated candidate.
 
 ## Audit method and interpretation
@@ -51,10 +51,10 @@ The following focused frontend remediation branches have been created as draft P
 
 | PR | Workstream | Change | CI / Preview evidence | Remaining proof |
 |---|---|---|---|---|
-| [#14](https://github.com/ae-mak-gif/construction-os/pull/14) | Finance permissions and feedback | Permission checks fail closed; organisation switch resets permissions; inline error feedback; local calendar date defaults. | Latest commit CI passed; Preview READY. | Configure Development-only Preview variables with approval; test finance.create/approve roles, invoice/payment/expense persistence and organisation switching. |
-| [#15](https://github.com/ae-mak-gif/construction-os/pull/15) | Task project/assignee integrity | Select actual organisation projects/staff by ID; require a valid project; remove hard-coded project fallback; inline task errors. | CI passed; Preview READY. | Configure Development-only Preview variables with approval; test project/staff selectors, task creation and status updates under multiple roles. |
-| [#16](https://github.com/ae-mak-gif/construction-os/pull/16) | Project permission scope | Fail closed on permission lookup errors; reset access on organisation switch; scope member directory to permitted organisation. | Initial Preview build failed due an unused-variable lint error; corrected. Latest CI passed and corrected Preview is READY. | Configure Development-only Preview variables with approval; test permitted/denied roles, organisation switching and member administration. |
-| [#17](https://github.com/ae-mak-gif/construction-os/pull/17) | Procurement permission scope | Fail closed on permission errors; reset permissions on organisation switch; local calendar date defaults. | CI passed; Preview READY. | Configure Development-only Preview variables with approval; test request creation, approval, receiving, inventory permission combinations and data persistence. |
+| [#14](https://github.com/ae-mak-gif/construction-os/pull/14) | Finance permissions and feedback | Permission checks fail closed; organisation switch resets permissions; inline error feedback; local calendar date defaults. | Latest CI passed; fresh Git-source Preview READY with Development Supabase variables scoped to this branch only. | Authenticated finance.create/approve roles, invoice/payment/expense persistence and organisation switching. |
+| [#15](https://github.com/ae-mak-gif/construction-os/pull/15) | Task project/assignee integrity | Select actual organisation projects/staff by ID; require a valid project; remove hard-coded project fallback; inline task errors. | CI passed; fresh Git-source Preview READY with Development Supabase variables scoped to this branch only. | Authenticated project/staff selectors, task creation and status updates under multiple roles. |
+| [#16](https://github.com/ae-mak-gif/construction-os/pull/16) | Project permission scope | Fail closed on permission lookup errors; reset access on organisation switch; scope member directory to permitted organisation. | Initial Preview build failed due an unused-variable lint error; corrected. Latest CI passed; fresh Git-source Preview READY with Development Supabase variables scoped to this branch only. | Authenticated permitted/denied roles, organisation switching and member administration. |
+| [#17](https://github.com/ae-mak-gif/construction-os/pull/17) | Procurement permission scope | Fail closed on permission errors; reset permissions on organisation switch; local calendar date defaults. | CI passed; fresh Git-source Preview READY with Development Supabase variables scoped to this branch only. | Authenticated request creation, approval, receiving, inventory permission combinations and data persistence. |
 | [#18](https://github.com/ae-mak-gif/construction-os/pull/18) | CRM validation and feedback | Inline validation/errors replace blocking alerts for enquiry/client create, stage updates, conversion and loss marking; prevent duplicate submissions and validate positive estimated value. | GitHub Actions #45133074850 passed; Vercel Preview READY. | Configure Development-only Preview variables with approval; test CRM RPC permissions, creation/conversion, refresh persistence, stage transitions and organisation boundaries. |
 
 These workstreams improve the reliability of existing MVP modules but do not prove the integrated construction workflow. They remain draft PRs pending review, runtime testing and sequential checkpoint governance.
@@ -71,3 +71,20 @@ These workstreams improve the reliability of existing MVP modules but do not pro
 ## Current conclusion
 
 **MVP module audit is in progress. No module is certified MVP-ready by this static review.** The repository contains meaningful module foundations and several targeted reliability fixes, but release readiness depends on integrated-code review, authenticated browser testing, persistence checks and end-to-end workflow evidence.
+
+
+## Development Preview environment and deployment verification (23 November 2026)
+
+The user approved branch-scoped Development Supabase Preview configuration for PRs #14–#18. Ten Vercel Preview environment entries were created: `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` for each of the five exact feature branches. Each entry is scoped to Preview and its named Git branch; values point to the Development project. No Production environment entries were changed.
+
+Fresh Git-source deployments were polled by deployment ID and all five reached **READY**:
+
+| PR | Branch | Fresh Preview |
+|---|---|---|
+| [#14](https://github.com/ae-mak-gif/construction-os/pull/14) | `fix/finance-permission-feedback-reliability` | [Open Preview](https://construction-3h5k3bjz1-aemakazhe-9121s-projects.vercel.app) |
+| [#15](https://github.com/ae-mak-gif/construction-os/pull/15) | `fix/tasks-project-linking-inline-feedback` | [Open Preview](https://construction-iy847j8o5-aemakazhe-9121s-projects.vercel.app) |
+| [#16](https://github.com/ae-mak-gif/construction-os/pull/16) | `fix/project-permission-org-scope` | [Open Preview](https://construction-gp05ow8j4-aemakazhe-9121s-projects.vercel.app) |
+| [#17](https://github.com/ae-mak-gif/construction-os/pull/17) | `fix/procurement-permission-scope` | [Open Preview](https://construction-ph48qpvgt-aemakazhe-9121s-projects.vercel.app) |
+| [#18](https://github.com/ae-mak-gif/construction-os/pull/18) | `fix/crm-inline-feedback-validation` | [Open Preview](https://construction-29wl8fa5z-aemakazhe-9121s-projects.vercel.app) |
+
+**Interpretation:** READY confirms Vercel build/deployment status only. It does not prove authenticated application behaviour, Supabase persistence, RLS enforcement or end-to-end workflow integrity. All five PRs remain draft and unmerged. Browser/runtime verification remains open; no Production deployment, database/schema/data change or migration was performed.
