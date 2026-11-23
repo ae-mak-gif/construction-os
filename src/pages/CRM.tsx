@@ -39,6 +39,9 @@ export function Enquiries() {
     useState<EnquiryStage | 'All'>('All');
   const [selected, setSelected] = useState<Enquiry | null>(null);
   const [showNew, setShowNew] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState('');
+  const [actionError, setActionError] = useState('');
 
   const [form, setForm] = useState({
     client: '',
@@ -64,9 +67,19 @@ export function Enquiries() {
   }));
 
   async function createEnquiry() {
-    if (!form.client.trim() || !form.company.trim() || !form.project.trim() || !form.value.trim()) return;
-    const nameParts = form.client.trim().split(/\\s+/);
+    const estimatedValue = Number(form.value);
+    if (!form.client.trim() || !form.company.trim() || !form.project.trim() || !form.value.trim()) {
+      setFormError('Complete the client name, company, project and estimated value.');
+      return;
+    }
+    if (!Number.isFinite(estimatedValue) || estimatedValue <= 0) {
+      setFormError('Enter an estimated value greater than zero.');
+      return;
+    }
 
+    const nameParts = form.client.trim().split(/\s+/);
+    setFormError('');
+    setSaving(true);
     try {
       const { error } = await supabase.rpc('create_crm_enquiry', {
         p_company_name: form.company.trim(),
@@ -77,7 +90,7 @@ export function Enquiries() {
         p_title: form.project.trim(),
         p_description: `Prospect: ${form.client.trim()} · ${form.company.trim()}`,
         p_source: form.source,
-        p_estimated_value: Number(form.value),
+        p_estimated_value: estimatedValue,
       });
       if (error) throw error;
       await refresh();
@@ -85,12 +98,14 @@ export function Enquiries() {
       setShowNew(false);
     } catch (error) {
       console.error('Unable to save enquiry to BuildFlow:', error);
-      window.alert(error instanceof Error ? error.message : 'Unable to save this enquiry. Please try again.');
+      setFormError(error instanceof Error ? error.message : 'Unable to save this enquiry. Please try again.');
+    } finally {
+      setSaving(false);
     }
   }
 
   async function moveStage() {
-    if (!selected) return;
+    if (!selected || saving) return;
     const currentIndex = stages.indexOf(selected.stage);
     const nextStage = stages[currentIndex + 1];
     if (!nextStage || nextStage === 'Lost') return;
@@ -104,16 +119,22 @@ export function Enquiries() {
       Lost: 'lost',
     };
 
+    setActionError('');
+    setSaving(true);
     try {
       await update('enquiries', selected.id, { status: statusByStage[nextStage] });
       setSelected({ ...selected, stage: nextStage });
     } catch (error) {
-      window.alert(error instanceof Error ? error.message : 'Unable to update the enquiry stage.');
+      setActionError(error instanceof Error ? error.message : 'Unable to update the enquiry stage.');
+    } finally {
+      setSaving(false);
     }
   }
 
   async function convertToClient() {
-    if (!selected) return;
+    if (!selected || saving) return;
+    setActionError('');
+    setSaving(true);
     try {
       const { error } = await supabase.rpc('convert_crm_enquiry_to_client', {
         p_enquiry_id: selected.id,
@@ -123,17 +144,23 @@ export function Enquiries() {
       setSelected({ ...selected, stage: 'Won' });
     } catch (error) {
       console.error('Unable to convert enquiry:', error);
-      window.alert(error instanceof Error ? error.message : 'Unable to convert this enquiry.');
+      setActionError(error instanceof Error ? error.message : 'Unable to convert this enquiry.');
+    } finally {
+      setSaving(false);
     }
   }
 
   async function markLost() {
-    if (!selected) return;
+    if (!selected || saving) return;
+    setActionError('');
+    setSaving(true);
     try {
       await update('enquiries', selected.id, { status: 'lost' });
       setSelected({ ...selected, stage: 'Lost' });
     } catch (error) {
-      window.alert(error instanceof Error ? error.message : 'Unable to mark this enquiry as lost.');
+      setActionError(error instanceof Error ? error.message : 'Unable to mark this enquiry as lost.');
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -295,12 +322,14 @@ export function Enquiries() {
               </div>
             </div>
 
+            {actionError && <p role="alert" className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{actionError}</p>}
             <div className="flex flex-wrap items-center gap-2 pt-3 border-t border-gray-100">
               {selected.stage !== 'Won' &&
                 selected.stage !== 'Lost' && (
                   <button
                     onClick={moveStage}
-                    className="flex items-center gap-1.5 bg-brand-600 text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-brand-700 transition-colors"
+                    disabled={saving}
+                    className="disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 bg-brand-600 text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-brand-700 transition-colors"
                   >
                     Move Stage <ArrowRight size={14} />
                   </button>
@@ -309,14 +338,15 @@ export function Enquiries() {
               {selected.stage !== 'Won' && selected.stage !== 'Lost' && (
                 <button
                   onClick={convertToClient}
-                  className="text-sm font-medium text-gray-600 px-4 py-2 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
+                  disabled={saving}
+                  className="disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium text-gray-600 px-4 py-2 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
                 >
                   Convert to Client
                 </button>
               )}
 
               {selected.stage !== 'Won' && selected.stage !== 'Lost' && (
-                <button onClick={markLost} className="text-sm font-medium text-red-600 px-4 py-2 rounded-lg border border-red-200 hover:bg-red-50 transition-colors">
+                <button onClick={markLost} disabled={saving} className="disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium text-red-600 px-4 py-2 rounded-lg border border-red-200 hover:bg-red-50 transition-colors">
                   Mark Lost
                 </button>
               )}
@@ -332,6 +362,7 @@ export function Enquiries() {
         title="New Enquiry"
       >
         <div className="space-y-4">
+          {formError && <p role="alert" className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{formError}</p>}
           <Input
             label="Client Name"
             value={form.client}
@@ -421,9 +452,10 @@ export function Enquiries() {
 
             <button
               onClick={createEnquiry}
-              className="px-4 py-2 text-sm font-medium bg-brand-600 text-white rounded-lg hover:bg-brand-700"
+              disabled={saving}
+              className="disabled:opacity-50 disabled:cursor-not-allowed px-4 py-2 text-sm font-medium bg-brand-600 text-white rounded-lg hover:bg-brand-700"
             >
-              Create Enquiry
+              {saving ? 'Saving…' : 'Create Enquiry'}
             </button>
           </div>
         </div>
@@ -446,6 +478,8 @@ export function Clients() {
   const clients = liveClients;
 
   const [showNew, setShowNew] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState('');
 
   const [form, setForm] = useState({
     name: '',
@@ -461,8 +495,13 @@ export function Clients() {
   );
 
   async function createClient() {
-    if (!form.name.trim() || !form.company.trim()) return;
-    const parts = form.name.trim().split(/\\s+/);
+    if (!form.name.trim() || !form.company.trim()) {
+      setFormError('Enter both a client contact name and company name.');
+      return;
+    }
+    const parts = form.name.trim().split(/\s+/);
+    setFormError('');
+    setSaving(true);
     try {
       const { error } = await supabase.rpc('create_crm_client', {
         p_company_name: form.company.trim(),
@@ -477,7 +516,9 @@ export function Clients() {
       setShowNew(false);
     } catch (error) {
       console.error('Unable to save client to BuildFlow:', error);
-      window.alert(error instanceof Error ? error.message : 'Unable to save this client. Please try again.');
+      setFormError(error instanceof Error ? error.message : 'Unable to save this client. Please try again.');
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -672,6 +713,7 @@ export function Clients() {
         title="Add Client"
       >
         <div className="space-y-4">
+          {formError && <p role="alert" className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{formError}</p>}
           <Input
             label="Client Name"
             value={form.name}
@@ -718,9 +760,10 @@ export function Clients() {
 
             <button
               onClick={createClient}
-              className="px-4 py-2 text-sm font-medium bg-brand-600 text-white rounded-lg hover:bg-brand-700"
+              disabled={saving}
+              className="disabled:opacity-50 disabled:cursor-not-allowed px-4 py-2 text-sm font-medium bg-brand-600 text-white rounded-lg hover:bg-brand-700"
             >
-              Add Client
+              {saving ? 'Saving…' : 'Add Client'}
             </button>
           </div>
         </div>
