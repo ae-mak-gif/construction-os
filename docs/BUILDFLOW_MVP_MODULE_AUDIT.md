@@ -88,3 +88,14 @@ Fresh Git-source deployments were polled by deployment ID and all five reached *
 | [#18](https://github.com/ae-mak-gif/construction-os/pull/18) | `fix/crm-inline-feedback-validation` | [Open Preview](https://construction-29wl8fa5z-aemakazhe-9121s-projects.vercel.app) |
 
 **Interpretation:** READY confirms Vercel build/deployment status only. It does not prove authenticated application behaviour, Supabase persistence, RLS enforcement or end-to-end workflow integrity. All five PRs remain draft and unmerged. Browser/runtime verification remains open; no Production deployment, database/schema/data change or migration was performed.
+
+
+## Additional Operations reliability workstream (23 November 2026)
+
+[PR #19](https://github.com/ae-mak-gif/construction-os/pull/19), based on the task/project-linking workstream (#15), removes the remaining blocking alerts found in `Operations.tsx` and closes two concrete data-quality gaps:
+- BOQ deletion now reports failures inline, blocks overlapping delete actions and refuses to delete sample/unsaved rows.
+- Purchase requests now require a live organisation project selected by ID, a non-empty item and unit, a positive finite quantity and a valid non-negative estimated cost.
+- The legacy hard-coded fallback project and fixed historical request date were removed; the required date uses the local calendar date.
+- Save errors and in-flight state are visible in the form, and duplicate submissions are blocked.
+
+PR #19 is draft and unmerged. GitHub CI run #45135883076 was in progress at the time of this audit update. Its Vercel Preview deployment was also building. No branch-specific Development Supabase Preview variables were added for PR #19; the earlier user approval covered only PRs #14–#18. Do not infer authenticated backend connectivity from a successful build. Runtime tests must verify BOQ create/update/delete and purchase-request project association, role permissions and refresh persistence.
