@@ -1,0 +1,82 @@
+name: Notify n8n of BuildFlow repository and deployment events
+
+on:
+  push:
+    branches:
+      - integration/n8n-stack-bridge
+      - commercial/mvp-pilot-readiness-pack
+  deployment_status:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: n8n-buildflow-events-${{ github.event_name }}-${{ github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  notify-n8n:
+    name: Send event to n8n
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Forward event when the n8n webhook is configured
+        env:
+          N8N_BUILD_FLOW_WEBHOOK_URL: ${{ secrets.N8N_BUILD_FLOW_WEBHOOK_URL }}
+          EVENT_NAME: ${{ github.event_name }}
+          EVENT_ACTION: ${{ github.event.action || '' }}
+          REPOSITORY: ${{ github.repository }}
+          REF: ${{ github.ref }}
+          SHA: ${{ github.sha }}
+          RUN_ID: ${{ github.run_id }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          DEPLOYMENT_STATE: ${{ github.event.deployment_status.state || '' }}
+          DEPLOYMENT_ENVIRONMENT: ${{ github.event.deployment.environment || '' }}
+          DEPLOYMENT_URL: ${{ github.event.deployment_status.target_url || github.event.deployment_status.environment_url || '' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ -z "${N8N_BUILD_FLOW_WEBHOOK_URL}" ]]; then
+            echo "N8N_BUILD_FLOW_WEBHOOK_URL is not configured; event forwarding is safely skipped."
+            exit 0
+          fi
+
+          payload="$(jq -n \
+            --arg event_name "${EVENT_NAME}" \
+            --arg action "${EVENT_ACTION}" \
+            --arg repository "${REPOSITORY}" \
+            --arg ref "${REF}" \
+            --arg commit_sha "${SHA}" \
+            --arg run_id "${RUN_ID}" \
+            --arg run_url "${RUN_URL}" \
+            --arg deployment_state "${DEPLOYMENT_STATE}" \
+            --arg deployment_environment "${DEPLOYMENT_ENVIRONMENT}" \
+            --arg deployment_url "${DEPLOYMENT_URL}" \
+            '{
+              source: "github",
+              product: "BuildFlow",
+              event_name: $event_name,
+              action: $action,
+              repository: $repository,
+              ref: $ref,
+              commit_sha: $commit_sha,
+              workflow_run_id: $run_id,
+              workflow_run_url: $run_url,
+              deployment: {
+                state: $deployment_state,
+                environment: $deployment_environment,
+                url: $deployment_url
+              },
+              sent_at: (now | todateiso8601)
+            }')"
+
+          curl --silent --show-error --fail \
+            --max-time 20 \
+            --request POST \
+            --header "Content-Type: application/json" \
+            --data "${payload}" \
+            "${N8N_BUILD_FLOW_WEBHOOK_URL}"
+
+          echo "BuildFlow event delivered to the configured n8n webhook."
