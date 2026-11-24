@@ -607,8 +607,22 @@ function ProjectTabContent({
     ;
   const projectBOQ = (records.boq_items ?? []).filter((row) => row.project_id === project.id).map((row) => ({ id: row.id, item: String(row.item_code ?? row.description ?? ''), description: String(row.description ?? ''), qty: Number(row.quantity ?? 1), unit: String(row.unit ?? ''), unitCost: Number(row.unit_rate ?? 0), category: String(row.category ?? 'Materials'), project: project.name } as BOQItem))
     ;
-  const projectProc = (records.purchase_requests ?? []).filter((row) => row.project_id === project.id).map((row) => ({ id: String(row.request_number ?? row.id), item: String(row.description ?? ''), project: project.name, qty: 1, unit: 'item', estCost: Number(row.estimated_amount ?? 0), requestedBy: 'Team member', date: String(row.created_at ?? '').slice(0, 10), status: row.status === 'approved' ? 'Approved' : row.status === 'ordered' ? 'PO Issued' : row.status === 'delivered' ? 'Delivered' : row.status === 'rejected' ? 'Rejected' : 'Requested', supplier: 'Pending' } as PurchaseRequest))
-    ;
+  const projectProc = (records.purchase_requests ?? []).filter((row) => row.project_id === project.id).map((row) => {
+    const quantityLine = String(row.notes ?? '').split(/\\r?\\n/).find((line) => /^Quantity:/i.test(line));
+    const quantityMatch = quantityLine?.match(/^Quantity:\\s*([0-9]+(?:\\.[0-9]+)?)\\s*(.*)$/i);
+    return {
+      id: String(row.request_number ?? row.id),
+      item: String(row.description ?? ''),
+      project: project.name,
+      qty: quantityMatch ? Number(quantityMatch[1]) : 1,
+      unit: quantityMatch?.[2]?.trim() || 'item',
+      estCost: Number(row.estimated_amount ?? 0),
+      requestedBy: row.requested_by ? 'Account user' : '—',
+      date: String(row.created_at ?? '').slice(0, 10),
+      status: row.status === 'approved' ? 'Approved' : row.status === 'ordered' ? 'PO Issued' : row.status === 'fulfilled' ? 'Delivered' : row.status === 'rejected' ? 'Rejected' : row.status === 'cancelled' ? 'Cancelled' : 'Requested',
+      supplier: 'Not assigned',
+    } as PurchaseRequest;
+  });
   const projectRisks = (records.risks ?? []).filter((row) => row.project_id === project.id).map((row) => ({ id: row.id, risk: String(row.title ?? ''), project: project.name, probability: row.likelihood === 'high' ? 'High' : row.likelihood === 'low' ? 'Low' : 'Medium', impact: row.impact === 'high' ? 'High' : row.impact === 'low' ? 'Low' : 'Medium', owner: String(staffById.get(String(row.owner_id))?.first_name ?? 'Unassigned'), status: row.status === 'closed' ? 'Closed' : row.status === 'mitigated' ? 'Mitigated' : 'Open', mitigation: String(row.mitigation_plan ?? '') } as Risk))
     ;
   const projectUpdateItems = (records.project_updates ?? []).filter((row) => row.project_id === project.id).map((row) => ({ id: row.id, projectId: project.id, date: String(row.created_at ?? ''), author: 'Team member', message: String(row.content ?? row.title ?? ''), type: 'progress' } as ProjectUpdate))
