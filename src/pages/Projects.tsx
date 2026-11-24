@@ -608,8 +608,8 @@ function ProjectTabContent({
   const projectBOQ = (records.boq_items ?? []).filter((row) => row.project_id === project.id).map((row) => ({ id: row.id, item: String(row.item_code ?? row.description ?? ''), description: String(row.description ?? ''), qty: Number(row.quantity ?? 1), unit: String(row.unit ?? ''), unitCost: Number(row.unit_rate ?? 0), category: String(row.category ?? 'Materials'), project: project.name } as BOQItem))
     ;
   const projectProc = (records.purchase_requests ?? []).filter((row) => row.project_id === project.id).map((row) => {
-    const quantityLine = String(row.notes ?? '').split(/\\r?\\n/).find((line) => /^Quantity:/i.test(line));
-    const quantityMatch = quantityLine?.match(/^Quantity:\\s*([0-9]+(?:\\.[0-9]+)?)\\s*(.*)$/i);
+    const quantityLine = String(row.notes ?? '').split(/\r?\n/).find((line) => /^Quantity:/i.test(line));
+    const quantityMatch = quantityLine?.match(/^Quantity:\s*([0-9]+(?:\.[0-9]+)?)\s*(.*)$/i);
     return {
       id: String(row.request_number ?? row.id),
       item: String(row.description ?? ''),
