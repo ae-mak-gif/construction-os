@@ -77,6 +77,7 @@ jobs:
             --max-time 20 \
             --request POST \
             --header "Content-Type: application/json" \
+            --header "X-BuildFlow-Webhook-Secret: ${N8N_BUILD_FLOW_WEBHOOK_SECRET}" \
             --data "${payload}" \
             "${N8N_BUILD_FLOW_WEBHOOK_URL}"
 
