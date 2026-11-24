@@ -25,7 +25,20 @@ import { useBuildFlowData } from '@/context/BuildFlowDataContext';
 export function TasksCalendar() {
   const { create, update, records } = useBuildFlowData();
   const projectById = useMemo(() => new Map((records.projects ?? []).map((row) => [row.id, row])), [records.projects]);
-  const liveTasks = useMemo<Task[]>(() => (records.tasks ?? []).map((row) => ({ id: row.id, title: String(row.title ?? ''), project: String(projectById.get(String(row.project_id))?.name ?? 'Unassigned project'), assignee: 'Unassigned', dueDate: String(row.due_date ?? ''), priority: row.priority === 'high' || row.priority === 'urgent' ? 'High' : row.priority === 'low' ? 'Low' : 'Medium', status: row.status === 'completed' ? 'Done' : row.status === 'in_progress' ? 'In Progress' : row.status === 'blocked' ? 'Review' : 'To Do' } as Task)), [records.tasks, projectById]);
+  const staffById = useMemo(() => new Map((records.staff ?? []).map((row) => [row.id, row])), [records.staff]);
+  const liveTasks = useMemo<Task[]>(() => (records.tasks ?? []).map((row) => {
+    const assignee = row.assigned_to ? staffById.get(String(row.assigned_to)) : undefined;
+    const assigneeName = assignee ? [assignee.first_name, assignee.last_name].filter(Boolean).join(' ').trim() : '';
+    return {
+      id: row.id,
+      title: String(row.title ?? ''),
+      project: String(projectById.get(String(row.project_id))?.name ?? 'Unassigned project'),
+      assignee: assigneeName || (row.assigned_to ? 'Assigned user' : 'Unassigned'),
+      dueDate: String(row.due_date ?? ''),
+      priority: row.priority === 'high' || row.priority === 'urgent' ? 'High' : row.priority === 'low' ? 'Low' : 'Medium',
+      status: row.status === 'completed' ? 'Done' : row.status === 'in_progress' ? 'In Progress' : row.status === 'blocked' ? 'Review' : 'To Do',
+    } as Task;
+  }), [records.tasks, projectById, staffById]);
   const liveCalendarEvents = useMemo(() => (records.calendar_events ?? []).map((row) => ({ id: row.id, title: String(row.title ?? ''), date: String(row.start_at ?? '').slice(0, 10), time: String(row.start_at ?? '').slice(11, 16), type: row.event_type === 'inspection' ? 'inspection' : row.event_type === 'deadline' ? 'deadline' : row.event_type === 'client-meeting' ? 'client-meeting' : row.event_type === 'site-meeting' ? 'site-meeting' : 'project-meeting', project: String(projectById.get(String(row.project_id))?.name ?? 'General') } as (typeof calendarEvents)[number])), [records.calendar_events, projectById]);
   const [tab, setTab] = useState<'tasks' | 'calendar'>('tasks');
   const [statusFilter, setStatusFilter] = useState<string>('All');
@@ -59,14 +72,18 @@ export function TasksCalendar() {
     finally { setEventSaving(false); }
   };
 
-  const filteredTasks =
-    statusFilter === 'All'
-      ? taskItems
-      : taskItems.filter((t) => t.status === statusFilter);
+  const today = new Date();
+  const todayKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+  const overdueTasks = taskItems.filter((task) => task.status !== 'Done' && Boolean(task.dueDate) && task.dueDate < todayKey);
+  const filteredTasks = statusFilter === 'All'
+    ? taskItems
+    : statusFilter === 'Overdue'
+      ? overdueTasks
+      : taskItems.filter((task) => task.status === statusFilter);
 
   const taskStatuses = ['All', 'To Do', 'In Progress', 'Review', 'Done', 'Overdue'];
 
-  const overdueCount = taskItems.filter((t) => t.status === 'Overdue').length;
+  const overdueCount = overdueTasks.length;
   const inProgressCount = taskItems.filter((t) => t.status === 'In Progress').length;
   const doneCount = taskItems.filter((t) => t.status === 'Done').length;
 
