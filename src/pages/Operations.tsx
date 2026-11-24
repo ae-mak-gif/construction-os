@@ -708,8 +708,8 @@ export function Procurement() {
   const { create, records } = useBuildFlowData();
   const projectById = useMemo(() => new Map((records.projects ?? []).map((row) => [row.id, row])), [records.projects]);
   const liveRequests = useMemo<PurchaseRequest[]>(() => (records.purchase_requests ?? []).map((row) => {
-    const quantityLine = String(row.notes ?? '').split(/\\r?\\n/).find((line) => /^Quantity:/i.test(line));
-    const quantityMatch = quantityLine?.match(/^Quantity:\\s*([0-9]+(?:\\.[0-9]+)?)\\s*(.*)$/i);
+    const quantityLine = String(row.notes ?? '').split(/\r?\n/).find((line) => /^Quantity:/i.test(line));
+    const quantityMatch = quantityLine?.match(/^Quantity:\s*([0-9]+(?:\.[0-9]+)?)\s*(.*)$/i);
     return {
       id: String(row.request_number ?? row.id),
       item: String(row.description ?? ''),
