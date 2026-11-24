@@ -607,12 +607,67 @@ function ProjectTabContent({
     ;
   const projectBOQ = (records.boq_items ?? []).filter((row) => row.project_id === project.id).map((row) => ({ id: row.id, item: String(row.item_code ?? row.description ?? ''), description: String(row.description ?? ''), qty: Number(row.quantity ?? 1), unit: String(row.unit ?? ''), unitCost: Number(row.unit_rate ?? 0), category: String(row.category ?? 'Materials'), project: project.name } as BOQItem))
     ;
-  const projectProc = (records.purchase_requests ?? []).filter((row) => row.project_id === project.id).map((row) => ({ id: String(row.request_number ?? row.id), item: String(row.description ?? ''), project: project.name, qty: 1, unit: 'item', estCost: Number(row.estimated_amount ?? 0), requestedBy: 'Team member', date: String(row.created_at ?? '').slice(0, 10), status: row.status === 'approved' ? 'Approved' : row.status === 'ordered' ? 'PO Issued' : row.status === 'delivered' ? 'Delivered' : row.status === 'rejected' ? 'Rejected' : 'Requested', supplier: 'Pending' } as PurchaseRequest))
-    ;
+  const projectProc = (records.purchase_requests ?? []).filter((row) => row.project_id === project.id).map((row) => {
+    const quantityLine = String(row.notes ?? '').split(/\r?\n/).find((line) => /^Quantity:/i.test(line));
+    const quantityMatch = quantityLine?.match(/^Quantity:\s*([0-9]+(?:\.[0-9]+)?)\s*(.*)$/i);
+    return {
+      id: String(row.request_number ?? row.id),
+      item: String(row.description ?? ''),
+      project: project.name,
+      qty: quantityMatch ? Number(quantityMatch[1]) : 1,
+      unit: quantityMatch?.[2]?.trim() || 'item',
+      estCost: Number(row.estimated_amount ?? 0),
+      requestedBy: row.requested_by ? 'Account user' : '—',
+      date: String(row.created_at ?? '').slice(0, 10),
+      status: row.status === 'approved' ? 'Approved' : row.status === 'ordered' ? 'PO Issued' : row.status === 'fulfilled' ? 'Delivered' : row.status === 'rejected' ? 'Rejected' : row.status === 'cancelled' ? 'Cancelled' : 'Requested',
+      supplier: 'Not assigned',
+    } as PurchaseRequest;
+  });
   const projectRisks = (records.risks ?? []).filter((row) => row.project_id === project.id).map((row) => ({ id: row.id, risk: String(row.title ?? ''), project: project.name, probability: row.likelihood === 'high' ? 'High' : row.likelihood === 'low' ? 'Low' : 'Medium', impact: row.impact === 'high' ? 'High' : row.impact === 'low' ? 'Low' : 'Medium', owner: String(staffById.get(String(row.owner_id))?.first_name ?? 'Unassigned'), status: row.status === 'closed' ? 'Closed' : row.status === 'mitigated' ? 'Mitigated' : 'Open', mitigation: String(row.mitigation_plan ?? '') } as Risk))
     ;
-  const projectUpdateItems = (records.project_updates ?? []).filter((row) => row.project_id === project.id).map((row) => ({ id: row.id, projectId: project.id, date: String(row.created_at ?? ''), author: 'Team member', message: String(row.content ?? row.title ?? ''), type: 'progress' } as ProjectUpdate))
-    ;
+  const projectUpdateItems: ProjectUpdate[] = [
+    ...(records.project_updates ?? []).filter((row) => row.project_id === project.id).map((row) => ({
+      id: `update-${row.id}`, projectId: project.id, date: String(row.created_at ?? ''),
+      author: 'Project update', message: String(row.content ?? row.title ?? ''), type: 'progress' as const,
+    })),
+    ...(records.site_diaries ?? []).filter((row) => row.project_id === project.id).map((row) => {
+      const details = [
+        String(row.work_performed ?? '').trim(),
+        row.site_conditions ? `Site conditions: ${String(row.site_conditions)}` : '',
+        row.materials_delivered ? `Materials: ${String(row.materials_delivered)}` : '',
+        row.delays_disruptions ? `Delays: ${String(row.delays_disruptions)}` : '',
+        row.safety_observations ? `Safety: ${String(row.safety_observations)}` : '',
+      ].filter(Boolean).join(' · ');
+      return {
+        id: `diary-${row.id}`, projectId: project.id, date: String(row.diary_date ?? row.created_at ?? ''),
+        author: 'Site diary', message: details || 'Daily site record saved', type: 'progress' as const,
+      };
+    }),
+    ...(records.safety_incidents ?? []).filter((row) => row.project_id === project.id).map((row) => ({
+      id: `safety-${row.id}`, projectId: project.id, date: String(row.incident_date ?? row.created_at ?? ''),
+      author: 'Safety register',
+      message: [`Safety ${String(row.incident_type ?? 'observation')}: ${String(row.title ?? '')}`, String(row.description ?? ''), row.immediate_action ? `Immediate action: ${String(row.immediate_action)}` : '', `Status: ${String(row.status ?? 'open')}`].filter(Boolean).join(' · '),
+      type: 'issue' as const,
+    })),
+    ...(records.quality_issues ?? []).filter((row) => row.project_id === project.id).map((row) => ({
+      id: `quality-${row.id}`, projectId: project.id, date: String(row.created_at ?? ''),
+      author: 'Quality register',
+      message: [`Quality issue: ${String(row.title ?? row.description ?? '')}`, row.corrective_action ? `Corrective action: ${String(row.corrective_action)}` : '', `Status: ${String(row.status ?? 'open')}`].filter(Boolean).join(' · '),
+      type: 'issue' as const,
+    })),
+    ...(records.project_rfis ?? []).filter((row) => row.project_id === project.id).map((row) => ({
+      id: `rfi-${row.id}`, projectId: project.id, date: String(row.created_at ?? ''),
+      author: 'Technical query',
+      message: [`${String(row.rfi_number ?? 'RFI')}: ${String(row.subject ?? '')}`, String(row.question ?? ''), row.response ? `Response: ${String(row.response)}` : '', `Status: ${String(row.status ?? 'open')}`].filter(Boolean).join(' · '),
+      type: 'issue' as const,
+    })),
+    ...(records.contract_variations ?? []).filter((row) => row.project_id === project.id).map((row) => ({
+      id: `variation-${row.id}`, projectId: project.id, date: String(row.created_at ?? ''),
+      author: 'Contract register',
+      message: [`Variation ${String(row.variation_number ?? '')}: ${String(row.title ?? '')}`, `Submitted amount: ${formatFullCurrency(Number(row.submitted_amount ?? 0))}`, `Status: ${String(row.status ?? 'draft')}`].filter(Boolean).join(' · '),
+      type: row.status === 'approved' ? 'milestone' as const : 'issue' as const,
+    })),
+  ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   const projectDocs = (records.project_documents ?? []).filter((row) => row.project_id === project.id).map((row) => ({ id: row.id, projectId: project.id, name: String(row.name ?? ''), type: String(row.file_type ?? 'Report'), date: String(row.created_at ?? ''), size: '—' } as ProjectDocument))
     ;
   const projectQualityIssues = (records.quality_issues ?? []).filter((row) => row.project_id === project.id).map((row) => ({ id: row.id, type: String(row.category ?? '').toLowerCase().includes('safety') ? 'Safety Observation' : String(row.category ?? '').toLowerCase().includes('snag') ? 'Snag' : String(row.category ?? '').toLowerCase().includes('defect') ? 'Defect' : 'Issue', description: String(row.description ?? row.title ?? ''), project: project.name, location: '', reportedBy: 'Team member', date: String(row.created_at ?? ''), status: row.status === 'resolved' ? 'Resolved' : row.status === 'in_progress' ? 'In Progress' : 'Open', action: String(row.corrective_action ?? '') } as QualityIssue))
