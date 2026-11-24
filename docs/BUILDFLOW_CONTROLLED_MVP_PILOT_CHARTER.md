@@ -43,9 +43,9 @@ Include only features proven in the accepted MVP candidate:
 - Basic site updates and selected risk/quality/safety records.
 - Project documents and internal communications.
 - Explicitly shared client updates and reports.
-- Read-only VEA briefing only if source grounding, permissions and missing-data disclosure pass.
+- VEA is excluded from the initial pilot baseline. It may be demonstrated separately only after its runtime reliability, source grounding, permissions and missing-data disclosure are verified. See [Issue #21](https://github.com/ae-mak-gif/construction-os/issues/21).
 
-The final participant-specific scope must identify exactly which modules and steps are enabled. Unverified or deferred features must be disabled, excluded or clearly labelled.
+The final participant-specific scope must identify exactly which modules and steps are enabled. Unverified or deferred features must be disabled, excluded or clearly labelled. In particular, do not make VEA a dependency for pilot success while Issue #21 remains open.
 
 ## 5. Data and security boundaries
 
