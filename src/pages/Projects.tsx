@@ -625,8 +625,49 @@ function ProjectTabContent({
   });
   const projectRisks = (records.risks ?? []).filter((row) => row.project_id === project.id).map((row) => ({ id: row.id, risk: String(row.title ?? ''), project: project.name, probability: row.likelihood === 'high' ? 'High' : row.likelihood === 'low' ? 'Low' : 'Medium', impact: row.impact === 'high' ? 'High' : row.impact === 'low' ? 'Low' : 'Medium', owner: String(staffById.get(String(row.owner_id))?.first_name ?? 'Unassigned'), status: row.status === 'closed' ? 'Closed' : row.status === 'mitigated' ? 'Mitigated' : 'Open', mitigation: String(row.mitigation_plan ?? '') } as Risk))
     ;
-  const projectUpdateItems = (records.project_updates ?? []).filter((row) => row.project_id === project.id).map((row) => ({ id: row.id, projectId: project.id, date: String(row.created_at ?? ''), author: 'Team member', message: String(row.content ?? row.title ?? ''), type: 'progress' } as ProjectUpdate))
-    ;
+  const projectUpdateItems: ProjectUpdate[] = [
+    ...(records.project_updates ?? []).filter((row) => row.project_id === project.id).map((row) => ({
+      id: `update-${row.id}`, projectId: project.id, date: String(row.created_at ?? ''),
+      author: 'Project update', message: String(row.content ?? row.title ?? ''), type: 'progress' as const,
+    })),
+    ...(records.site_diaries ?? []).filter((row) => row.project_id === project.id).map((row) => {
+      const details = [
+        String(row.work_performed ?? '').trim(),
+        row.site_conditions ? `Site conditions: ${String(row.site_conditions)}` : '',
+        row.materials_delivered ? `Materials: ${String(row.materials_delivered)}` : '',
+        row.delays_disruptions ? `Delays: ${String(row.delays_disruptions)}` : '',
+        row.safety_observations ? `Safety: ${String(row.safety_observations)}` : '',
+      ].filter(Boolean).join(' · ');
+      return {
+        id: `diary-${row.id}`, projectId: project.id, date: String(row.diary_date ?? row.created_at ?? ''),
+        author: 'Site diary', message: details || 'Daily site record saved', type: 'progress' as const,
+      };
+    }),
+    ...(records.safety_incidents ?? []).filter((row) => row.project_id === project.id).map((row) => ({
+      id: `safety-${row.id}`, projectId: project.id, date: String(row.incident_date ?? row.created_at ?? ''),
+      author: 'Safety register',
+      message: [`Safety ${String(row.incident_type ?? 'observation')}: ${String(row.title ?? '')}`, String(row.description ?? ''), row.immediate_action ? `Immediate action: ${String(row.immediate_action)}` : '', `Status: ${String(row.status ?? 'open')}`].filter(Boolean).join(' · '),
+      type: 'issue' as const,
+    })),
+    ...(records.quality_issues ?? []).filter((row) => row.project_id === project.id).map((row) => ({
+      id: `quality-${row.id}`, projectId: project.id, date: String(row.created_at ?? ''),
+      author: 'Quality register',
+      message: [`Quality issue: ${String(row.title ?? row.description ?? '')}`, row.corrective_action ? `Corrective action: ${String(row.corrective_action)}` : '', `Status: ${String(row.status ?? 'open')}`].filter(Boolean).join(' · '),
+      type: 'issue' as const,
+    })),
+    ...(records.project_rfis ?? []).filter((row) => row.project_id === project.id).map((row) => ({
+      id: `rfi-${row.id}`, projectId: project.id, date: String(row.created_at ?? ''),
+      author: 'Technical query',
+      message: [`${String(row.rfi_number ?? 'RFI')}: ${String(row.subject ?? '')}`, String(row.question ?? ''), row.response ? `Response: ${String(row.response)}` : '', `Status: ${String(row.status ?? 'open')}`].filter(Boolean).join(' · '),
+      type: 'issue' as const,
+    })),
+    ...(records.contract_variations ?? []).filter((row) => row.project_id === project.id).map((row) => ({
+      id: `variation-${row.id}`, projectId: project.id, date: String(row.created_at ?? ''),
+      author: 'Contract register',
+      message: [`Variation ${String(row.variation_number ?? '')}: ${String(row.title ?? '')}`, `Submitted amount: ${formatFullCurrency(Number(row.submitted_amount ?? 0))}`, `Status: ${String(row.status ?? 'draft')}`].filter(Boolean).join(' · '),
+      type: row.status === 'approved' ? 'milestone' as const : 'issue' as const,
+    })),
+  ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   const projectDocs = (records.project_documents ?? []).filter((row) => row.project_id === project.id).map((row) => ({ id: row.id, projectId: project.id, name: String(row.name ?? ''), type: String(row.file_type ?? 'Report'), date: String(row.created_at ?? ''), size: '—' } as ProjectDocument))
     ;
   const projectQualityIssues = (records.quality_issues ?? []).filter((row) => row.project_id === project.id).map((row) => ({ id: row.id, type: String(row.category ?? '').toLowerCase().includes('safety') ? 'Safety Observation' : String(row.category ?? '').toLowerCase().includes('snag') ? 'Snag' : String(row.category ?? '').toLowerCase().includes('defect') ? 'Defect' : 'Issue', description: String(row.description ?? row.title ?? ''), project: project.name, location: '', reportedBy: 'Team member', date: String(row.created_at ?? ''), status: row.status === 'resolved' ? 'Resolved' : row.status === 'in_progress' ? 'In Progress' : 'Open', action: String(row.corrective_action ?? '') } as QualityIssue))
