@@ -707,7 +707,22 @@ export function BOQEstimates() {
 export function Procurement() {
   const { create, records } = useBuildFlowData();
   const projectById = useMemo(() => new Map((records.projects ?? []).map((row) => [row.id, row])), [records.projects]);
-  const liveRequests = useMemo<PurchaseRequest[]>(() => (records.purchase_requests ?? []).map((row) => ({ id: String(row.request_number ?? row.id), item: String(row.description ?? ''), project: String(projectById.get(String(row.project_id))?.name ?? 'Unassigned project'), qty: 1, unit: 'item', estCost: Number(row.estimated_amount ?? 0), requestedBy: 'Team member', date: String(row.created_at ?? '').slice(0, 10), status: row.status === 'approved' ? 'Approved' : row.status === 'ordered' ? 'PO Issued' : row.status === 'delivered' ? 'Delivered' : row.status === 'rejected' ? 'Rejected' : 'Requested', supplier: 'Pending' } as PurchaseRequest)), [records.purchase_requests, projectById]);
+  const liveRequests = useMemo<PurchaseRequest[]>(() => (records.purchase_requests ?? []).map((row) => {
+    const quantityLine = String(row.notes ?? '').split(/\\r?\\n/).find((line) => /^Quantity:/i.test(line));
+    const quantityMatch = quantityLine?.match(/^Quantity:\\s*([0-9]+(?:\\.[0-9]+)?)\\s*(.*)$/i);
+    return {
+      id: String(row.request_number ?? row.id),
+      item: String(row.description ?? ''),
+      project: String(projectById.get(String(row.project_id))?.name ?? 'Unassigned project'),
+      qty: quantityMatch ? Number(quantityMatch[1]) : 1,
+      unit: quantityMatch?.[2]?.trim() || 'item',
+      estCost: Number(row.estimated_amount ?? 0),
+      requestedBy: row.requested_by ? 'Account user' : '—',
+      date: String(row.created_at ?? '').slice(0, 10),
+      status: row.status === 'approved' ? 'Approved' : row.status === 'ordered' ? 'PO Issued' : row.status === 'fulfilled' ? 'Delivered' : row.status === 'rejected' ? 'Rejected' : row.status === 'cancelled' ? 'Cancelled' : 'Requested',
+      supplier: 'Not assigned',
+    } as PurchaseRequest;
+  }), [records.purchase_requests, projectById]);
   const [statusFilter, setStatusFilter] = useState('All');
   const [requests, setRequests] = useState(liveRequests);
   useEffect(() => { setRequests(liveRequests); }, [liveRequests]);
@@ -728,6 +743,7 @@ export function Procurement() {
     'PO Issued',
     'Delivered',
     'Rejected',
+    'Cancelled',
   ];
 
   const filtered =
