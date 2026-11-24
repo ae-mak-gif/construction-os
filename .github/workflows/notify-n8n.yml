@@ -24,6 +24,7 @@ jobs:
       - name: Forward event when the n8n webhook is configured
         env:
           N8N_BUILD_FLOW_WEBHOOK_URL: ${{ secrets.N8N_BUILD_FLOW_WEBHOOK_URL }}
+          N8N_BUILD_FLOW_WEBHOOK_SECRET: ${{ secrets.N8N_BUILD_FLOW_WEBHOOK_SECRET }}
           EVENT_NAME: ${{ github.event_name }}
           EVENT_ACTION: ${{ github.event.action || '' }}
           REPOSITORY: ${{ github.repository }}
@@ -38,8 +39,8 @@ jobs:
         run: |
           set -euo pipefail
 
-          if [[ -z "${N8N_BUILD_FLOW_WEBHOOK_URL}" ]]; then
-            echo "N8N_BUILD_FLOW_WEBHOOK_URL is not configured; event forwarding is safely skipped."
+          if [[ -z "${N8N_BUILD_FLOW_WEBHOOK_URL}" || -z "${N8N_BUILD_FLOW_WEBHOOK_SECRET}" ]]; then
+            echo "The n8n webhook URL or shared secret is not configured; event forwarding is safely skipped."
             exit 0
           fi
 
